@@ -10,10 +10,6 @@
 #include "ResourceFile.hh"
 #include "SpriteDecoders/Decoders.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 constexpr uint32_t RESOURCE_TYPE_LEVL = 0x4C45564C;
 constexpr uint32_t RESOURCE_TYPE_SHAP = 0x53484150;
 constexpr uint32_t RESOURCE_TYPE_CUST = 0x43555354;
@@ -391,18 +387,18 @@ struct CustomRoomDefinition {
   // Temple inscription  4025: 001F 0FB9 0001 0000 FFFF FFFF 0001 0000 0000 0000 0000 0000 0000 0000 0001  0000 00D8 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
 
   struct CUSTHeader {
-    be_uint16_t unknown_a1;
-    be_uint16_t base_shap_id;
-    be_uint16_t max_piece_id;
-    be_uint16_t unknown_a2[11];
-    be_uint16_t num_pieces;
+    phosg::be_uint16_t unknown_a1;
+    phosg::be_uint16_t base_shap_id;
+    phosg::be_uint16_t max_piece_id;
+    phosg::be_uint16_t unknown_a2[11];
+    phosg::be_uint16_t num_pieces;
   } __attribute__((packed));
   struct CUSTPiece {
-    be_uint16_t piece_id; // SHAP ID is this + base_shap_id
-    be_uint16_t bottom_offset; // top offset = 0x16D - this - SHAP height
-    be_uint16_t left_offset;
-    be_uint16_t type; // 0 = background, 1 = static foreground, 0x0B = animated foreground?
-    be_uint16_t unknown_a1[12];
+    phosg::be_uint16_t piece_id; // SHAP ID is this + base_shap_id
+    phosg::be_uint16_t bottom_offset; // top offset = 0x16D - this - SHAP height
+    phosg::be_uint16_t left_offset;
+    phosg::be_uint16_t type; // 0 = background, 1 = static foreground, 0x0B = animated foreground?
+    phosg::be_uint16_t unknown_a1[12];
   } __attribute__((packed));
 
   struct Piece {
@@ -414,10 +410,10 @@ struct CustomRoomDefinition {
   };
 
   uint16_t base_shap_id;
-  vector<Piece> pieces;
+  std::vector<Piece> pieces;
 
-  CustomRoomDefinition(const string& res_data) {
-    StringReader r(res_data);
+  CustomRoomDefinition(const std::string& res_data) {
+    phosg::StringReader r(res_data);
     const auto& header = r.get<CUSTHeader>();
     this->base_shap_id = header.base_shap_id;
     while (this->pieces.size() < header.num_pieces) {
@@ -435,41 +431,43 @@ struct CustomRoomDefinition {
 // Level kind defs (where to get all the SHAPs, CUSTs, and CTBLs from)
 
 struct LevelKindDefinition {
-  string resource_filename;
-  unique_ptr<const ResourceFile> resource_file;
-  unordered_map<int16_t, int16_t> ctbl_id_for_shap_id;
-  unordered_map<int16_t, const vector<ColorTableEntry>> decoded_color_tables;
-  unordered_map<int16_t, const ImageRGBA8888N> decoded_shapes;
-  unordered_map<int16_t, const CustomRoomDefinition> decoded_custom_rooms;
+  std::string resource_filename;
+  std::unique_ptr<const ResourceDASM::ResourceFile> resource_file;
+  std::unordered_map<int16_t, int16_t> ctbl_id_for_shap_id;
+  std::unordered_map<int16_t, const std::vector<ResourceDASM::ColorTableEntry>> decoded_color_tables;
+  std::unordered_map<int16_t, const phosg::ImageRGBA8888N> decoded_shapes;
+  std::unordered_map<int16_t, const CustomRoomDefinition> decoded_custom_rooms;
 
-  LevelKindDefinition(string&& resource_filename, unordered_map<int16_t, int16_t>&& ctbl_id_for_shap_id)
+  LevelKindDefinition(std::string&& resource_filename, std::unordered_map<int16_t, int16_t>&& ctbl_id_for_shap_id)
       : resource_filename(resource_filename), ctbl_id_for_shap_id(ctbl_id_for_shap_id) {}
 
-  const ResourceFile& get_rf() {
+  const ResourceDASM::ResourceFile& get_rf() {
     if (!this->resource_file) {
       try {
-        this->resource_file = make_unique<ResourceFile>(parse_resource_fork(load_file(this->resource_filename + "/..namedfork/rsrc")));
-      } catch (const cannot_open_file&) {
-        this->resource_file = make_unique<ResourceFile>(parse_resource_fork(load_file(this->resource_filename)));
+        this->resource_file = std::make_unique<ResourceDASM::ResourceFile>(
+            ResourceDASM::parse_resource_fork(phosg::load_file(this->resource_filename + "/..namedfork/rsrc")));
+      } catch (const phosg::cannot_open_file&) {
+        this->resource_file = std::make_unique<ResourceDASM::ResourceFile>(
+            ResourceDASM::parse_resource_fork(phosg::load_file(this->resource_filename)));
       }
     }
     return *this->resource_file;
   }
 
-  const vector<ColorTableEntry>& get_CTBL(int16_t id) {
+  const std::vector<ResourceDASM::ColorTableEntry>& get_CTBL(int16_t id) {
     try {
       return this->decoded_color_tables.at(id);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       const auto& rf = this->get_rf();
       auto [it, _] = this->decoded_color_tables.emplace(id, rf.decode_CTBL(id));
       return it->second;
     }
   }
 
-  const ImageRGBA8888N& get_SHAP(int16_t id) {
+  const phosg::ImageRGBA8888N& get_SHAP(int16_t id) {
     try {
       return this->decoded_shapes.at(id);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       const auto& rf = this->get_rf();
       int16_t ctbl_id = this->ctbl_id_for_shap_id.at(id);
       auto [it, _] = this->decoded_shapes.emplace(
@@ -481,7 +479,7 @@ struct LevelKindDefinition {
   const CustomRoomDefinition& get_CUST(int16_t id) {
     try {
       return this->decoded_custom_rooms.at(id);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       const auto& rf = this->get_rf();
       auto [it, _] = this->decoded_custom_rooms.emplace(id, rf.get_resource(RESOURCE_TYPE_CUST, id)->data);
       return it->second;
@@ -556,7 +554,7 @@ struct PrinceOfPersia2Level {
   // 2A = unknown
   // 2B = flame
   // 2C = bridge
-  /* 0000 */ be_uint16_t room_tiles[32][30];
+  /* 0000 */ phosg::be_uint16_t room_tiles[32][30];
   struct TileModifiers {
     uint8_t mod0;
     uint8_t mod1;
@@ -566,28 +564,28 @@ struct PrinceOfPersia2Level {
   /* 0780 */ TileModifiers room_tile_mods[32][30];
 
   struct DoorLink {
-    be_uint16_t room_id;
-    be_uint16_t tile_index;
-    be_uint16_t unknown_a1;
-    be_uint16_t left;
-    be_uint16_t right;
+    phosg::be_uint16_t room_id;
+    phosg::be_uint16_t tile_index;
+    phosg::be_uint16_t unknown_a1;
+    phosg::be_uint16_t left;
+    phosg::be_uint16_t right;
   } __attribute__((packed));
   /* 1680 */ DoorLink door_links[0x100];
 
   struct RoomLinks {
-    be_uint16_t left;
-    be_uint16_t right;
-    be_uint16_t above;
-    be_uint16_t below;
+    phosg::be_uint16_t left;
+    phosg::be_uint16_t right;
+    phosg::be_uint16_t above;
+    phosg::be_uint16_t below;
   } __attribute__((packed));
   /* 2080 */ RoomLinks room_links[0x20];
 
   /* 2180 */ uint8_t unknown_a1[6];
-  /* 2186 */ be_uint16_t level_kind; // Key in level_kind_defs
+  /* 2186 */ phosg::be_uint16_t level_kind; // Key in level_kind_defs
   /* 2188 */ uint8_t unknown_a2[0x10];
-  /* 2198 */ be_uint16_t start_room_id;
-  /* 219A */ be_uint16_t start_tile_index;
-  /* 219C */ be_uint16_t start_direction; // TODO: ??
+  /* 2198 */ phosg::be_uint16_t start_room_id;
+  /* 219A */ phosg::be_uint16_t start_tile_index;
+  /* 219C */ phosg::be_uint16_t start_direction; // TODO: ??
   /* 219E */ uint8_t unknown_a3[6];
 
   // guard_kind:
@@ -596,30 +594,30 @@ struct PrinceOfPersia2Level {
   // 5 = head/snake
   // 7 = temple (bird)
   // 255 = none
-  /* 21A4 */ be_uint16_t guard_kind;
+  /* 21A4 */ phosg::be_uint16_t guard_kind;
 
   struct RoomGuards {
-    /* 00 */ be_uint16_t num_guards;
+    /* 00 */ phosg::be_uint16_t num_guards;
     struct Guard {
-      /* 00 */ be_uint16_t unknown_a1;
-      /* 02 */ be_uint16_t unknown_a2;
-      /* 04 */ be_uint16_t unknown_a3;
-      /* 06 */ be_uint16_t unknown_a4;
-      /* 08 */ be_uint16_t unknown_a5;
-      /* 0A */ be_uint16_t unknown_a6;
-      /* 0C */ be_uint16_t unknown_a7;
-      /* 0E */ be_uint16_t unknown_a8;
-      /* 10 */ be_uint16_t unknown_a9;
-      /* 12 */ be_uint16_t unknown_a10;
-      /* 14 */ be_uint16_t unknown_a11;
-      /* 16 */ be_uint16_t unknown_a12;
-      /* 18 */ be_uint16_t unknown_a13;
-      /* 1A */ be_uint16_t unknown_a14;
-      /* 1C */ be_uint16_t unknown_a15;
-      /* 1E */ be_uint16_t unknown_a16;
-      /* 20 */ be_uint16_t unknown_a17;
-      /* 22 */ be_uint16_t unknown_a18;
-      /* 24 */ be_uint16_t unknown_a19;
+      /* 00 */ phosg::be_uint16_t unknown_a1;
+      /* 02 */ phosg::be_uint16_t unknown_a2;
+      /* 04 */ phosg::be_uint16_t unknown_a3;
+      /* 06 */ phosg::be_uint16_t unknown_a4;
+      /* 08 */ phosg::be_uint16_t unknown_a5;
+      /* 0A */ phosg::be_uint16_t unknown_a6;
+      /* 0C */ phosg::be_uint16_t unknown_a7;
+      /* 0E */ phosg::be_uint16_t unknown_a8;
+      /* 10 */ phosg::be_uint16_t unknown_a9;
+      /* 12 */ phosg::be_uint16_t unknown_a10;
+      /* 14 */ phosg::be_uint16_t unknown_a11;
+      /* 16 */ phosg::be_uint16_t unknown_a12;
+      /* 18 */ phosg::be_uint16_t unknown_a13;
+      /* 1A */ phosg::be_uint16_t unknown_a14;
+      /* 1C */ phosg::be_uint16_t unknown_a15;
+      /* 1E */ phosg::be_uint16_t unknown_a16;
+      /* 20 */ phosg::be_uint16_t unknown_a17;
+      /* 22 */ phosg::be_uint16_t unknown_a18;
+      /* 24 */ phosg::be_uint16_t unknown_a19;
       /* 26 */
     } __attribute__((packed));
     /* 02 */ Guard guards[5];
@@ -627,8 +625,8 @@ struct PrinceOfPersia2Level {
   } __attribute__((packed));
   /* 21A6 */ RoomGuards room_guards[0x20];
   struct Checkpoint {
-    be_uint16_t room_id;
-    be_uint16_t tile_index;
+    phosg::be_uint16_t room_id;
+    phosg::be_uint16_t tile_index;
   } __attribute__((packed));
   /* 39A6 */ Checkpoint checkpoints[9];
   /* 39CA */ uint8_t unknown_a4[0x1000];
@@ -638,12 +636,12 @@ struct PrinceOfPersia2Level {
 struct RoomGraph {
   struct Component {
     uint8_t component_id;
-    unordered_map<uint8_t, pair<int8_t, int8_t>> placement_map;
+    std::unordered_map<uint8_t, std::pair<int8_t, int8_t>> placement_map;
   };
 
   const PrinceOfPersia2Level* level;
-  vector<Component> components;
-  unordered_map<uint32_t, uint8_t> room_id_for_placement;
+  std::vector<Component> components;
+  std::unordered_map<uint32_t, uint8_t> room_id_for_placement;
 
   uint32_t remaining_room_ids = 0xFFFFFFFF;
 
@@ -664,7 +662,7 @@ struct RoomGraph {
     if (this->room_is_remaining(room_id)) {
       this->mark_room_done(room_id);
 
-      component.placement_map.emplace(room_id, make_pair(x, y));
+      component.placement_map.emplace(room_id, std::make_pair(x, y));
       this->room_id_for_placement.emplace(placement_key, room_id);
 
       const auto& links = this->level->room_links[room_id];
@@ -681,9 +679,8 @@ struct RoomGraph {
         this->place_room(component, links.below - 1, x, y + 1);
       }
 
-      // If the room was already placed, ensure the room's existing placement
-      // matches the one we're supposed to add
     } else {
+      // If the room was already placed, ensure the room's existing placement matches the one we're supposed to add
       auto it = this->room_id_for_placement.find(placement_key);
       if (it == this->room_id_for_placement.end() || it->second != room_id) {
         phosg::fwrite_fmt(stderr, "Warning: bad backlink at room {}", room_id);
@@ -722,7 +719,7 @@ struct RoomGraph {
       if (this->room_is_remaining(room_id)) {
         this->place_component(room_id);
         if (this->room_is_remaining(room_id)) {
-          throw logic_error("room ID present in remaining set after processing");
+          throw std::logic_error("room ID present in remaining set after processing");
         }
       }
     }
@@ -732,34 +729,34 @@ struct RoomGraph {
 int main(int argc, char** argv) {
   phosg::Arguments args(argv + 1, argc - 1);
 
-  const auto& data_dir = args.get<string>(0);
-  string output_dir = args.get<string>(1, false);
+  const auto& data_dir = args.get<std::string>(0);
+  std::string output_dir = args.get<std::string>(1, false);
   if (output_dir.empty()) {
     output_dir = ".";
   }
 
-  auto prince_rsrc = parse_resource_fork(phosg::load_file(data_dir + "/Prince.rsrc/..namedfork/rsrc"));
+  auto prince_rsrc = ResourceDASM::parse_resource_fork(phosg::load_file(data_dir + "/Prince.rsrc/..namedfork/rsrc"));
   auto level_kind_defs = load_level_kinds(data_dir);
 
   for (const auto& res_id : prince_rsrc.all_resources_of_type(RESOURCE_TYPE_LEVL)) {
     auto res = prince_rsrc.get_resource(RESOURCE_TYPE_LEVL, res_id);
     if (res->data.size() != sizeof(PrinceOfPersia2Level)) {
-      throw runtime_error(format("invalid LEVL resource with ID {}", res_id));
+      throw std::runtime_error(std::format("invalid LEVL resource with ID {}", res_id));
     }
     const auto* level = reinterpret_cast<const PrinceOfPersia2Level*>(res->data.data());
 
     LevelKindDefinition* level_kind = nullptr;
     try {
       level_kind = &level_kind_defs.at(level->level_kind);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
 
     RoomGraph room_graph(level);
     for (const auto& component : room_graph.components) {
       size_t w_rooms = 0, h_rooms = 0;
       for (const auto& [_, placement] : component.placement_map) {
-        w_rooms = max<size_t>(placement.first + 1, w_rooms);
-        h_rooms = max<size_t>(placement.second + 1, h_rooms);
+        w_rooms = std::max<size_t>(placement.first + 1, w_rooms);
+        h_rooms = std::max<size_t>(placement.second + 1, h_rooms);
       }
 
       // Tiles are 51x120 pixels (virtual screen is 512x360)
@@ -773,8 +770,8 @@ int main(int argc, char** argv) {
         const auto& room_tiles = level->room_tiles[room_id];
         const auto& room_tile_mods = level->room_tile_mods[room_id];
 
-        // Draw background tiles. Draw white first in case the background SHAPs
-        // or CUST doesn't fill in everything (or is/are missing)
+        // Draw background tiles. Draw white first in case the background SHAPs or CUST doesn't fill in everything (or
+        // is/are missing)
         map.write_rect(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3, 0xFFFFFFFF);
 
         if (level_kind) {
@@ -786,14 +783,14 @@ int main(int argc, char** argv) {
                 map.copy_from(shap, room_x + piece.left_offset, room_y + TILE_H_PIXELS * 3 - piece.bottom_offset, shap.w, shap.h, 0, 0);
               }
             }
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
             for (size_t z = 0; z < 30; z++) {
               try {
                 size_t tile_x = room_x + (z % 10) * TILE_W_PIXELS;
                 size_t tile_y = room_y + (z / 10) * TILE_H_PIXELS;
                 const auto& shap = level_kind->get_SHAP(3501 + room_tile_mods[z].bg_index);
                 map.copy_from(shap, tile_x, tile_y, TILE_W_PIXELS, TILE_H_PIXELS, 0, 0);
-              } catch (const out_of_range&) {
+              } catch (const std::out_of_range&) {
               }
             }
           }
@@ -925,7 +922,7 @@ int main(int argc, char** argv) {
         map.draw_text(room_x, room_y, 0xFF0000FF, "     RM{:02X}", room_id);
       }
 
-      string filename = format("{}/pop2_level{}_part{}.bmp", output_dir, res_id, component.component_id);
+      std::string filename = format("{}/pop2_level{}_part{}.bmp", output_dir, res_id, component.component_id);
       phosg::save_file(filename, map.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
       phosg::fwrite_fmt(stderr, "... {}\n", filename);
     }

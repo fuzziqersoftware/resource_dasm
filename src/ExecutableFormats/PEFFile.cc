@@ -13,9 +13,6 @@
 #include "../Emulators/MemoryContext.hh"
 #include "../Emulators/PPC32Emulator.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 const char* name_for_section_kind(PEFSectionKind k) {
@@ -57,11 +54,11 @@ const char* name_for_share_kind(PEFShareKind k) {
 }
 
 PEFFile::PEFFile(const char* filename) : filename(filename) {
-  const string data = load_file(filename);
+  const std::string data = phosg::load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-PEFFile::PEFFile(const char* filename, const string& data) : filename(filename) {
+PEFFile::PEFFile(const char* filename, const std::string& data) : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
@@ -69,7 +66,7 @@ PEFFile::PEFFile(const char* filename, const void* data, size_t size) : filename
   this->parse(data, size);
 }
 
-static uint64_t read_pattern_varint(StringReader& r) {
+static uint64_t read_pattern_varint(phosg::StringReader& r) {
   uint8_t b;
   uint64_t ret = 0;
   do {
@@ -79,9 +76,9 @@ static uint64_t read_pattern_varint(StringReader& r) {
   return ret;
 }
 
-static string decompress_pattern_data(const string& data) {
-  string ret;
-  StringReader r(data.data(), data.size());
+static std::string decompress_pattern_data(const std::string& data) {
+  std::string ret;
+  phosg::StringReader r(data.data(), data.size());
   while (!r.eof()) {
     uint8_t b = r.get_u8();
     uint8_t op = (b >> 5) & 0x07;
@@ -99,7 +96,7 @@ static string decompress_pattern_data(const string& data) {
         break;
       case 2: { // write block repeatedly
         uint32_t repeat_count = read_pattern_varint(r) + 1;
-        string data = r.read(count);
+        std::string data = r.read(count);
         for (; repeat_count; repeat_count--) {
           ret.append(data);
         }
@@ -109,7 +106,7 @@ static string decompress_pattern_data(const string& data) {
         uint32_t common_size = count;
         uint32_t custom_size = read_pattern_varint(r);
         uint32_t custom_section_count = read_pattern_varint(r);
-        string common_data = r.read(common_size);
+        std::string common_data = r.read(common_size);
         for (; custom_section_count; custom_section_count--) {
           ret.append(common_data);
           ret.append(r.read(custom_size));
@@ -129,21 +126,21 @@ static string decompress_pattern_data(const string& data) {
         break;
       }
       default:
-        throw runtime_error("invalid opcode in pattern data");
+        throw std::runtime_error("invalid opcode in pattern data");
     }
   }
 
   return ret;
 }
 
-static void disassemble_relocation_program(FILE* stream, const string& data) {
-  StringReader r(data.data(), data.size());
+static void disassemble_relocation_program(FILE* stream, const std::string& data) {
+  phosg::StringReader r(data.data(), data.size());
 
   while (!r.eof()) {
     size_t op_start_offset = r.where();
     uint16_t cmd = r.get_u16b();
 
-    string op_dasm;
+    std::string op_dasm;
     if ((cmd & 0xC000) == 0x0000) {
       uint8_t count = cmd & 0x3F;
       uint8_t skip_count = (cmd >> 6) & 0xFF;
@@ -213,7 +210,7 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
 
     size_t op_end_offset = r.where();
     r.go(op_start_offset);
-    string data_str;
+    std::string data_str;
     while (r.where() < op_end_offset) {
       data_str += std::format("{:04X} ", r.get_u16b());
     }
@@ -221,12 +218,12 @@ static void disassemble_relocation_program(FILE* stream, const string& data) {
       data_str.resize(10, ' ');
     }
 
-    fwrite_fmt(stream, "  {:04X}:  {} {}\n", op_start_offset, data_str, op_dasm);
+    phosg::fwrite_fmt(stream, "  {:04X}:  {} {}\n", op_start_offset, data_str, op_dasm);
   }
 }
 
 void PEFFile::parse_loader_section(const void* data, size_t size) {
-  StringReader r(data, size);
+  phosg::StringReader r(data, size);
 
   const PEFLoaderSectionHeader& header = r.get<PEFLoaderSectionHeader>();
 
@@ -252,13 +249,13 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     this->term_symbol.type = 0;
   }
 
-  map<size_t, string> import_library_start_indexes;
-  unordered_set<string> weak_import_library_names;
+  std::map<size_t, std::string> import_library_start_indexes;
+  std::unordered_set<std::string> weak_import_library_names;
   for (size_t x = 0; x < header.imported_lib_count; x++) {
     const PEFLoaderImportLibrary& lib = r.get<PEFLoaderImportLibrary>();
 
     if (header.string_table_offset + lib.name_offset >= size) {
-      throw runtime_error("library name out of range");
+      throw std::runtime_error("library name out of range");
     }
     const char* name = reinterpret_cast<const char*>(data) + header.string_table_offset + lib.name_offset;
     import_library_start_indexes.emplace(lib.start_index, name);
@@ -267,7 +264,7 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     }
   }
 
-  string current_lib_name = "__missing__";
+  std::string current_lib_name = "__missing__";
   bool current_lib_weak = false;
   for (size_t x = 0; x < header.imported_symbol_count; x++) {
     const PEFLoaderImportSymbol& sym = r.get<PEFLoaderImportSymbol>();
@@ -275,11 +272,11 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     try {
       current_lib_name = import_library_start_indexes.at(x);
       current_lib_weak = weak_import_library_names.count(current_lib_name);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
 
     if (header.string_table_offset + sym.name_offset() >= size) {
-      throw runtime_error("symbol name out of range");
+      throw std::runtime_error("symbol name out of range");
     }
     const char* name = reinterpret_cast<const char*>(data) + header.string_table_offset + sym.name_offset();
 
@@ -295,16 +292,14 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     const PEFLoaderRelocationHeader& rel = r.get<PEFLoaderRelocationHeader>();
 
     if (this->sections.size() <= rel.section_index) {
-      // TODO: do we need to support the loader section appearing before other
-      // sections?
-      throw runtime_error("relocation program refers to nonexistent section");
+      // TODO: do we need to support the loader section appearing before other sections?
+      throw std::runtime_error("relocation program refers to nonexistent section");
     }
     if (!this->sections[rel.section_index].relocation_program.empty()) {
-      throw runtime_error("section has multiple relocation programs");
+      throw std::runtime_error("section has multiple relocation programs");
     }
-    this->sections[rel.section_index].relocation_program = string(
-        reinterpret_cast<const char*>(data) + header.rel_commands_offset + rel.start_offset,
-        rel.word_count * 2);
+    this->sections[rel.section_index].relocation_program = std::string(
+        reinterpret_cast<const char*>(data) + header.rel_commands_offset + rel.start_offset, rel.word_count * 2);
   }
 
   r.go(header.export_hash_offset);
@@ -314,9 +309,9 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
     hash_export_count += ent.chain_count();
   }
   if (hash_export_count != header.exported_symbol_count) {
-    throw runtime_error("hash key count does not match imported symbol count");
+    throw std::runtime_error("hash key count does not match imported symbol count");
   }
-  vector<uint16_t> symbol_name_lengths(hash_export_count, 0);
+  std::vector<uint16_t> symbol_name_lengths(hash_export_count, 0);
   for (size_t x = 0; x < hash_export_count; x++) {
     const PEFLoaderExportHashKey& key = r.get<PEFLoaderExportHashKey>();
     symbol_name_lengths[x] = key.symbol_length;
@@ -324,7 +319,7 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
   for (size_t x = 0; x < hash_export_count; x++) {
     const PEFLoaderExportSymbol& sym = r.get<PEFLoaderExportSymbol>();
 
-    string name(reinterpret_cast<const char*>(data) + header.string_table_offset + sym.name_offset(),
+    std::string name(reinterpret_cast<const char*>(data) + header.string_table_offset + sym.name_offset(),
         symbol_name_lengths[x]);
     ExportSymbol exp_sym;
     exp_sym.name = name;
@@ -337,20 +332,20 @@ void PEFFile::parse_loader_section(const void* data, size_t size) {
 }
 
 void PEFFile::parse(const void* data, size_t size) {
-  StringReader r(data, size);
+  phosg::StringReader r(data, size);
 
   const PEFHeader& header = r.get<PEFHeader>();
   if (header.magic1 != 0x4A6F7921) {
-    throw runtime_error("file does not have Joy! signature");
+    throw std::runtime_error("file does not have Joy! signature");
   }
   if (header.magic2 != 0x70656666) {
-    throw runtime_error("file does not have peff signature");
+    throw std::runtime_error("file does not have peff signature");
   }
   if (header.arch != 0x70777063 && header.arch != 0x6D36386B) {
-    throw runtime_error("file is not for the pwpc or m68k architecture");
+    throw std::runtime_error("file is not for the pwpc or m68k architecture");
   }
   if (header.format_version != 0x00000001) {
-    throw runtime_error("file format version is not 1");
+    throw std::runtime_error("file format version is not 1");
   }
 
   this->file_timestamp = header.timestamp;
@@ -368,14 +363,13 @@ void PEFFile::parse(const void* data, size_t size) {
 
     auto sec_data = r.pread(sec_header.container_offset, sec_header.packed_size);
     if (sec_kind == PEFSectionKind::PATTERN_DATA) {
-      string decompressed_data = decompress_pattern_data(sec_data);
-      sec_data = std::move(decompressed_data);
+      sec_data = decompress_pattern_data(sec_data);
     } else if (sec_kind == PEFSectionKind::LOADER) {
       this->parse_loader_section(sec_data.data(), sec_data.size());
       sec_data.clear();
     }
 
-    string name;
+    std::string name;
     if (sec_header.name_offset >= 0) {
       name = sec_data.data() + section_name_table_offset + sec_header.name_offset;
     }
@@ -396,28 +390,28 @@ void PEFFile::parse(const void* data, size_t size) {
 
 void PEFFile::ExportSymbol::print(FILE* stream) const {
   if (this->name.empty()) {
-    fwrite_fmt(stream, "[missing export symbol]");
+    phosg::fwrite_fmt(stream, "[missing export symbol]");
   } else {
-    fwrite_fmt(stream, "[export \"{}\" {}:{:08X}]", this->name,
+    phosg::fwrite_fmt(stream, "[export \"{}\" {}:{:08X}]", this->name,
         this->section_index, this->value);
   }
 }
 
 void PEFFile::ImportSymbol::print(FILE* stream) const {
-  fwrite_fmt(stream, "[import {}:{} ({:X}{:X})]", this->lib_name,
+  phosg::fwrite_fmt(stream, "[import {}:{} ({:X}{:X})]", this->lib_name,
       this->name, this->flags, this->type);
 }
 
 void PEFFile::print(
     FILE* stream,
-    const multimap<uint32_t, string>* labels,
+    const std::multimap<uint32_t, std::string>* labels,
     bool print_hex_view_for_code,
     bool all_sections_as_code) const {
-  fwrite_fmt(stream, "[PEF file: {}]\n", this->filename);
-  fwrite_fmt(stream, "  file_timestamp: {:08X}\n", this->file_timestamp);
-  fwrite_fmt(stream, "  old_def_version: {:08X}\n", this->old_def_version);
-  fwrite_fmt(stream, "  old_imp_version: {:08X}\n", this->old_imp_version);
-  fwrite_fmt(stream, "  current_version: {:08X}\n", this->current_version);
+  phosg::fwrite_fmt(stream, "[PEF file: {}]\n", this->filename);
+  phosg::fwrite_fmt(stream, "  file_timestamp: {:08X}\n", this->file_timestamp);
+  phosg::fwrite_fmt(stream, "  old_def_version: {:08X}\n", this->old_def_version);
+  phosg::fwrite_fmt(stream, "  old_imp_version: {:08X}\n", this->old_imp_version);
+  phosg::fwrite_fmt(stream, "  current_version: {:08X}\n", this->current_version);
 
   fputs("  main: ", stream);
   this->main_symbol.print(stream);
@@ -428,7 +422,7 @@ void PEFFile::print(
 
   // TODO: Add export symbols as labels in the disassembly
 
-  vector<string> import_names;
+  std::vector<std::string> import_names;
   for (size_t x = 0; x < this->import_symbols.size(); x++) {
     const auto& sym = this->import_symbols[x];
     import_names.emplace_back(std::format("({}) {}:{}", x, sym.lib_name, sym.name));
@@ -436,63 +430,62 @@ void PEFFile::print(
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fwrite_fmt(stream, "\n[section {:X} header]\n", x);
-    fwrite_fmt(stream, "  name {}\n", sec.name.empty() ? "__missing__" : sec.name);
-    fwrite_fmt(stream, "  default_address {:08X}\n", sec.default_address);
-    fwrite_fmt(stream, "  total_size {:X}\n", sec.total_size);
-    fwrite_fmt(stream, "  unpacked_size {:X}\n", sec.unpacked_size);
-    fwrite_fmt(stream, "  packed_size {:X}\n", sec.packed_size);
-    fwrite_fmt(stream, "  section_kind {}\n", name_for_section_kind(sec.section_kind));
-    fwrite_fmt(stream, "  share_kind {}\n", name_for_share_kind(sec.share_kind));
-    fwrite_fmt(stream, "  alignment {:02X}\n", sec.alignment);
+    phosg::fwrite_fmt(stream, "\n[section {:X} header]\n", x);
+    phosg::fwrite_fmt(stream, "  name {}\n", sec.name.empty() ? "__missing__" : sec.name);
+    phosg::fwrite_fmt(stream, "  default_address {:08X}\n", sec.default_address);
+    phosg::fwrite_fmt(stream, "  total_size {:X}\n", sec.total_size);
+    phosg::fwrite_fmt(stream, "  unpacked_size {:X}\n", sec.unpacked_size);
+    phosg::fwrite_fmt(stream, "  packed_size {:X}\n", sec.packed_size);
+    phosg::fwrite_fmt(stream, "  section_kind {}\n", name_for_section_kind(sec.section_kind));
+    phosg::fwrite_fmt(stream, "  share_kind {}\n", name_for_share_kind(sec.share_kind));
+    phosg::fwrite_fmt(stream, "  alignment {:02X}\n", sec.alignment);
     if (all_sections_as_code ||
         sec.section_kind == PEFSectionKind::EXECUTABLE_READONLY ||
         sec.section_kind == PEFSectionKind::EXECUTABLE_READWRITE) {
-      string disassembly = this->arch_is_ppc
+      std::string disassembly = this->arch_is_ppc
           ? PPC32Emulator::disassemble(sec.data.data(), sec.data.size(), 0, labels, &import_names)
           : M68KEmulator::disassemble(sec.data.data(), sec.data.size(), 0, labels);
-      fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
-      fwritex(stream, disassembly);
+      phosg::fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
+      phosg::fwritex(stream, disassembly);
       if (print_hex_view_for_code) {
-        fwrite_fmt(stream, "[section {:X} data]\n", x);
-        print_data(stream, sec.data);
+        phosg::fwrite_fmt(stream, "[section {:X} data]\n", x);
+        phosg::print_data(stream, sec.data);
       }
     } else if (!sec.data.empty()) {
-      fwrite_fmt(stream, "[section {:X} data]\n", x);
-      print_data(stream, sec.data);
+      phosg::fwrite_fmt(stream, "[section {:X} data]\n", x);
+      phosg::print_data(stream, sec.data);
     }
     if (!sec.relocation_program.empty()) {
-      fwrite_fmt(stream, "[section {:X} relocation program disassembly]\n", x);
+      phosg::fwrite_fmt(stream, "[section {:X} relocation program disassembly]\n", x);
       disassemble_relocation_program(stream, sec.relocation_program);
     }
   }
 
-  fwrite_fmt(stream, "[export table: {} entries]\n", this->export_symbols.size());
+  phosg::fwrite_fmt(stream, "[export table: {} entries]\n", this->export_symbols.size());
   for (const auto& it : this->export_symbols) {
     const auto& name = it.first;
     const auto& sym = it.second;
 
-    fwrite_fmt(stream, "  {} => ", name);
+    phosg::fwrite_fmt(stream, "  {} => ", name);
     sym.print(stream);
     fputc('\n', stream);
   }
 
-  fwrite_fmt(stream, "[import table: {} entries]\n", this->import_symbols.size());
+  phosg::fwrite_fmt(stream, "[import table: {} entries]\n", this->import_symbols.size());
   for (size_t x = 0; x < this->import_symbols.size(); x++) {
     const auto& sym = this->import_symbols[x];
 
-    fwrite_fmt(stream, "  {} => ", x);
+    phosg::fwrite_fmt(stream, "  {} => ", x);
     sym.print(stream);
     fputc('\n', stream);
   }
 }
 
-void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
-    uint32_t base_addr) const {
-  vector<uint32_t> section_addrs;
+void PEFFile::load_into(const std::string& lib_name, std::shared_ptr<MemoryContext> mem, uint32_t base_addr) const {
+  std::vector<uint32_t> section_addrs;
   for (const auto& section : this->sections) {
     if (section.total_size < section.data.size()) {
-      throw runtime_error("section total size is smaller than data size");
+      throw std::runtime_error("section total size is smaller than data size");
     }
     if (section.total_size == 0) {
       section_addrs.emplace_back(0);
@@ -510,22 +503,21 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
       base_addr = (base_addr + section.total_size + (page_size - 1)) & (~(page_size - 1));
     }
     if (section_addr == 0) {
-      throw runtime_error("cannot allocate memory for section");
+      throw std::runtime_error("cannot allocate memory for section");
     }
 
     void* section_mem = mem->at<void>(section_addr, section.data.size());
     memcpy(section_mem, section.data.data(), section.data.size());
-    memset(reinterpret_cast<uint8_t*>(section_mem) + section.data.size(), 0,
-        section.total_size - section.data.size());
+    memset(reinterpret_cast<uint8_t*>(section_mem) + section.data.size(), 0, section.total_size - section.data.size());
     section_addrs.emplace_back(section_addr);
   }
 
   auto get_import_symbol_addr = [&](uint32_t index) -> uint32_t {
     const auto& sym = this->import_symbols.at(index);
-    string name = sym.lib_name + ":" + sym.name;
+    std::string name = sym.lib_name + ":" + sym.name;
     try {
       return mem->get_symbol_addr(name);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       if (!(sym.flags & PEFLoaderImportSymbolFlags::WEAK)) {
         throw;
       } else {
@@ -535,21 +527,20 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
   };
 
   auto add_at_addr = [&](uint32_t addr, uint32_t delta) -> void {
-    uint32_t value = mem->read<be_uint32_t>(addr);
-    mem->write<be_uint32_t>(addr, value + delta);
+    uint32_t value = mem->read<phosg::be_uint32_t>(addr);
+    mem->write<phosg::be_uint32_t>(addr, value + delta);
   };
 
   // Run relocation programs
   for (size_t x = 0; x < this->sections.size(); x++) {
     auto& section = this->sections[x];
-    StringReader r(section.relocation_program.data(), section.relocation_program.size());
+    phosg::StringReader r(section.relocation_program.data(), section.relocation_program.size());
 
     uint32_t section_addr = section_addrs[x];
     uint32_t pending_repeat_count = 0;
     uint32_t reloc_address = section_addr;
     uint32_t import_index = 0;
-    // TODO: either of these can be initialized to zero if the relevant section
-    // is missing or not instantiated
+    // TODO: either of these can be initialized to zero if the relevant section is missing or not instantiated
     uint32_t section_c = section_addrs[0] - this->sections[0].default_address;
     uint32_t section_d = section_addrs[1] - this->sections[1].default_address;
 
@@ -592,7 +583,7 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
             add_at_addr(reloc_address, get_import_symbol_addr(import_index));
           }
         } else {
-          throw runtime_error("invalid relocation command");
+          throw std::runtime_error("invalid relocation command");
         }
       } else if ((cmd & 0xE000) == 0x6000) {
         uint16_t index = cmd & 0x01FF;
@@ -607,7 +598,7 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
         } else if ((cmd & 0x1E00) == 0x0600) {
           add_at_addr(reloc_address, section_addrs.at(index));
         } else {
-          throw runtime_error("invalid relocation command");
+          throw std::runtime_error("invalid relocation command");
         }
       } else if ((cmd & 0xF000) == 0x8000) {
         uint16_t delta = (cmd & 0x0FFF) + 1;
@@ -654,7 +645,7 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
         } else if (subcmd == 0x2) {
           section_d = section_addrs.at(index);
         } else {
-          throw runtime_error("invalid relocation command");
+          throw std::runtime_error("invalid relocation command");
         }
       }
     }
@@ -662,7 +653,7 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
 
   // Register exported symbols
   auto register_export_symbol = [&](const ExportSymbol& exp) {
-    string name = lib_name + ":" + exp.name;
+    std::string name = lib_name + ":" + exp.name;
     uint32_t sec_base = section_addrs.at(exp.section_index);
     mem->set_symbol_addr(name, sec_base + exp.value);
   };
@@ -679,11 +670,9 @@ void PEFFile::load_into(const string& lib_name, shared_ptr<MemoryContext> mem,
     register_export_symbol(it.second);
   }
   for (size_t x = 0; x < section_addrs.size(); x++) {
-    if (!section_addrs[x]) {
-      continue;
+    if (section_addrs[x]) {
+      mem->set_symbol_addr(std::format("{}:section:{}", lib_name, x), section_addrs.at(x));
     }
-    string name = std::format("{}:section:{}", lib_name, x);
-    mem->set_symbol_addr(name, section_addrs.at(x));
   }
 }
 

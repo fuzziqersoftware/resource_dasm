@@ -1,13 +1,11 @@
 #include "InterruptManager.hh"
 
-using namespace std;
-
 namespace ResourceDASM {
 
 InterruptManager::InterruptManager() : cycle_count(0) {}
 
-shared_ptr<InterruptManager::PendingCall> InterruptManager::add(uint64_t after_cycles, function<bool()> fn) {
-  auto ret = make_shared<PendingCall>();
+std::shared_ptr<InterruptManager::PendingCall> InterruptManager::add(uint64_t after_cycles, std::function<bool()> fn) {
+  auto ret = std::make_shared<PendingCall>();
   ret->at_cycle_count = this->cycle_count + after_cycles;
   ret->canceled = false;
   ret->completed = false;
@@ -20,8 +18,8 @@ shared_ptr<InterruptManager::PendingCall> InterruptManager::add(uint64_t after_c
       ret->next = this->head;
       this->head = ret;
     } else {
-      shared_ptr<PendingCall> prev = this->head;
-      shared_ptr<PendingCall> next = this->head->next;
+      std::shared_ptr<PendingCall> prev = this->head;
+      std::shared_ptr<PendingCall> next = this->head->next;
       while (next.get() && next->at_cycle_count < ret->at_cycle_count) {
         prev = next;
         next = next->next;
@@ -38,7 +36,7 @@ void InterruptManager::on_cycle_start() {
   this->cycle_count++;
 
   while (this->head.get() && (this->head->at_cycle_count <= this->cycle_count)) {
-    shared_ptr<PendingCall> c = this->head;
+    std::shared_ptr<PendingCall> c = this->head;
     this->head = c->next;
     if (!c->canceled) {
       c->fn();

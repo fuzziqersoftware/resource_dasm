@@ -11,23 +11,20 @@
 #include <phosg/Strings.hh>
 #include <string>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-static bool ccw(const Vector2<double>& a, const Vector2<double>& b, const Vector2<double>& c) {
+static bool ccw(const phosg::Vector2<double>& a, const phosg::Vector2<double>& b, const phosg::Vector2<double>& c) {
   double i = ((c.y - a.y) * (b.x - a.x));
   double j = ((b.y - a.y) * (c.x - a.x));
   return i <= j;
 }
 
-bool orientation_for_point(const vector<Vector2<double>>& pts, size_t index) {
+bool orientation_for_point(const std::vector<phosg::Vector2<double>>& pts, size_t index) {
   if (pts.size() < 3) {
-    throw runtime_error("not enough points for plane");
+    throw std::runtime_error("not enough points for plane");
   }
   if (index >= pts.size()) {
-    throw logic_error("invalid point index");
+    throw std::logic_error("invalid point index");
   }
 
   if (index == 0) {
@@ -39,15 +36,15 @@ bool orientation_for_point(const vector<Vector2<double>>& pts, size_t index) {
   }
 }
 
-Vector3<double> normal_for_point(const Vector3<double>* pts, size_t num_pts, size_t index) {
+phosg::Vector3<double> normal_for_point(const phosg::Vector3<double>* pts, size_t num_pts, size_t index) {
   if (num_pts < 3) {
-    throw runtime_error("not enough points for plane");
+    throw std::runtime_error("not enough points for plane");
   }
   if (index >= num_pts) {
-    throw logic_error("invalid point index");
+    throw std::logic_error("invalid point index");
   }
 
-  Vector3<double> ret;
+  phosg::Vector3<double> ret;
   if (index == 0) {
     ret = (pts[1] - pts[0]).cross(pts[num_pts - 1] - pts[0]);
   } else if (index == num_pts - 1) {
@@ -58,14 +55,15 @@ Vector3<double> normal_for_point(const Vector3<double>* pts, size_t num_pts, siz
 
   double norm = ret.norm();
   if (norm == 0.0) {
-    throw runtime_error("point neighbors are colinear");
+    throw std::runtime_error("point neighbors are colinear");
   }
   ret /= norm;
 
   return ret;
 }
 
-vector<Vector2<double>> project_points(const Vector3<double>& plane_normal, const vector<Vector3<double>>& pts) {
+std::vector<phosg::Vector2<double>> project_points(
+    const phosg::Vector3<double>& plane_normal, const std::vector<phosg::Vector3<double>>& pts) {
   // We'll treat the vectors formed by points 0, 1, and 2 as a basis for this plane. We don't need them to be
   // orthogonal - we just need to preserve the orientation of the polygon, so any affine transform will do.
   auto b1 = pts[1] - pts[0];
@@ -73,14 +71,14 @@ vector<Vector2<double>> project_points(const Vector3<double>& plane_normal, cons
   auto b2 = pts[2] - pts[0];
   b2 /= b2.norm();
 
-  vector<Vector2<double>> ret;
+  std::vector<phosg::Vector2<double>> ret;
   ret.reserve(pts.size());
   for (const auto& pt : pts) {
     // TODO: Do we even need to project here, or can we just dot with the basis vectors and call it done? It's 1AM and
     // I don't want to figure this out for realz right now.
-    Vector3 v = pt - pts[0];
+    phosg::Vector3 v = pt - pts[0];
     double dist = v.dot(plane_normal);
-    Vector3 projected = pt - (plane_normal * dist);
+    phosg::Vector3 projected = pt - (plane_normal * dist);
     ret.emplace_back(b1.dot(projected), b2.dot(projected));
   }
   return ret;
@@ -129,10 +127,10 @@ public:
   void remove_next(Item* i) {
     if (i->next == i) {
       if (i != this->head_item) {
-        throw logic_error("last node is not head");
+        throw std::logic_error("last node is not head");
       }
       if (i != this->tail_item) {
-        throw logic_error("last node is not head");
+        throw std::logic_error("last node is not head");
       }
       delete i;
       this->head_item = nullptr;
@@ -157,7 +155,7 @@ private:
   size_t item_count;
 };
 
-vector<Vector3<size_t>> triangulate_poly(const vector<Vector2<double>>& pts) {
+std::vector<phosg::Vector3<size_t>> triangulate_poly(const std::vector<phosg::Vector2<double>>& pts) {
   // This function splits a closed planar polygon into triangles, avoiding any concave vertices. This is an
   // implementation of a simple "ear clipping" algorithm; the basic idea is to find a run of three vertices that are
   // specified in clockwise order, then add them to the returned triangle list and delete the center point from the
@@ -165,7 +163,7 @@ vector<Vector3<size_t>> triangulate_poly(const vector<Vector2<double>>& pts) {
   // to triangulate a possibly-concave polygon, but this is likely the simplest way to do it.
 
   if (pts.size() < 3) {
-    throw runtime_error("not enough points for a triangle");
+    throw std::runtime_error("not enough points for a triangle");
   }
 
   for (size_t attempt = 0; attempt < 2; attempt++) {
@@ -177,7 +175,7 @@ vector<Vector3<size_t>> triangulate_poly(const vector<Vector2<double>>& pts) {
     }
     auto* i = remaining.head();
 
-    vector<Vector3<size_t>> ret;
+    std::vector<phosg::Vector3<size_t>> ret;
     size_t consecutive_skips = 0;
     while (remaining.size() > 2) {
       size_t ix1 = i->value;
@@ -217,30 +215,30 @@ vector<Vector3<size_t>> triangulate_poly(const vector<Vector2<double>>& pts) {
     }
   }
 
-  throw runtime_error("could not determine inside of polygon");
+  throw std::runtime_error("could not determine inside of polygon");
 }
 
-vector<Vector3<size_t>> split_faces_fan(size_t num_pts) {
+std::vector<phosg::Vector3<size_t>> split_faces_fan(size_t num_pts) {
   if (num_pts < 3) {
-    throw runtime_error("not enough points for triangle fan");
+    throw std::runtime_error("not enough points for triangle fan");
   }
-  vector<Vector3<size_t>> ret;
+  std::vector<phosg::Vector3<size_t>> ret;
   for (size_t z = 2; z < num_pts; z++) {
     ret.emplace_back(0, z - 1, z);
   }
   return ret;
 }
 
-vector<Vector3<double>> collect_vertices(const vector<Vector3<double>>& vertices, const vector<size_t>& indices) {
-  vector<Vector3<double>> ret;
+std::vector<phosg::Vector3<double>> collect_vertices(const std::vector<phosg::Vector3<double>>& vertices, const std::vector<size_t>& indices) {
+  std::vector<phosg::Vector3<double>> ret;
   for (size_t index : indices) {
     ret.emplace_back(vertices.at(index));
   }
   return ret;
 }
 
-string DecodedShap3D::model_as_stl() const {
-  deque<string> lines;
+std::string DecodedShap3D::model_as_stl() const {
+  std::deque<std::string> lines;
   lines.emplace_back("solid obj");
 
   for (const auto& plane : this->planes) {
@@ -248,21 +246,21 @@ string DecodedShap3D::model_as_stl() const {
 
     // We assume all points on each defined plane are coplanar and defined in clockwise order, but they may represent a
     // concave polygon. To triangulate the polygon, we first have to project it into an appropriate 2D space.
-    vector<Vector3<size_t>> tri_indexes;
+    std::vector<phosg::Vector3<size_t>> tri_indexes;
     try {
       auto normal = normal_for_point(plane_vertices.data(), plane_vertices.size(), 0);
       auto projected = project_points(normal, plane_vertices);
       tri_indexes = triangulate_poly(projected);
 
-    } catch (const runtime_error& e) {
+    } catch (const std::runtime_error& e) {
       // If we can't triangulate the polygon (perhaps if it wasn't actually planar), fall back to just blindly
       // converting it to a triangle fan
-      fwrite_fmt(stderr, "warning: failed to split face analytically ({}); fanning it instead\n", e.what());
+      phosg::fwrite_fmt(stderr, "warning: failed to split face analytically ({}); fanning it instead\n", e.what());
       tri_indexes = split_faces_fan(plane_vertices.size());
     }
 
     for (const auto& tri : tri_indexes) {
-      Vector3<double> tri_pts[3] = {plane_vertices.at(tri.x), plane_vertices.at(tri.y), plane_vertices.at(tri.z)};
+      phosg::Vector3<double> tri_pts[3] = {plane_vertices.at(tri.x), plane_vertices.at(tri.y), plane_vertices.at(tri.z)};
       auto n = normal_for_point(tri_pts, 3, 0);
       lines.emplace_back(std::format("facet normal {:g} {:g} {:g}", n.x, n.y, n.z));
       lines.emplace_back("  outer loop");
@@ -274,19 +272,19 @@ string DecodedShap3D::model_as_stl() const {
     }
   }
 
-  return join(lines, "\n");
+  return phosg::join(lines, "\n");
 }
 
-string DecodedShap3D::model_as_obj() const {
-  deque<string> lines;
-  deque<string> face_lines;
+std::string DecodedShap3D::model_as_obj() const {
+  std::deque<std::string> lines;
+  std::deque<std::string> face_lines;
   size_t normal_index = 1;
   for (const auto& plane : this->planes) {
     for (const auto& v : this->vertices) {
       lines.emplace_back(std::format("v {:g} {:g} {:g}", v.x, v.y, v.z));
     }
 
-    string face_line = "f";
+    std::string face_line = "f";
     auto plane_vertices = collect_vertices(this->vertices, plane.vertex_nums);
 
     // Unlike STL, OBJ format supports non-triangular faces. However, it also requires normals for each vertex, rather
@@ -308,13 +306,13 @@ string DecodedShap3D::model_as_obj() const {
     face_lines.emplace_back(std::move(face_line));
   }
 
-  for (string& s : face_lines) {
+  for (std::string& s : face_lines) {
     lines.emplace_back(std::move(s));
   }
-  return join(lines, "\n");
+  return phosg::join(lines, "\n");
 }
 
-string DecodedShap3D::top_view_as_svg() const {
+std::string DecodedShap3D::top_view_as_svg() const {
   // Compute the bounding box. For some reason, the top view points have 3 dimensions. It appears the y coordinates are
   // unused, so we simply ignore them.
   double xmin = 0.0;
@@ -325,7 +323,7 @@ string DecodedShap3D::top_view_as_svg() const {
     const auto& first_pt = this->top_view_vertices.at(this->top_view_lines[0].start);
     xmin = xmax = first_pt.x;
     zmin = zmax = first_pt.z;
-    auto visit_pt = [&](const Vector3<double>& pt) {
+    auto visit_pt = [&](const phosg::Vector3<double>& pt) {
       if (xmin < pt.x) {
         xmin = pt.x;
       }
@@ -346,7 +344,7 @@ string DecodedShap3D::top_view_as_svg() const {
   }
 
   // Generate the SVG contents
-  deque<string> lines;
+  std::deque<std::string> lines;
   lines.emplace_back("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>");
   lines.emplace_back(
       "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">");
@@ -363,11 +361,11 @@ string DecodedShap3D::top_view_as_svg() const {
   }
   lines.emplace_back("</svg>");
 
-  return join(lines, "\n");
+  return phosg::join(lines, "\n");
 }
 
-DecodedShap3D decode_shap(const string& data) {
-  StringReader r(data);
+DecodedShap3D decode_shap(const std::string& data) {
+  phosg::StringReader r(data);
 
   DecodedShap3D ret;
 

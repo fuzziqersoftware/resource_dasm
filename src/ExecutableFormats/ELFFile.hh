@@ -13,14 +13,12 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 // The file begins with an ELFIdentifier immediately followed by an ELFHeader.
 // The ELFHeader may have different endianness or widths for some fields, hence
 // the split structs here.
 
 struct ELFIdentifier {
-  be_uint32_t magic; // '\x7FELF' (0x7F454C46)
+  phosg::be_uint32_t magic; // '\x7FELF' (0x7F454C46)
   uint8_t width; // 1 = 32-bit, 2 = 64-bit
   uint8_t endianness; // 1 = little-endian, 2 = big-endian
   uint8_t format_version; // 1
@@ -45,10 +43,10 @@ struct ELFHeader {
   U16T names_section_index;
 } __attribute__((packed));
 
-struct ELFHeader32BE : ELFHeader<be_uint16_t, be_uint32_t, be_uint32_t> {};
-struct ELFHeader32LE : ELFHeader<le_uint16_t, le_uint32_t, le_uint32_t> {};
-struct ELFHeader64BE : ELFHeader<be_uint16_t, be_uint32_t, be_uint64_t> {};
-struct ELFHeader64LE : ELFHeader<le_uint16_t, le_uint32_t, le_uint64_t> {};
+struct ELFHeader32BE : ELFHeader<phosg::be_uint16_t, phosg::be_uint32_t, phosg::be_uint32_t> {};
+struct ELFHeader32LE : ELFHeader<phosg::le_uint16_t, phosg::le_uint32_t, phosg::le_uint32_t> {};
+struct ELFHeader64BE : ELFHeader<phosg::be_uint16_t, phosg::be_uint32_t, phosg::be_uint64_t> {};
+struct ELFHeader64LE : ELFHeader<phosg::le_uint16_t, phosg::le_uint32_t, phosg::le_uint64_t> {};
 
 template <typename U32T>
 struct ELFProgramHeaderEntry32 {
@@ -62,8 +60,8 @@ struct ELFProgramHeaderEntry32 {
   U32T alignment;
 } __attribute__((packed));
 
-struct ELFProgramHeaderEntry32BE : ELFProgramHeaderEntry32<be_uint32_t> {};
-struct ELFProgramHeaderEntry32LE : ELFProgramHeaderEntry32<le_uint32_t> {};
+struct ELFProgramHeaderEntry32BE : ELFProgramHeaderEntry32<phosg::be_uint32_t> {};
+struct ELFProgramHeaderEntry32LE : ELFProgramHeaderEntry32<phosg::le_uint32_t> {};
 
 template <typename U32T, typename U64T>
 struct ELFProgramHeaderEntry64 {
@@ -77,8 +75,8 @@ struct ELFProgramHeaderEntry64 {
   U64T alignment;
 } __attribute__((packed));
 
-struct ELFProgramHeaderEntry64BE : ELFProgramHeaderEntry64<be_uint32_t, be_uint64_t> {};
-struct ELFProgramHeaderEntry64LE : ELFProgramHeaderEntry64<le_uint32_t, le_uint64_t> {};
+struct ELFProgramHeaderEntry64BE : ELFProgramHeaderEntry64<phosg::be_uint32_t, phosg::be_uint64_t> {};
+struct ELFProgramHeaderEntry64LE : ELFProgramHeaderEntry64<phosg::le_uint32_t, phosg::le_uint64_t> {};
 
 template <typename U32T, typename LongT>
 struct ELFSectionHeaderEntry {
@@ -111,7 +109,7 @@ private:
   void parse(const void* data, size_t size);
 
   template <typename U16T, typename U32T, typename LongT>
-  void parse_t(StringReader& r);
+  void parse_t(phosg::StringReader& r);
 
   const std::string filename;
 

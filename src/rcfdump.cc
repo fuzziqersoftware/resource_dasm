@@ -13,8 +13,6 @@
 #include <unordered_map>
 #include <vector>
 
-using namespace std;
-
 struct RCFHeader {
   char ident[0x20];
   phosg::be_uint32_t unknown;
@@ -33,14 +31,14 @@ struct RCFIndexEntry {
   phosg::be_uint32_t size;
 } __attribute__((packed));
 
-vector<string> parse_names_index(const string& data, size_t offset) {
+std::vector<std::string> parse_names_index(const std::string& data, size_t offset) {
   // For some reason this isn't reverse-endian... weird
-  uint32_t num_names = *reinterpret_cast<const uint32_t*>(&data[offset]);
+  uint32_t num_names = *reinterpret_cast<const phosg::le_uint32_t*>(&data[offset]);
   offset += 8;
 
-  vector<string> ret;
+  std::vector<std::string> ret;
   while (ret.size() < num_names) {
-    uint32_t len = *reinterpret_cast<const uint32_t*>(&data[offset]);
+    uint32_t len = *reinterpret_cast<const phosg::le_uint32_t*>(&data[offset]);
     ret.emplace_back(&data[offset + 4], len - 1);
     offset += (len + 8);
   }
@@ -48,19 +46,19 @@ vector<string> parse_names_index(const string& data, size_t offset) {
   return ret;
 }
 
-unordered_map<string, RCFIndexEntry> get_index(const string& data, size_t offset) {
+std::unordered_map<std::string, RCFIndexEntry> get_index(const std::string& data, size_t offset) {
   RCFIndexHeader header;
   memcpy(&header, &data[offset], sizeof(RCFIndexHeader));
   offset += sizeof(RCFIndexHeader);
 
-  vector<string> names = parse_names_index(data, header.names_offset);
+  std::vector<std::string> names = parse_names_index(data, header.names_offset);
   if (header.count != names.size()) {
-    throw runtime_error("name count and file count do not match");
+    throw std::runtime_error("name count and file count do not match");
   }
 
-  unordered_map<string, RCFIndexEntry> ret;
+  std::unordered_map<std::string, RCFIndexEntry> ret;
   while (ret.size() < header.count) {
-    const string& name = names.at(ret.size());
+    const std::string& name = names.at(ret.size());
     auto& entry = ret[name];
 
     memcpy(&entry, &data[offset], sizeof(RCFIndexEntry));
@@ -71,13 +69,12 @@ unordered_map<string, RCFIndexEntry> get_index(const string& data, size_t offset
 }
 
 int main(int argc, char** argv) {
-
   if (argc != 2) {
     phosg::fwrite_fmt(stderr, "Usage: rcfdump <filename>\n");
     return -1;
   }
 
-  string data = phosg::load_file(argv[1]);
+  std::string data = phosg::load_file(argv[1]);
   RCFHeader header;
   memcpy(&header, data.data(), sizeof(RCFHeader));
   if (strcmp(header.ident, "RADCORE CEMENT LIBRARY")) {
@@ -88,7 +85,7 @@ int main(int argc, char** argv) {
   auto index = get_index(data, header.index_offset);
 
   for (const auto& it : index) {
-    const string& name = it.first;
+    const std::string& name = it.first;
     const auto& entry = it.second;
     phosg::fwrite_fmt(stdout, "... {:08X} {:08X} {:08X} {}\n", entry.crc32.load(), entry.offset.load(), entry.size.load(), name);
 

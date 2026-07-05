@@ -11,12 +11,8 @@
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 static void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: gamma_zee_render [options] <game-application> <levels-file>\n\
 \n\
 Options:\n\
@@ -26,9 +22,9 @@ Options:\n\
 }
 
 int main(int argc, char** argv) {
-  ImageSaver image_saver;
-  string game_filename;
-  string levels_filename;
+  ResourceDASM::ImageSaver image_saver;
+  std::string game_filename;
+  std::string levels_filename;
   for (int z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
       print_usage();
@@ -40,7 +36,7 @@ int main(int argc, char** argv) {
     } else if (levels_filename.empty()) {
       levels_filename = argv[z];
     } else {
-      fwrite_fmt(stderr, "excess argument: {}\n", argv[z]);
+      phosg::fwrite_fmt(stderr, "excess argument: {}\n", argv[z]);
       print_usage();
       return 2;
     }
@@ -51,39 +47,39 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  ResourceFile game_rf(parse_resource_fork(load_file(game_filename + "/..namedfork/rsrc")));
-  ResourceFile levels_rf(parse_resource_fork(load_file(levels_filename + "/..namedfork/rsrc")));
+  auto game_rf = ResourceDASM::parse_resource_fork(phosg::load_file(game_filename + "/..namedfork/rsrc"));
+  auto levels_rf = ResourceDASM::parse_resource_fork(phosg::load_file(levels_filename + "/..namedfork/rsrc"));
 
-  auto info_f = fopen_unique(levels_filename + "_info.txt", "wt");
+  auto info_f = phosg::fopen_unique(levels_filename + "_info.txt", "wt");
 
-  unordered_map<int16_t, ResourceFile::DecodedColorIconResource> cicn_cache;
+  std::unordered_map<int16_t, ResourceDASM::ResourceFile::DecodedColorIconResource> cicn_cache;
   for (int16_t level_id : levels_rf.all_resources_of_type(0x67616D65)) { // 'game'
     try {
       const auto& info_res = levels_rf.decode_STR(level_id, 0x4C496E66); // 'LInf'
-      fwrite_fmt(info_f.get(), "(Level {})\n{}\n", level_id, info_res.str);
+      phosg::fwrite_fmt(info_f.get(), "(Level {})\n{}\n", level_id, info_res.str);
       if (!info_res.after_data.empty()) {
         fputs("\nExtra data:\n", info_f.get());
-        print_data(info_f.get(), info_res.after_data);
+        phosg::print_data(info_f.get(), info_res.after_data);
         fputc('\n', info_f.get());
       }
 
-    } catch (const out_of_range&) {
-      fwrite_fmt(info_f.get(), "(Level {}) Level information missing\n\n", level_id);
+    } catch (const std::out_of_range&) {
+      phosg::fwrite_fmt(info_f.get(), "(Level {}) Level information missing\n\n", level_id);
     }
 
     uint16_t start_x = 0, start_y = 0;
     try {
       auto pts_res = levels_rf.get_resource(0xA9707473, level_id);
-      StringReader r(pts_res->data.data(), pts_res->data.size());
+      phosg::StringReader r(pts_res->data.data(), pts_res->data.size());
       start_y = r.get_u16b() - 1;
       start_x = r.get_u16b() - 1;
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
 
     try {
       auto game_res = levels_rf.get_resource(0x67616D65, level_id); // 'game'
       if (game_res->data.size() != 10000) {
-        throw runtime_error("game size is not 10000 bytes");
+        throw std::runtime_error("game size is not 10000 bytes");
       }
 
       size_t result_w = 0, result_h = 0;
@@ -101,27 +97,27 @@ int main(int argc, char** argv) {
         }
       }
 
-      ImageRGB888 result(result_w * 32, result_h * 32);
+      phosg::ImageRGB888 result(result_w * 32, result_h * 32);
 
       for (size_t y = 0; y < result_h; y++) {
         for (size_t x = 0; x < result_w; x++) {
           uint16_t tile_id = game_res->data.at(x * 100 + y);
           int16_t cicn_id = tile_id + 128;
 
-          ResourceFile::DecodedColorIconResource* cicn = nullptr;
+          ResourceDASM::ResourceFile::DecodedColorIconResource* cicn = nullptr;
           try {
             cicn = &cicn_cache.at(cicn_id);
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
             try {
               cicn = &cicn_cache.emplace(cicn_id, game_rf.decode_cicn(cicn_id)).first->second;
-            } catch (const exception& e) {
-              fwrite_fmt(stderr, "warning: cannot decode cicn {}\n", cicn_id);
+            } catch (const std::exception& e) {
+              phosg::fwrite_fmt(stderr, "warning: cannot decode cicn {}\n", cicn_id);
             }
           }
 
           if (cicn) {
             if ((cicn->image.get_width() != 32) || (cicn->image.get_height() != 32)) {
-              throw runtime_error("cicn dimensions are not 32x32");
+              throw std::runtime_error("cicn dimensions are not 32x32");
             }
             result.copy_from(cicn->image, x * 32, y * 32, 32, 32, 0, 0);
           } else {
@@ -135,12 +131,12 @@ int main(int argc, char** argv) {
         }
       }
 
-      string map_filename = std::format("{}_Level_{}", levels_filename, level_id);
+      std::string map_filename = std::format("{}_Level_{}", levels_filename, level_id);
       map_filename = image_saver.save_image(result, map_filename);
-      fwrite_fmt(stderr, "... {}\n", map_filename);
+      phosg::fwrite_fmt(stderr, "... {}\n", map_filename);
 
-    } catch (const exception& e) {
-      fwrite_fmt(info_f.get(), "Map render failed: {}\n", e.what());
+    } catch (const std::exception& e) {
+      phosg::fwrite_fmt(info_f.get(), "Map render failed: {}\n", e.what());
     }
 
     fputc('\n', info_f.get());

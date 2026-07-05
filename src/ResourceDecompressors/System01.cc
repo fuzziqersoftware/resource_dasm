@@ -7,12 +7,9 @@
 #include <string>
 #include <vector>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-static const vector<uint16_t> const_table0({
+static const std::vector<uint16_t> const_table0({
     // clang-format off
     // 4B
                             0x0000, 0x4EBA, 0x0008, 0x4E75, 0x000C,
@@ -52,7 +49,7 @@ static const vector<uint16_t> const_table0({
     // clang-format on
 });
 
-static const vector<uint16_t> const_table1({
+static const std::vector<uint16_t> const_table1({
     // clang-format off
     // D5
                                             0x0000, 0x0001, 0x0002,
@@ -66,7 +63,7 @@ static const vector<uint16_t> const_table1({
     // clang-format on
 });
 
-static uint32_t read_encoded_int(StringReader& r) {
+static uint32_t read_encoded_int(phosg::StringReader& r) {
   uint32_t ret = r.get_u8();
   if (!(ret & 0x80)) {
     return ret;
@@ -79,40 +76,34 @@ static uint32_t read_encoded_int(StringReader& r) {
   return (ret & 0x4000) ? (ret | 0xFFFF8000) : ret;
 }
 
-string decompress_system01(
-    const CompressedResourceHeader& header,
-    const void* source,
-    size_t size,
-    bool is_system1) {
-  StringReader r(source, size);
-  StringWriter w;
+std::string decompress_system01(
+    const CompressedResourceHeader& header, const void* source, size_t size, bool is_system1) {
+  phosg::StringReader r(source, size);
+  phosg::StringWriter w;
   // Allocate an extra byte (see comment at the end for why)
   w.str().reserve(header.decompressed_size + 1);
 
   // In the original code, the working buffer is formatted like this:
-  // uint16_t offset_offset; // offset to the next slot in the buffer (4 at start)
-  // uint16_t string_start_offset_0; // offset to string data
-  // uint16_t string_start_offset_1; // offset to string data
-  // ... (more offsets)
-  // uint16_t string_start_offset_N-1; // offset to string data
-  // ... (unused space)
-  // char string_data[length[N-1]]
-  // char string_data[length[N-2]]
-  // ... (more memoized strings)
-  // char string_data[length[0]] (buffer ends after this)
+  //   uint16_t offset_offset; // offset to the next slot in the buffer (4 at start)
+  //   uint16_t string_start_offset_0; // offset to string data
+  //   uint16_t string_start_offset_1; // offset to string data
+  //   ... (more offsets)
+  //   uint16_t string_start_offset_N-1; // offset to string data
+  //   ... (unused space)
+  //   char string_data[length[N-1]]
+  //   char string_data[length[N-2]]
+  //   ... (more memoized strings)
+  //   char string_data[length[0]] (buffer ends after this)
   //
-  // length[x] is string_start_offset[x] - string_start_offset[x + 1]
-  //
-  // We replace this with a vector<string>, since that's what it really is.
-  vector<string> memo;
+  // ... where length[x] is string_start_offset[x] - string_start_offset[x + 1]. We replace this with a vector<string>,
+  // since that's what it really is.
+  std::vector<std::string> memo;
 
-  // Note: Why do we & 0xFFFF in a bunch of places? The original code uses the
-  // dbf instruction, which operates only on the lower 16 bits of the register
-  // operand. In some rare cases, a compressed resource will have nonzero
-  // garbage data in the high 16 bits of a 32-bit count field! To use the
-  // correct count, we have to mask out the high bits.
+  // Note: Why do we & 0xFFFF in a bunch of places? The original code uses the dbf instruction, which operates only on
+  // the lower 16 bits of the register operand. In some rare cases, a compressed resource will have nonzero garbage
+  // data in the high 16 bits of a 32-bit count field! To use the correct count, we have to mask out the high bits.
 
-  auto execute_extension_command = +[](StringReader& r, StringWriter& w) {
+  auto execute_extension_command = +[](phosg::StringReader& r, phosg::StringWriter& w) {
     switch (r.get_u8()) {
       case 0: { // <segnum> <count-1> <index>... - export table
         uint16_t index = 6;
@@ -240,7 +231,7 @@ string decompress_system01(
       } else if (command == 0xFF) { // end of stream
         break;
       } else {
-        throw logic_error("impossible command");
+        throw std::logic_error("impossible command");
       }
     }
   } else {
@@ -271,17 +262,15 @@ string decompress_system01(
       } else if (command == 0xFF) { // end of stream
         break;
       } else {
-        throw logic_error("impossible command");
+        throw std::logic_error("impossible command");
       }
     }
   }
 
-  // Sometimes compressed resources write a few extra bytes at the end of the
-  // output, presumably because they used some kind of word encoding and were
-  // too lazy to trim off the extra byte, or used a faulty compressor. This is
-  // probably technically a buffer overflow on actual classic Mac systems,
-  // unless the Resource Manager explicitly allocates extra space for
-  // decompression buffers. We just trim off the excess.
+  // Sometimes compressed resources write a few extra bytes at the end of the output, presumably because they used some
+  // kind of word encoding and were too lazy to trim off the extra byte, or used a faulty compressor. This is probably
+  // technically a buffer overflow on actual classic Mac systems, unless the Resource Manager explicitly allocates
+  // extra space for decompression buffers. We just trim off the excess.
   if (w.str().size() > header.decompressed_size) {
     w.str().resize(header.decompressed_size);
   }
@@ -289,17 +278,11 @@ string decompress_system01(
   return w.str();
 }
 
-string decompress_system0(
-    const CompressedResourceHeader& header,
-    const void* source,
-    size_t size) {
+std::string decompress_system0(const CompressedResourceHeader& header, const void* source, size_t size) {
   return decompress_system01(header, source, size, false);
 }
 
-string decompress_system1(
-    const CompressedResourceHeader& header,
-    const void* source,
-    size_t size) {
+std::string decompress_system1(const CompressedResourceHeader& header, const void* source, size_t size) {
   return decompress_system01(header, source, size, true);
 }
 

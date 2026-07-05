@@ -12,11 +12,7 @@
 #include "Constants.hh"
 #include "WAVFile.hh"
 
-using namespace std;
-
-using namespace ResourceDASM::Audio;
-
-string base_filename_for_sound(const Sound& s) {
+std::string base_filename_for_sound(const ResourceDASM::Audio::Sound& s) {
   return std::format("sample-{}-{:X}-{:08X}-{:08X}-{:08X}",
       s.source_filename, s.source_offset, s.sound_id, s.aw_file_index, s.wave_table_index);
 }
@@ -27,20 +23,20 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  auto env = load_sound_environment(argv[1]);
+  auto env = ResourceDASM::Audio::load_sound_environment(argv[1]);
 
   // Generate text file
   for (const auto& ibank_it : env.instrument_banks) {
     const auto& ibank = ibank_it.second;
 
-    string filename = std::format("{}/bank-{}.txt", argv[2], ibank_it.first);
+    std::string filename = std::format("{}/bank-{}.txt", argv[2], ibank_it.first);
     auto f = phosg::fopen_unique(filename, "wt");
 
     for (const auto& inst_it : ibank.id_to_instrument) {
       phosg::fwrite_fmt(f.get(), "instrument {} (0x{:X}):\n", inst_it.first, inst_it.first);
       for (const auto& key_region : inst_it.second.key_regions) {
-        string key_low_str = name_for_note(key_region.key_low);
-        string key_high_str = name_for_note(key_region.key_high);
+        std::string key_low_str = ResourceDASM::Audio::name_for_note(key_region.key_low);
+        std::string key_high_str = ResourceDASM::Audio::name_for_note(key_region.key_high);
         phosg::fwrite_fmt(f.get(), "  key region [{},{}] / [0x{:02X},0x{:02X}] / [{},{}]:\n",
             key_region.key_low, key_region.key_high, key_region.key_low,
             key_region.key_high, key_low_str, key_high_str);
@@ -63,15 +59,15 @@ int main(int argc, char** argv) {
 
   // Generate soundfont text file
   {
-    string filename = std::format("{}/metadata-sf.txt", argv[2]);
+    std::string filename = std::format("{}/metadata-sf.txt", argv[2]);
     auto f = phosg::fopen_unique(filename, "wt");
 
-    map<string, bool> filenames;
+    std::map<std::string, bool> filenames;
 
     phosg::fwrite_fmt(f.get(), "[Samples]\n\n");
     for (const auto& bank_it : env.sample_banks) {
-      for (const Sound& s : bank_it.second) {
-        string sound_basename = base_filename_for_sound(s);
+      for (const auto& s : bank_it.second) {
+        std::string sound_basename = base_filename_for_sound(s);
         phosg::fwrite_fmt(f.get(), "\
     SampleName={}.wav\n\
         SampleRate={}\n\
@@ -87,7 +83,7 @@ int main(int argc, char** argv) {
     for (const auto& ibank_it : env.instrument_banks) {
       const auto& ibank = ibank_it.second;
       for (const auto& inst_it : ibank.id_to_instrument) {
-        string instrument_name = std::format("inst_{:08X}_{:08X}", ibank.id, inst_it.first);
+        std::string instrument_name = std::format("inst_{:08X}_{:08X}", ibank.id, inst_it.first);
         phosg::fwrite_fmt(f.get(), "    InstrumentName={}\n\n", instrument_name);
         for (const auto& key_region : inst_it.second.key_regions) {
           for (const auto& vel_region : key_region.vel_regions) {
@@ -97,7 +93,7 @@ int main(int argc, char** argv) {
                   vel_region.vel_low, vel_region.vel_high, vel_region.sound_id,
                   vel_region.freq_mult, vel_region.base_note);
             } else {
-              string basename = base_filename_for_sound(*vel_region.sound);
+              std::string basename = base_filename_for_sound(*vel_region.sound);
               uint8_t base_note = vel_region.base_note ? vel_region.base_note : vel_region.sound->base_note;
               phosg::fwrite_fmt(f.get(), "\
         Sample={}\n\
@@ -121,7 +117,7 @@ int main(int argc, char** argv) {
     for (const auto& ibank_it : env.instrument_banks) {
       const auto& ibank = ibank_it.second;
       for (const auto& inst_it : ibank.id_to_instrument) {
-        string instrument_name = std::format("inst_{:08X}_{:08X}", ibank.id, inst_it.first);
+        std::string instrument_name = std::format("inst_{:08X}_{:08X}", ibank.id, inst_it.first);
         phosg::fwrite_fmt(f.get(), "\
     PresetName=preset_{}\n\
         Bank={}\n\
@@ -168,15 +164,15 @@ Comments=\n");
         phosg::fwrite_fmt(stderr, "warning: can\'t decode {}:{:X}:{:X}\n", s.source_filename, s.source_offset, s.source_size);
         continue;
       }
-      string basename = base_filename_for_sound(s);
-      string filename = std::format("{}/{}.wav", argv[2], basename);
-      save_wav(filename, samples, s.sample_rate, s.num_channels);
+      std::string basename = base_filename_for_sound(s);
+      std::string filename = std::format("{}/{}.wav", argv[2], basename);
+      ResourceDASM::Audio::save_wav(filename, samples, s.sample_rate, s.num_channels);
     }
   }
 
   // Export sequences
   for (const auto& s : env.sequence_programs) {
-    string fn = std::format("{}/sequence-{}-{}.bms", argv[2], s.second.index, s.first);
+    std::string fn = std::format("{}/sequence-{}-{}.bms", argv[2], s.second.index, s.first);
     phosg::save_file(fn, s.second.data);
   }
 

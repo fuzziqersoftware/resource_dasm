@@ -94,7 +94,8 @@ struct SaveWAVHeader {
 };
 
 template <typename SampleT>
-void save_wav(const std::string& filename, const std::vector<SampleT>& samples, size_t sample_rate, size_t num_channels) {
+void save_wav(
+    const std::string& filename, const std::vector<SampleT>& samples, size_t sample_rate, size_t num_channels) {
   SaveWAVHeader header;
   header.file_size = ((samples.size() * num_channels * sizeof(SampleT))) + sizeof(SaveWAVHeader) - 8;
   header.format = std::is_floating_point_v<SampleT> ? 3 : 1;

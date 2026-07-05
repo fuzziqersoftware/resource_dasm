@@ -12,8 +12,6 @@
 
 #include "../AudioCodecs.hh"
 
-using namespace std;
-
 namespace ResourceDASM {
 namespace Audio {
 

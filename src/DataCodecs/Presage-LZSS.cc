@@ -10,15 +10,12 @@
 #include <stdexcept>
 #include <string>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-string decompress_presage_lzss(StringReader& r, size_t max_output_bytes) {
+std::string decompress_presage_lzss(phosg::StringReader& r, size_t max_output_bytes) {
   size_t decompressed_size = max_output_bytes ? max_output_bytes : r.get_u32b();
 
-  StringWriter w;
+  phosg::StringWriter w;
   while (w.size() < decompressed_size) {
     uint8_t control_bits = r.get_u8();
     for (size_t x = 0; (x < 8) && (w.size() < decompressed_size); x++) {
@@ -40,12 +37,12 @@ string decompress_presage_lzss(StringReader& r, size_t max_output_bytes) {
   return std::move(w.str());
 }
 
-string decompress_presage_lzss(const void* data, size_t size, size_t max_output_bytes) {
-  StringReader r(data, size);
+std::string decompress_presage_lzss(const void* data, size_t size, size_t max_output_bytes) {
+  phosg::StringReader r(data, size);
   return decompress_presage_lzss(r, max_output_bytes);
 }
 
-string decompress_presage_lzss(const string& data, size_t max_output_bytes) {
+std::string decompress_presage_lzss(const std::string& data, size_t max_output_bytes) {
   return decompress_presage_lzss(data.data(), data.size(), max_output_bytes);
 }
 

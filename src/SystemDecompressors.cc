@@ -6,9 +6,6 @@
 
 #include <stdint.h>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 const uint8_t system_dcmp_0[] = {
@@ -1425,26 +1422,26 @@ const uint8_t system_ncmp_2[] = {
     0x00, 0x00, 0x00, 0x08, 0x00, 0x01};
 const size_t system_ncmp_2_size = 1494;
 
-pair<const void*, size_t> get_system_decompressor(
+std::pair<const void*, size_t> get_system_decompressor(
     bool use_ncmp, int16_t resource_id) {
   if (use_ncmp) {
     if (resource_id == 0) {
-      return make_pair(system_ncmp_0, system_ncmp_0_size);
+      return std::make_pair(system_ncmp_0, system_ncmp_0_size);
     } else if (resource_id == 2) {
-      return make_pair(system_ncmp_2, system_ncmp_2_size);
+      return std::make_pair(system_ncmp_2, system_ncmp_2_size);
     }
   } else {
     if (resource_id == 0) {
-      return make_pair(system_dcmp_0, system_dcmp_0_size);
+      return std::make_pair(system_dcmp_0, system_dcmp_0_size);
     } else if (resource_id == 1) {
-      return make_pair(system_dcmp_1, system_dcmp_1_size);
+      return std::make_pair(system_dcmp_1, system_dcmp_1_size);
     } else if (resource_id == 2) {
-      return make_pair(system_dcmp_2, system_dcmp_2_size);
+      return std::make_pair(system_dcmp_2, system_dcmp_2_size);
     } else if (resource_id == 3) {
-      return make_pair(system_dcmp_3, system_dcmp_3_size);
+      return std::make_pair(system_dcmp_3, system_dcmp_3_size);
     }
   }
-  throw out_of_range(std::format(
+  throw std::out_of_range(std::format(
       "no system decompressor with id {}", resource_id));
 }
 

@@ -10,41 +10,38 @@
 
 #include "../DataCodecs/Codecs.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-ImageGA11 decode_BMap(const string& data) {
-  // A BMap is really just a BitMapHeader and the associated data, stuffed into
-  // an uncompressed resource, with a couple of extra header fields.
+phosg::ImageGA11 decode_BMap(const std::string& data) {
+  // A BMap is really just a BitMapHeader and the associated data, stuffed into an uncompressed resource, with a couple
+  // of extra header fields.
 
-  StringReader r(data);
+  phosg::StringReader r(data);
   r.skip(4); // Buffer pointer in memory, reserved in file
   const auto& header = r.get<BitMapHeader>();
   if (header.flags_row_bytes & 0xC000) {
-    throw runtime_error("monochrome bitmap has flags set");
+    throw std::runtime_error("monochrome bitmap has flags set");
   }
 
   size_t image_bytes = header.bytes();
 
   r.skip(4); // Unknown
   if (r.get_u32b() != image_bytes) {
-    throw runtime_error("data size field is incorrect");
+    throw std::runtime_error("data size field is incorrect");
   }
   size_t mask_region_size = r.get_u32b();
-  ImageG1 decoded = decode_monochrome_image(
+  phosg::ImageG1 decoded = decode_monochrome_image(
       r.getv(image_bytes),
       image_bytes,
       header.bounds.width(),
       header.bounds.height(),
       header.flags_row_bytes & 0x3FFF);
-  ImageGA11 ret = decoded.change_pixel_format<PixelFormat::GA11>();
+  phosg::ImageGA11 ret = decoded.change_pixel_format<phosg::PixelFormat::GA11>();
 
   size_t region_start_offset = r.where();
   Region rgn(r);
   if (r.where() - region_start_offset != mask_region_size) {
-    throw runtime_error("region parsing did not consume all region data");
+    throw std::runtime_error("region parsing did not consume all region data");
   }
 
   auto rgn_it = rgn.iterate(header.bounds);
@@ -61,38 +58,37 @@ ImageGA11 decode_BMap(const string& data) {
   return ret;
 }
 
-vector<ImageG1> decode_XBig(const string& data) {
-  // An XBig is a sequence of 4 bitmaps (similar to BMap) stuffed into a
-  // resource. The number of images is not specified anywhere; some of them may
-  // be missing (headers will all be zero). We don't check for this, and just
+std::vector<phosg::ImageG1> decode_XBig(const std::string& data) {
+  // An XBig is a sequence of 4 bitmaps (similar to BMap) stuffed into a resource. The number of images is not
+  // specified anywhere; some of them may be missing (headers will all be zero). We don't check for this, and just
   // return an empty Image for the bitmaps that are absent.
 
-  string decompressed_data;
+  std::string decompressed_data;
 
-  StringReader r(data);
+  phosg::StringReader r(data);
   uint32_t encoding = r.get_u32b(false);
   if (encoding == 0x524C4520) {
     decompressed_data = decompress_dinopark_tycoon_rle(data);
-    r = StringReader(decompressed_data);
+    r = phosg::StringReader(decompressed_data);
   } else if (encoding == 0x4C5A5353) {
     decompressed_data = decompress_dinopark_tycoon_lzss(data);
-    r = StringReader(decompressed_data);
+    r = phosg::StringReader(decompressed_data);
   }
 
-  // The headers are all at the beginning, and the image data for each bitmap
-  // follows the last header (in the same order as the headers).
+  // The headers are all at the beginning, and the image data for each bitmap follows the last header (in the same
+  // order as the headers).
   BitMapHeader headers[4];
   for (size_t x = 0; x < 4; x++) {
     r.skip(4); // Buffer pointer in memory, reserved in file
     headers[x] = r.get<BitMapHeader>();
     if (headers[x].flags_row_bytes & 0xC000) {
-      throw runtime_error("monochrome bitmap has flags set");
+      throw std::runtime_error("monochrome bitmap has flags set");
     }
   }
 
   r.skip(4); // image_bytes (we compute this from each header instead)
 
-  vector<ImageG1> images;
+  std::vector<phosg::ImageG1> images;
   for (size_t x = 0; x < 4; x++) {
     size_t image_bytes = headers[x].bytes();
     images.emplace_back(decode_monochrome_image(
@@ -105,27 +101,26 @@ vector<ImageG1> decode_XBig(const string& data) {
   return images;
 }
 
-ImageRGBA8888N decode_XMap(const string& data, const vector<ColorTableEntry>& clut) {
-  // XMap is the color analogue of BMap; it consists of a PixMapHeader and the
-  // corresponding data, but also optionally includes to Regions. One of these
-  // is the clipping region, but it's not clear what the other is for.
+phosg::ImageRGBA8888N decode_XMap(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+  // XMap is the color analogue of BMap; it consists of a PixMapHeader and the corresponding data, but also optionally
+  // includes to Regions. One of these is the clipping region, but it's not clear what the other is for.
 
-  string decompressed_data;
+  std::string decompressed_data;
 
-  StringReader r(data);
+  phosg::StringReader r(data);
   uint32_t encoding = r.get_u32b(false);
   if (encoding == 0x524C4520) {
     decompressed_data = decompress_dinopark_tycoon_rle(data);
-    r = StringReader(decompressed_data);
+    r = phosg::StringReader(decompressed_data);
   } else if (encoding == 0x4C5A5353) {
     decompressed_data = decompress_dinopark_tycoon_lzss(data);
-    r = StringReader(decompressed_data);
+    r = phosg::StringReader(decompressed_data);
   }
 
   r.skip(0x0C); // Unknown
   const auto& header = r.get<PixelMapHeader>();
   if (!(header.flags_row_bytes & 0x8000)) {
-    throw runtime_error("color pixel map is missing color flag");
+    throw std::runtime_error("color pixel map is missing color flag");
   }
 
   Region rgn1(r); // Unknown what this is for
@@ -136,12 +131,12 @@ ImageRGBA8888N decode_XMap(const string& data, const vector<ColorTableEntry>& cl
   const PixelMapData& pixel_data = r.get<PixelMapData>(true, pixel_data_size);
 
   auto ctable = ColorTable::from_entries(clut);
-  auto ret = decode_color_image(header, pixel_data, ctable.get()).change_pixel_format<PixelFormat::RGBA8888_NATIVE>();
+  auto ret = decode_color_image(header, pixel_data, ctable.get()).change_pixel_format<phosg::PixelFormat::RGBA8888_NATIVE>();
 
   size_t region_start_offset = r.where();
   Region mask_rgn(r);
   if (r.where() - region_start_offset != mask_region_size) {
-    throw runtime_error("region parsing did not consume all region data");
+    throw std::runtime_error("region parsing did not consume all region data");
   }
 
   auto mask_rgn_it = mask_rgn.iterate(header.bounds);

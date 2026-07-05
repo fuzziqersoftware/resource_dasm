@@ -11,12 +11,8 @@
 
 #include "DataCodecs/Codecs.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: data_decomp [options] [input-filename [output-filename]]\n\
 \n\
 If input-filename is omitted or is '-', read from stdin.\n\
@@ -88,7 +84,7 @@ int main(int argc, char** argv) {
     } else if (!output_filename) {
       output_filename = argv[z];
     } else {
-      fwrite_fmt(stderr, "excess command-line argument: {}\n", argv[z]);
+      phosg::fwrite_fmt(stderr, "excess command-line argument: {}\n", argv[z]);
       print_usage();
       return 2;
     }
@@ -99,53 +95,53 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  string input_data;
+  std::string input_data;
   if (!input_filename || !strcmp(input_filename, "-")) {
-    input_data = read_all(stdin);
+    input_data = phosg::read_all(stdin);
   } else {
-    input_data = load_file(input_filename);
+    input_data = phosg::load_file(input_filename);
   }
 
-  string decoded;
+  std::string decoded;
   switch (encoding) {
     case Encoding::MISSING:
-      throw logic_error("this case should have been handled earlier");
+      throw std::logic_error("this case should have been handled earlier");
     case Encoding::SOUNDMUSICSYS:
-      decoded = decompress_soundmusicsys_lzss(input_data);
+      decoded = ResourceDASM::decompress_soundmusicsys_lzss(input_data);
       break;
     case Encoding::MACSKI:
-      decoded = decompress_macski_multi(input_data);
+      decoded = ResourceDASM::decompress_macski_multi(input_data);
       break;
     case Encoding::PRESAGE_LZSS:
-      decoded = decompress_presage_lzss(input_data);
+      decoded = ResourceDASM::decompress_presage_lzss(input_data);
       break;
     case Encoding::DINOPARK_TYCOON:
-      decoded = decompress_dinopark_tycoon_data(input_data);
+      decoded = ResourceDASM::decompress_dinopark_tycoon_data(input_data);
       break;
     case Encoding::UNPACK_PATHWAYS:
-      decoded = unpack_pathways(input_data);
+      decoded = ResourceDASM::unpack_pathways(input_data);
       break;
     case Encoding::PACK_BITS:
-      decoded = pack_bits(input_data);
+      decoded = ResourceDASM::pack_bits(input_data);
       break;
     case Encoding::UNPACK_BITS:
-      decoded = unpack_bits(input_data);
+      decoded = ResourceDASM::unpack_bits(input_data);
       break;
     case Encoding::CRYPT_ODYSSEY:
-      decoded = decrypt_encrypt_odyssey(input_data);
+      decoded = ResourceDASM::decrypt_encrypt_odyssey(input_data);
       break;
   }
 
   if (!output_filename || !strcmp(output_filename, "-")) {
     if (!input_filename || !strcmp(input_filename, "-")) {
-      fwritex(stdout, decoded);
+      phosg::fwritex(stdout, decoded);
     } else {
-      string filename = input_filename;
+      std::string filename = input_filename;
       filename += ".dec";
-      save_file(filename, decoded);
+      phosg::save_file(filename, decoded);
     }
   } else {
-    save_file(output_filename, decoded);
+    phosg::save_file(output_filename, decoded);
   }
 
   return 0;

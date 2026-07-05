@@ -11,8 +11,6 @@
 
 #include "../AudioCodecs.hh"
 
-using namespace std;
-
 namespace ResourceDASM {
 namespace Audio {
 
@@ -23,20 +21,20 @@ uint8_t note_for_name(const char* name) {
   if (((name[0] >= 'A') && (name[0] <= 'G')) || ((name[0] >= 'a') && (name[0] <= 'g'))) {
     letter = toupper(name[0]);
   } else {
-    throw out_of_range("note does not exist");
+    throw std::out_of_range("note does not exist");
   }
 
   if (name[1] == '#') {
     // B and E don't have sharps
     if ((letter == 'B') || (letter == 'E')) {
-      throw out_of_range("note does not have a sharp");
+      throw std::out_of_range("note does not have a sharp");
     }
     sharp = true;
 
   } else if (name[1] == 'b') {
     // C and F don't have flats
     if ((letter == 'C') || (letter == 'F')) {
-      throw out_of_range("note does not have a flat");
+      throw std::out_of_range("note does not have a flat");
     }
 
     sharp = true;
@@ -46,14 +44,14 @@ uint8_t note_for_name(const char* name) {
   char* endptr = NULL;
   long octave = strtol(&name[1 + sharp], &endptr, 10);
   if ((octave == 0) && (errno == EINVAL)) {
-    throw out_of_range("no octave given");
+    throw std::out_of_range("no octave given");
   }
 
   if (octave < 0) {
-    throw out_of_range("note out of range");
+    throw std::out_of_range("note out of range");
   }
   if (octave > 10) {
-    throw out_of_range("note out of range");
+    throw std::out_of_range("note out of range");
   }
 
   uint8_t note;
@@ -80,7 +78,7 @@ uint8_t note_for_name(const char* name) {
       note = 11;
       break;
     default:
-      throw logic_error("letter is invalid");
+      throw std::logic_error("letter is invalid");
   }
 
   if (sharp) {
@@ -89,7 +87,7 @@ uint8_t note_for_name(const char* name) {
   note += (12 * octave);
 
   if (note > 0x7F) {
-    throw out_of_range("note out of range");
+    throw std::out_of_range("note out of range");
   }
   return note;
 }
@@ -156,7 +154,7 @@ double frequency_for_note(uint8_t note) {
       // clang-format on
   };
   if (note >= 0x80) {
-    throw invalid_argument("note does not exist");
+    throw std::invalid_argument("note does not exist");
   }
   return freq_table[note];
 }

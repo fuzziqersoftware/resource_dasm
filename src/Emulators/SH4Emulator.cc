@@ -15,9 +15,6 @@
 #include "Expression.hh"
 #include "SH4Emulator.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 SH4Emulator::Regs::Regs() {
@@ -72,17 +69,17 @@ void SH4Emulator::Regs::set_by_name(const std::string& name, uint32_t value) {
   } else if (name.starts_with("r") || name.starts_with("R")) {
     size_t reg_num = stoul(name.substr(1), nullptr, 10);
     if (reg_num >= 16) {
-      throw invalid_argument("invalid register number");
+      throw std::invalid_argument("invalid register number");
     }
     this->r[reg_num].u = value;
   } else if (name.starts_with("f") || name.starts_with("F")) {
     size_t reg_num = stoul(name.substr(1), nullptr, 10);
     if (reg_num >= 32) {
-      throw invalid_argument("invalid register number");
+      throw std::invalid_argument("invalid register number");
     }
-    *reinterpret_cast<le_uint32_t*>(&this->f[reg_num]) = value;
+    *reinterpret_cast<phosg::le_uint32_t*>(&this->f[reg_num]) = value;
   } else {
-    throw invalid_argument("invalid register name");
+    throw std::invalid_argument("invalid register name");
   }
 }
 
@@ -102,10 +99,10 @@ void SH4Emulator::Regs::enqueue_branch(PendingBranchType type, uint32_t target, 
 template <typename T>
 void check_range_t(T value, T min, T max) {
   if (value < min) {
-    throw invalid_argument("value before beginning of range");
+    throw std::invalid_argument("value before beginning of range");
   }
   if (value > max) {
-    throw invalid_argument("value beyond end of range");
+    throw std::invalid_argument("value beyond end of range");
   }
 }
 
@@ -137,38 +134,38 @@ static constexpr int32_t op_get_simm12(uint16_t op) {
   return (ret & 0x800) ? (ret | 0xFFFFF000) : ret;
 }
 
-SH4Emulator::SH4Emulator(shared_ptr<MemoryContext> mem) : EmulatorBase(mem) {}
+SH4Emulator::SH4Emulator(std::shared_ptr<MemoryContext> mem) : EmulatorBase(mem) {}
 
 void SH4Emulator::import_state(FILE* stream) {
-  uint8_t version = freadx<uint8_t>(stream);
+  uint8_t version = phosg::freadx<uint8_t>(stream);
   if (version != 0) {
-    throw runtime_error("unknown format version");
+    throw std::runtime_error("unknown format version");
   }
-  this->regs = freadx<Regs>(stream);
+  this->regs = phosg::freadx<Regs>(stream);
   this->mem->import_state(stream);
 }
 
 void SH4Emulator::export_state(FILE* stream) const {
-  fwritex<uint8_t>(stream, 0); // version
-  fwritex(stream, &this->regs, sizeof(this->regs));
+  phosg::fwritex<uint8_t>(stream, 0); // version
+  phosg::fwritex(stream, &this->regs, sizeof(this->regs));
   this->mem->export_state(stream);
 }
 
 void SH4Emulator::print_state_header(FILE* stream) const {
-  fwrite_fmt(stream, "\
+  phosg::fwrite_fmt(stream, "\
 ---R0--- ---R1--- ---R2--- ---R3--- ---R4--- ---R5--- ---R6--- ---R7--- \
 ---R8--- ---R9--- ---R10-- ---R11-- ---R12-- ---R13-- ---R14-- -R15-SP- \
 T ---GBR-- -------MAC------ ---PR--- ---PC--- BT = INSTRUCTION\n");
 }
 
 void SH4Emulator::print_state(FILE* stream) const {
-  string disassembly;
+  std::string disassembly;
   uint16_t opcode = 0;
   try {
     this->assert_aligned(this->regs.pc, 2);
     opcode = this->mem->read_u16l(this->regs.pc);
     disassembly = this->disassemble_one(this->regs.pc, opcode, false, this->mem);
-  } catch (const exception& e) {
+  } catch (const std::exception& e) {
     disassembly = std::format(" (failed: {})", e.what());
   }
 
@@ -188,7 +185,7 @@ void SH4Emulator::print_state(FILE* stream) const {
       break;
   }
 
-  fwrite_fmt(stream, "{:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {} {:08X} {:016X} {:08X} {:08X} {}{} = {:04X} {}\n",
+  phosg::fwrite_fmt(stream, "{:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {} {:08X} {:016X} {:08X} {:08X} {}{} = {:04X} {}\n",
       this->regs.r[0].u, this->regs.r[1].u, this->regs.r[2].u, this->regs.r[3].u,
       this->regs.r[4].u, this->regs.r[5].u, this->regs.r[6].u, this->regs.r[7].u,
       this->regs.r[8].u, this->regs.r[9].u, this->regs.r[10].u, this->regs.r[11].u,
@@ -202,7 +199,7 @@ void SH4Emulator::execute_one_0(uint16_t op) {
     case 0x2:
       if (op_get_r2(op) & 0x8) { // 0000nnnn1mmm0010 stc    rn, rmb
         // TODO
-        throw runtime_error("banked registers are not supported");
+        throw std::runtime_error("banked registers are not supported");
       }
       switch (op_get_r2(op)) {
         case 0x0: // 0000nnnn00000010 stc    rn, sr
@@ -221,7 +218,7 @@ void SH4Emulator::execute_one_0(uint16_t op) {
           this->regs.r[op_get_r1(op)].u = this->regs.spc;
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0x3:
@@ -230,8 +227,7 @@ void SH4Emulator::execute_one_0(uint16_t op) {
         case 0x2: // 0000nnnn00100011 bs     (pc + 4 + rn)
           this->regs.enqueue_branch(
               (op & 0x0020) ? Regs::PendingBranchType::CALL : Regs::PendingBranchType::BRANCH,
-              this->regs.pc + this->regs.r[op_get_r1(op)].u + 4,
-              1);
+              this->regs.pc + this->regs.r[op_get_r1(op)].u + 4, 1);
           break;
         case 0x8: // 0000nnnn10000011 pref   [rn]  # prefetch
         case 0x9: // 0000nnnn10010011 ocbi   [rn]  # dcbi
@@ -239,12 +235,12 @@ void SH4Emulator::execute_one_0(uint16_t op) {
         case 0xB: // 0000nnnn10110011 ocbwb  [rn]  # dcbst?
           // We don't emulate any caches, so just check that the address is valid
           if (!this->mem->exists(this->regs.r[op_get_r1(op)].u)) {
-            throw runtime_error("invalid memory access");
+            throw std::runtime_error("invalid memory access");
           }
           break;
         case 0xC: // 0000nnnn11000011 movca.l [rn], r0
           // TODO
-          throw runtime_error("unimplemented movca.l opcode");
+          throw std::runtime_error("unimplemented movca.l opcode");
       }
       break;
 
@@ -266,7 +262,7 @@ void SH4Emulator::execute_one_0(uint16_t op) {
 
     case 0x8:
       if (op_get_r1(op) != 0) {
-        throw runtime_error("invalid opcode");
+        throw std::runtime_error("invalid opcode");
       }
       switch (op_get_r2(op)) {
         case 0x0: // 0000000000001000 clrt
@@ -280,7 +276,7 @@ void SH4Emulator::execute_one_0(uint16_t op) {
           break;
         case 0x3: // 0000000000111000 ldtlb
           // TODO
-          throw runtime_error("TLB is not implemented");
+          throw std::runtime_error("TLB is not implemented");
         case 0x4: // 0000000001001000 clrs
           this->regs.replace_s(false);
           break;
@@ -288,7 +284,7 @@ void SH4Emulator::execute_one_0(uint16_t op) {
           this->regs.replace_s(true);
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
 
@@ -296,12 +292,12 @@ void SH4Emulator::execute_one_0(uint16_t op) {
       switch (op_get_r2(op)) {
         case 0x0: // 0000000000001001 nop
           if (op_get_r1(op) != 0) {
-            throw runtime_error("invalid opcode");
+            throw std::runtime_error("invalid opcode");
           }
           break;
         case 0x1: // 0000000000011001 div0u
           if (op_get_r1(op) != 0) {
-            throw runtime_error("invalid opcode");
+            throw std::runtime_error("invalid opcode");
           }
           this->regs.replace_mqt(false, false, false);
           break;
@@ -309,7 +305,7 @@ void SH4Emulator::execute_one_0(uint16_t op) {
           this->regs.r[op_get_r1(op)].u = this->regs.t();
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
 
@@ -337,13 +333,13 @@ void SH4Emulator::execute_one_0(uint16_t op) {
           this->regs.r[op_get_r1(op)].u = this->regs.dbr;
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
 
     case 0xB:
       if (op_get_r1(op) != 0) {
-        throw runtime_error("invalid opcode");
+        throw std::runtime_error("invalid opcode");
       }
       switch (op_get_r2(op)) {
         case 0x0: // 0000000000001011 rets
@@ -353,21 +349,21 @@ void SH4Emulator::execute_one_0(uint16_t op) {
           throw terminate_emulation();
         case 0x2: // 0000000000101011 rte
           // TODO
-          throw runtime_error("exceptions are not supported");
+          throw std::runtime_error("exceptions are not supported");
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
 
     case 0xC: // 0000nnnnmmmm1100 mov.b  rn, [r0 + rm]  # sign-ext
-      this->regs.r[op_get_r1(op)].u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(
+      this->regs.r[op_get_r1(op)].u = phosg::sign_extend<uint32_t, uint8_t>(this->mem->read_u8(
           this->regs.r[0].u + this->regs.r[op_get_r2(op)].u));
       break;
 
     case 0xD: { // 0000nnnnmmmm1101 mov.w  rn, [r0 + rm]  # sign-ext
       uint32_t addr = this->regs.r[0].u + this->regs.r[op_get_r2(op)].u;
       this->assert_aligned(addr, 2);
-      this->regs.r[op_get_r1(op)].u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
+      this->regs.r[op_get_r1(op)].u = phosg::sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
       break;
     }
 
@@ -384,13 +380,12 @@ void SH4Emulator::execute_one_0(uint16_t op) {
       this->assert_aligned(rn_addr, 4);
       this->assert_aligned(rm_addr, 4);
       this->regs.mac +=
-          static_cast<int64_t>(this->mem->read_s32l(rn_addr)) *
-          static_cast<int64_t>(this->mem->read_s32l(rm_addr));
+          static_cast<int64_t>(this->mem->read_s32l(rn_addr)) * static_cast<int64_t>(this->mem->read_s32l(rm_addr));
       break;
     }
 
     default:
-      throw runtime_error("invalid opcode");
+      throw std::runtime_error("invalid opcode");
   }
 }
 
@@ -462,12 +457,12 @@ void SH4Emulator::execute_one_2(uint16_t op) {
       break;
     }
     case 0xF: { // 0010nnnnmmmm1111 muls.w rn, rm  # macl = rn * rm
-      int32_t v = sign_extend<int32_t, int16_t>(rn.s & 0xFFFF) * sign_extend<int32_t, int16_t>(rm.s & 0xFFFF);
+      int32_t v = phosg::sign_extend<int32_t, int16_t>(rn.s & 0xFFFF) * phosg::sign_extend<int32_t, int16_t>(rm.s & 0xFFFF);
       this->regs.mac = (this->regs.mac & 0xFFFFFFFF00000000) | static_cast<uint32_t>(v);
       break;
     }
     default:
-      throw runtime_error("invalid opcode");
+      throw std::runtime_error("invalid opcode");
   }
 }
 
@@ -515,8 +510,7 @@ void SH4Emulator::execute_one_3(uint16_t op) {
     }
     case 0x5: // 0011nnnnmmmm0101 dmulu.l rn, rm
       this->regs.mac =
-          static_cast<uint64_t>(this->regs.r[op_get_r1(op)].u) *
-          static_cast<uint64_t>(this->regs.r[op_get_r2(op)].u);
+          static_cast<uint64_t>(this->regs.r[op_get_r1(op)].u) * static_cast<uint64_t>(this->regs.r[op_get_r2(op)].u);
       break;
     case 0x6: // 0011nnnnmmmm0110 cmpa   rn, rm
       this->regs.replace_t(rn.u > rm.u);
@@ -547,8 +541,7 @@ void SH4Emulator::execute_one_3(uint16_t op) {
       break;
     case 0xD: // 0011nnnnmmmm1101 dmuls.l rn, rm
       this->regs.mac =
-          static_cast<int64_t>(this->regs.r[op_get_r1(op)].s) *
-          static_cast<int64_t>(this->regs.r[op_get_r2(op)].s);
+          static_cast<int64_t>(this->regs.r[op_get_r1(op)].s) * static_cast<int64_t>(this->regs.r[op_get_r2(op)].s);
       break;
     case 0xE: { // 0011nnnnmmmm1110 addc   rn, rm
       uint32_t tmp1 = rn.u + rm.u;
@@ -566,7 +559,7 @@ void SH4Emulator::execute_one_3(uint16_t op) {
       break;
     }
     default:
-      throw runtime_error("invalid opcode");
+      throw std::runtime_error("invalid opcode");
   }
 }
 
@@ -585,7 +578,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           this->regs.replace_t(r.u == 0);
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0x1:
@@ -602,7 +595,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           r.s >>= 1;
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0x2:
@@ -643,12 +636,12 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           this->mem->write_u32l(r.u, this->regs.dbr);
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0x3:
       if (op_get_r2(op) & 0x8) { // 0100nnnn1mmm0011 stc.l  -[rn], rmb
-        throw runtime_error("banked registers are not supported");
+        throw std::runtime_error("banked registers are not supported");
       }
       switch (op_get_r2(op)) {
         case 0x0: // 0100nnnn00000011 stc.l  -[rn], sr
@@ -677,7 +670,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           this->mem->write_u32l(r.u, this->regs.spc);
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0x4:
@@ -693,7 +686,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           break;
         }
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0x5:
@@ -712,7 +705,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           break;
         }
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0x6:
@@ -748,12 +741,12 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           r.u += 4;
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0x7:
       if (op_get_r2(op) & 0x8) { // 0100mmmm1nnn0111 ldc.l  rnb, [rm]+
-        throw runtime_error("banked registers are not supported");
+        throw std::runtime_error("banked registers are not supported");
       }
       switch (op_get_r2(op)) {
         case 0x0: // 0100mmmm00000111 ldc.l  sr, [rm]+
@@ -790,7 +783,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
 
       uint8_t which = op_get_r2(op);
       if (which > 2) {
-        throw runtime_error("invalid opcode");
+        throw std::runtime_error("invalid opcode");
       }
 
       if (op_get_r3(op) & 1) {
@@ -827,7 +820,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           this->regs.dbr = r.u;
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0xB:
@@ -845,7 +838,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
           this->regs.enqueue_branch(Regs::PendingBranchType::BRANCH, r.u, 1);
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0xC: // 0100nnnnmmmm1100 shad   rn, rm
@@ -865,7 +858,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
     }
     case 0xE:
       if (op_get_r2(op) & 0x8) { // 0100mmmm1nnn1110 ldc    rnb, rm
-        throw runtime_error("banked registers are not supported");
+        throw std::runtime_error("banked registers are not supported");
       }
       switch (op_get_r2(op)) {
         case 0x0: // 0100mmmm00001110 ldc    sr, rm
@@ -887,7 +880,7 @@ void SH4Emulator::execute_one_4(uint16_t op) {
       }
       break;
     default:
-      throw runtime_error("invalid opcode");
+      throw std::runtime_error("invalid opcode");
   }
 }
 
@@ -903,11 +896,11 @@ void SH4Emulator::execute_one_6(uint16_t op) {
   auto& rm = this->regs.r[op_get_r2(op)];
   switch (op_get_r3(op)) {
     case 0x0: // 0110nnnnmmmm0000 mov.b  rn, [rm]  # sign-ext
-      rn.u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(rm.u));
+      rn.u = phosg::sign_extend<uint32_t, uint8_t>(this->mem->read_u8(rm.u));
       break;
     case 0x1: // 0110nnnnmmmm0001 mov.w  rn, [rm]  # sign-ext
       this->assert_aligned(rm.u, 2);
-      rn.u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(rm.u));
+      rn.u = phosg::sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(rm.u));
       break;
     case 0x2: // 0110nnnnmmmm0010 mov.l  rn, [rm]
       this->assert_aligned(rm.u, 4);
@@ -917,12 +910,12 @@ void SH4Emulator::execute_one_6(uint16_t op) {
       rn.u = rm.u;
       break;
     case 0x4: // 0110nnnnmmmm0100 mov.b  rn, [rm]+  # sign-ext
-      rn.u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(rm.u));
+      rn.u = phosg::sign_extend<uint32_t, uint8_t>(this->mem->read_u8(rm.u));
       rm.u++;
       break;
     case 0x5: // 0110nnnnmmmm0101 mov.w  rn, [rm]+  # sign-ext
       this->assert_aligned(rm.u, 2);
-      rn.u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(rm.u));
+      rn.u = phosg::sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(rm.u));
       rm.u += 2;
       break;
     case 0x6: // 0110nnnnmmmm0110 mov.l  rn, [rm]+
@@ -955,13 +948,13 @@ void SH4Emulator::execute_one_6(uint16_t op) {
       rn.u = rm.u & 0x0000FFFF;
       break;
     case 0xE: // 0110nnnnmmmm1110 exts.b rn, rm
-      rn.u = sign_extend<uint32_t, uint8_t>(rm.u);
+      rn.u = phosg::sign_extend<uint32_t, uint8_t>(rm.u);
       break;
     case 0xF: // 0110nnnnmmmm1111 exts.w rn, rm
-      rn.u = sign_extend<uint32_t, uint16_t>(rm.u);
+      rn.u = phosg::sign_extend<uint32_t, uint16_t>(rm.u);
       break;
     default:
-      throw runtime_error("invalid opcode");
+      throw std::runtime_error("invalid opcode");
   }
 }
 
@@ -982,12 +975,12 @@ void SH4Emulator::execute_one_8(uint16_t op) {
       break;
     }
     case 0x4: // 10000100mmmmdddd mov.b  r0, [rm + d]  # sign-ext
-      this->regs.r[0].u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(this->regs.r[op_get_r2(op)].u + op_get_uimm4(op)));
+      this->regs.r[0].u = phosg::sign_extend<uint32_t, uint8_t>(this->mem->read_u8(this->regs.r[op_get_r2(op)].u + op_get_uimm4(op)));
       break;
     case 0x5: { // 10000101mmmmdddd mov.w  r0, [rm + 2 * d]  # sign-ext
       uint32_t addr = this->regs.r[op_get_r2(op)].u + 2 * op_get_uimm4(op);
       this->assert_aligned(addr, 2);
-      this->regs.r[0].u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
+      this->regs.r[0].u = phosg::sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
       break;
     }
     case 0x8: // 10001000iiiiiiii cmpeq  r0, imm
@@ -1000,9 +993,7 @@ void SH4Emulator::execute_one_8(uint16_t op) {
       bool is_f = op_get_r1(op) & 2;
       bool is_s = op_get_r1(op) & 4;
       if (this->regs.t() != is_f) {
-        this->regs.enqueue_branch(
-            Regs::PendingBranchType::BRANCH,
-            this->regs.pc + 4 + 2 * op_get_simm8(op),
+        this->regs.enqueue_branch(Regs::PendingBranchType::BRANCH, this->regs.pc + 4 + 2 * op_get_simm8(op),
             is_s ? 1 : 0);
       } else {
         // It looks like this opcode is always invalid in a delay slot even if
@@ -1012,7 +1003,7 @@ void SH4Emulator::execute_one_8(uint16_t op) {
       break;
     }
     default:
-      throw runtime_error("invalid opcode");
+      throw std::runtime_error("invalid opcode");
   }
 }
 
@@ -1021,16 +1012,14 @@ void SH4Emulator::execute_one_9(uint16_t op) {
   this->regs.assert_no_branch_pending();
   uint32_t addr = this->regs.pc + 4 + 2 * op_get_simm8(op);
   this->assert_aligned(addr, 2);
-  this->regs.r[op_get_r1(op)].u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
+  this->regs.r[op_get_r1(op)].u = phosg::sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
 }
 
 void SH4Emulator::execute_one_A_B(uint16_t op) {
   // 1010dddddddddddd bs     (pc + 4 + 2 * d)
   // 1011dddddddddddd calls  (pc + 4 + 2 * d)
-  this->regs.enqueue_branch(
-      (op_get_op(op) & 1) ? Regs::PendingBranchType::CALL : Regs::PendingBranchType::BRANCH,
-      this->regs.pc + 4 + 2 * op_get_simm12(op),
-      1);
+  this->regs.enqueue_branch((op_get_op(op) & 1) ? Regs::PendingBranchType::CALL : Regs::PendingBranchType::BRANCH,
+      this->regs.pc + 4 + 2 * op_get_simm12(op), 1);
 }
 
 void SH4Emulator::execute_one_C(uint16_t op) {
@@ -1052,14 +1041,14 @@ void SH4Emulator::execute_one_C(uint16_t op) {
     }
     case 0x3: // 11000011iiiiiiii trapa  imm
       this->regs.assert_no_branch_pending();
-      throw runtime_error(std::format("unhandled trap {:02X}", op_get_uimm8(op)));
+      throw std::runtime_error(std::format("unhandled trap {:02X}", op_get_uimm8(op)));
     case 0x4: // 11000100dddddddd mov.b  r0, [gbr + d]  # sign-ext
-      this->regs.r[0].u = sign_extend<uint32_t, uint8_t>(this->mem->read_u8(this->regs.gbr + op_get_uimm8(op)));
+      this->regs.r[0].u = phosg::sign_extend<uint32_t, uint8_t>(this->mem->read_u8(this->regs.gbr + op_get_uimm8(op)));
       break;
     case 0x5: { // 11000101dddddddd mov.w  r0, [gbr + 2 * d]  # sign-ext
       uint32_t addr = this->regs.gbr + 2 * op_get_uimm8(op);
       this->assert_aligned(addr, 2);
-      this->regs.r[0].u = sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
+      this->regs.r[0].u = phosg::sign_extend<uint32_t, uint16_t>(this->mem->read_u16l(addr));
       break;
     }
     case 0x6: { // 11000110dddddddd mov.l  r0, [gbr + 4 * d]
@@ -1103,7 +1092,7 @@ void SH4Emulator::execute_one_C(uint16_t op) {
       break;
     }
     default:
-      throw logic_error("unhandled C/X case");
+      throw std::logic_error("unhandled C/X case");
   }
 }
 
@@ -1132,7 +1121,7 @@ void SH4Emulator::execute_one_F(uint16_t op) {
     case 0x0:
       if (this->regs.fpscr_pr()) { // 1111nnn0mmm00000 fadd   drn, drm
         if (op & 0x0110) {
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
         }
         drn += drm;
       } else { // 1111nnnnmmmm0000 fadd   frn, frm
@@ -1142,7 +1131,7 @@ void SH4Emulator::execute_one_F(uint16_t op) {
     case 0x1:
       if (this->regs.fpscr_pr()) { // 1111nnn0mmm00001 fsub   drn, drm
         if (op & 0x0110) {
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
         }
         drn -= drm;
       } else { // 1111nnnnmmmm0001 fsub   frn, frm
@@ -1152,7 +1141,7 @@ void SH4Emulator::execute_one_F(uint16_t op) {
     case 0x2:
       if (this->regs.fpscr_pr()) { // 1111nnn0mmm00010 fmul   drn, drm
         if (op & 0x0110) {
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
         }
         drn *= drm;
       } else { // 1111nnnnmmmm0010 fmul   frn, frm
@@ -1162,7 +1151,7 @@ void SH4Emulator::execute_one_F(uint16_t op) {
     case 0x3:
       if (this->regs.fpscr_pr()) { // 1111nnn0mmm00011 fdiv   drn, drm
         if (op & 0x0110) {
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
         }
         drn /= drm;
       } else { // 1111nnnnmmmm0011 fdiv   frn, frm
@@ -1172,7 +1161,7 @@ void SH4Emulator::execute_one_F(uint16_t op) {
     case 0x4:
       if (this->regs.fpscr_pr()) { // 1111nnn0mmm00100 fcmpeq drn, drm
         if (op & 0x0110) {
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
         }
         this->regs.replace_t(drn == drm);
       } else { // 1111nnnnmmmm0100 fcmpeq frn, frm
@@ -1182,7 +1171,7 @@ void SH4Emulator::execute_one_F(uint16_t op) {
     case 0x5:
       if (this->regs.fpscr_pr()) { // 1111nnn0mmm00101 fcmpgt drn, drm
         if (op & 0x0110) {
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
         }
         this->regs.replace_t(drn > drm);
       } else { // 1111nnnnmmmm0101 fcmpgt frn, frm
@@ -1325,40 +1314,40 @@ void SH4Emulator::execute_one_F(uint16_t op) {
           break;
         case 0xA: // 1111nnn010101101 fcnvsd drn, fpul
           if (op & 0x0100) {
-            throw runtime_error("invalid opcode");
+            throw std::runtime_error("invalid opcode");
           }
           drn = this->regs.fpul_f;
           break;
         case 0xB: // 1111mmm010111101 fcnvds fpul, drm
           if (op & 0x0100) {
-            throw runtime_error("invalid opcode");
+            throw std::runtime_error("invalid opcode");
           }
           this->regs.fpul_f = drn;
           break;
         case 0xE: // 1111nnmm11101101 fipr   fvn, fvm  # fs(n+3) = dot(fvn, fvm)
           // TODO
-          throw runtime_error("floating-point vector opcodes not yet implemented");
+          throw std::runtime_error("floating-point vector opcodes not yet implemented");
         case 0xF:
           if ((op & 0x0300) == 0x0100) {
             // 1111nn0111111101 ftrv   fvn, xmtrx
             // TODO
-            throw runtime_error("floating-point vector opcodes not yet implemented");
+            throw std::runtime_error("floating-point vector opcodes not yet implemented");
           } else if ((op & 0x0300) == 0x0300) {
             // 1111001111111101 fschg
             // 1111101111111101 frchg
-            throw runtime_error("floating-point control bit changes not yet implemented");
+            throw std::runtime_error("floating-point control bit changes not yet implemented");
           } else {
-            throw runtime_error("invalid opcode");
+            throw std::runtime_error("invalid opcode");
           }
           break;
         default:
-          throw runtime_error("invalid opcode");
+          throw std::runtime_error("invalid opcode");
       }
       break;
     case 0xE: // 1111nnnnmmmm1110 fmac   frn, frm  # frn += fs0 * frm
-      throw runtime_error("fmac opcode not yet implemented");
+      throw std::runtime_error("fmac opcode not yet implemented");
     default:
-      throw runtime_error("invalid opcode");
+      throw std::runtime_error("invalid opcode");
   }
 }
 
@@ -1443,7 +1432,7 @@ void SH4Emulator::execute() {
           this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
           break;
         default:
-          throw logic_error("unimplemented branch type");
+          throw std::logic_error("unimplemented branch type");
       }
       if (this->regs.instructions_until_branch) {
         this->regs.instructions_until_branch--;
@@ -1467,7 +1456,7 @@ static uint8_t parse_reg_ref(const std::string& name, const std::string& prefix,
       if ((end_offset == name.size() - prefix.size()) && (ret < 0x10) && ((ret & mask) == ret)) {
         return ret;
       }
-    } catch (const invalid_argument&) {
+    } catch (const std::invalid_argument&) {
     }
   }
   return 0xFF;
@@ -1515,9 +1504,9 @@ static bool is_const_expression(const Expression::Node& node) {
   });
 }
 
-SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(Type::UNKNOWN), reg_num(0) {
+SH4Emulator::Assembler::Argument::Argument(const std::string& text, bool raw) : type(Type::UNKNOWN), reg_num(0) {
   if (text.empty()) {
-    throw runtime_error("argument text is blank");
+    throw std::runtime_error("argument text is blank");
   }
   if (raw) {
     this->type = Type::RAW;
@@ -1532,7 +1521,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(
       this->type = is_banked ? Type::BANK_INT_REGISTER : Type::INT_REGISTER;
       check_range_t<uint8_t>(this->reg_num, 0, 15);
       return;
-    } catch (const invalid_argument&) {
+    } catch (const std::invalid_argument&) {
     }
   }
 
@@ -1543,7 +1532,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(
         this->type = Type::FR_REGISTER;
         check_range_t<uint8_t>(this->reg_num, 0, 15);
         return;
-      } catch (const invalid_argument&) {
+      } catch (const std::invalid_argument&) {
       }
     } else if (text.starts_with("dr")) {
       try {
@@ -1551,10 +1540,10 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(
         this->type = Type::DR_REGISTER;
         check_range_t<uint8_t>(this->reg_num, 0, 15);
         if (this->reg_num & 1) {
-          throw runtime_error("invalid double-precision float register number");
+          throw std::runtime_error("invalid double-precision float register number");
         }
         return;
-      } catch (const invalid_argument&) {
+      } catch (const std::invalid_argument&) {
       }
     } else if (text.starts_with("xd")) {
       try {
@@ -1562,10 +1551,10 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(
         this->type = Type::XD_REGISTER;
         check_range_t<uint8_t>(this->reg_num, 0, 15);
         if (this->reg_num & 1) {
-          throw runtime_error("invalid extended float register number");
+          throw std::runtime_error("invalid extended float register number");
         }
         return;
-      } catch (const invalid_argument&) {
+      } catch (const std::invalid_argument&) {
       }
     } else if (text.starts_with("fv")) {
       try {
@@ -1573,10 +1562,10 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(
         this->type = Type::FV_REGISTER;
         check_range_t<uint8_t>(this->reg_num, 0, 15);
         if (this->reg_num & 3) {
-          throw runtime_error("invalid vector register number");
+          throw std::runtime_error("invalid vector register number");
         }
         return;
-      } catch (const invalid_argument&) {
+      } catch (const std::invalid_argument&) {
       }
     }
   }
@@ -1631,7 +1620,7 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(
       this->type = Type::PREDEC_MEMORY_REFERENCE;
       check_range_t<uint8_t>(this->reg_num, 0, 15);
       return;
-    } catch (const invalid_argument&) {
+    } catch (const std::invalid_argument&) {
     }
 
   } else if (text.starts_with("[r") && text.ends_with("]+")) {
@@ -1640,12 +1629,12 @@ SH4Emulator::Assembler::Argument::Argument(const string& text, bool raw) : type(
       this->type = Type::POSTINC_MEMORY_REFERENCE;
       check_range_t<uint8_t>(this->reg_num, 0, 15);
       return;
-    } catch (const invalid_argument&) {
+    } catch (const std::invalid_argument&) {
     }
 
   } else if (text.starts_with("[") && text.ends_with("]")) {
-    string inner_text = text.substr(1, text.size() - 2);
-    strip_whitespace(inner_text);
+    std::string inner_text = text.substr(1, text.size() - 2);
+    phosg::strip_whitespace(inner_text);
 
     auto expr = Expression::Node::parse(inner_text);
 
@@ -1828,10 +1817,10 @@ const char* SH4Emulator::Assembler::Argument::name_for_argument_type(Type type) 
 
 void SH4Emulator::Assembler::StreamItem::check_arg_types(std::initializer_list<ArgType> types) const {
   if (this->args.size() < types.size()) {
-    throw runtime_error("not enough arguments to opcode");
+    throw std::runtime_error("not enough arguments to opcode");
   }
   if (this->args.size() > types.size()) {
-    throw runtime_error("too many arguments to opcode");
+    throw std::runtime_error("too many arguments to opcode");
   }
   size_t z = 0;
   for (auto et : types) {
@@ -1847,7 +1836,7 @@ void SH4Emulator::Assembler::StreamItem::check_arg_types(std::initializer_list<A
       z++;
       continue;
     }
-    throw runtime_error(std::format("incorrect type for argument {} (expected {}, received {})",
+    throw std::runtime_error(std::format("incorrect type for argument {} (expected {}, received {})",
         z, Argument::name_for_argument_type(et), Argument::name_for_argument_type(at)));
   }
 }
@@ -1856,7 +1845,7 @@ bool SH4Emulator::Assembler::StreamItem::check_2_same_float_regs() const {
   try {
     this->check_arg_types({ArgType::FR_REGISTER, ArgType::FR_REGISTER});
     return false;
-  } catch (const runtime_error&) {
+  } catch (const std::runtime_error&) {
     this->check_arg_types({ArgType::DR_REGISTER, ArgType::DR_REGISTER});
     return true;
   }
@@ -1866,13 +1855,13 @@ bool SH4Emulator::Assembler::StreamItem::check_2_same_float_regs() const {
   try {
     this->check_arg_types(types);
     return true;
-  } catch (const runtime_error&) {
+  } catch (const std::runtime_error&) {
     return false;
   }
 }
 
 [[noreturn]] void SH4Emulator::Assembler::StreamItem::throw_invalid_arguments() const {
-  string message = "invalid arguments (types: ";
+  std::string message = "invalid arguments (types: ";
   for (const auto& arg : this->args) {
     message += Argument::name_for_argument_type(arg.type);
     message += ", ";
@@ -1881,7 +1870,7 @@ bool SH4Emulator::Assembler::StreamItem::check_2_same_float_regs() const {
     message.resize(message.size() - 2);
   }
   message.push_back(')');
-  throw runtime_error(message);
+  throw std::runtime_error(message);
 }
 
 static std::string dasm_disp(uint8_t base_reg_num, int32_t disp) {
@@ -1929,7 +1918,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
     case 0x0:
       switch (op_get_r3(op)) {
         case 0x2: {
-          static const array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
+          static const std::array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
           uint8_t reg1 = op_get_r1(op);
           uint8_t reg2 = op_get_r2(op);
           if (reg2 < reg_names.size()) {
@@ -2099,12 +2088,12 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
       // 0011nnnnmmmm1101 dmuls.l rn, rm
       // 0011nnnnmmmm1110 addc   rn, rm
       // 0011nnnnmmmm1111 addv   rn, rm
-      static const array<const char*, 0x10> names = {
+      static const std::array<const char*, 0x10> names = {
           "cmpeq", nullptr, "cmpae", "cmpge", "div1", "dmulu.l", "cmpa", "cmpgt",
           "sub", nullptr, "subc", "subv", "add", "dmuls.l", "addc", "addv"};
       const char* name = names[op_get_r3(op)];
       if (name) {
-        string ret = name;
+        std::string ret = name;
         ret.resize(8, ' ');
         ret += std::format("r{}, r{}", op_get_r1(op), op_get_r2(op));
         return ret;
@@ -2142,7 +2131,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           // 0100nnnn01010010 sts.l  -[rn], fpul
           // 0100nnnn01100010 sts.l  -[rn], fpscr
           // 0100nnnn11110010 stc.l  -[rn], dbr
-          static const array<const char*, 0x10> reg_names = {
+          static const std::array<const char*, 0x10> reg_names = {
               "mach", "macl", "pr", "sgr", nullptr, "fpul", "fpscr", nullptr,
               nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, "dbr"};
           uint8_t reg2 = op_get_r2(op);
@@ -2153,7 +2142,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           break;
         }
         case 0x3: {
-          static const array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
+          static const std::array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
           uint8_t reg2 = op_get_r2(op);
           if (reg2 < reg_names.size()) {
             // 0100nnnn00000011 stc.l  -[rn], sr
@@ -2186,7 +2175,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           }
           break;
         case 0x6: {
-          static const array<const char*, 0x10> reg_names = {
+          static const std::array<const char*, 0x10> reg_names = {
               "mach", "macl", "pr", nullptr, nullptr, "fpul", "fpscr", nullptr,
               nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, "dbr"};
           uint8_t reg2 = op_get_r2(op);
@@ -2203,7 +2192,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           break;
         }
         case 0x7: {
-          static const array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
+          static const std::array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
           uint8_t reg2 = op_get_r2(op);
           if (reg2 < reg_names.size()) {
             // 0100mmmm00000111 ldc.l  sr, [rm]+
@@ -2220,7 +2209,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
         }
         case 0x8:
         case 0x9: {
-          static const array<uint8_t, 3> shifts = {2, 8, 16};
+          static const std::array<uint8_t, 3> shifts = {2, 8, 16};
           uint8_t reg2 = op_get_r2(op);
           if (reg2 < shifts.size()) {
             // 0100nnnn00001000 shl    rn, 2
@@ -2235,7 +2224,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           break;
         }
         case 0xA: {
-          static const array<const char*, 0x10> reg_names = {
+          static const std::array<const char*, 0x10> reg_names = {
               "mach", "macl", "pr", nullptr, nullptr, "fpul", "fpscr", nullptr,
               nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, "dbr"};
           uint8_t reg2 = op_get_r2(op);
@@ -2252,7 +2241,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           break;
         }
         case 0xB: {
-          static const array<const char*, 3> names = {"calls", "tas.b", "bs   "};
+          static const std::array<const char*, 3> names = {"calls", "tas.b", "bs   "};
           uint8_t reg2 = op_get_r2(op);
           if (reg2 < names.size()) {
             // 0100nnnn00001011 calls  [rn]
@@ -2266,7 +2255,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
         case 0xD: // 0100nnnnmmmm1101 shld   rn, rm
           return std::format("sh{}d    r{}, r{}", (op_get_r3(op) & 1) ? 'l' : 'a', op_get_r1(op), op_get_r2(op));
         case 0xE: {
-          static const array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
+          static const std::array<const char*, 5> reg_names = {"sr", "gbr", "vbr", "ssr", "spc"};
           uint8_t reg2 = op_get_r2(op);
           if (reg2 < reg_names.size()) {
             // 0100mmmm00001110 ldc    sr, rm
@@ -2346,7 +2335,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
         case 0xB: // 10001011dddddddd bf     (pc + 4 + 2 * d)  # branch if T = 0
         case 0xD: // 10001101dddddddd bts    (pc + 4 + 2 * d)  # branch after next ins if T = 1
         case 0xF: { // 10001111dddddddd bfs    (pc + 4 + 2 * d)  # branch after next ins if T = 0
-          static const array<string, 4> names = {"bt ", "bf ", "bts", "bfs"};
+          static const std::array<std::string, 4> names = {"bt ", "bf ", "bts", "bfs"};
           int32_t disp = 2 * op_get_simm8(op);
           s.branch_target_addresses.emplace(s.pc + 4 + disp, false);
           return names[(op >> 9) & 3] + "     " + dasm_b_target(s.pc, disp);
@@ -2356,14 +2345,14 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
 
     case 0x9: { // 1001nnnndddddddd mov.w  rn, [pc + 4 + d * 2]
       uint32_t referenced_pc = s.pc + 4 + 2 * op_get_uimm8(op);
-      string value_suffix;
+      std::string value_suffix;
       try {
         if (s.mem) {
           value_suffix = std::format(" /* 0x{:04X} */", s.mem->read_u16l(referenced_pc));
         } else {
           value_suffix = std::format(" /* 0x{:04X} */", s.r.pget_u16l(referenced_pc - s.start_pc));
         }
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
         value_suffix = " /* reference out of range */";
       }
       return std::format("mov.w   r{}, [0x{:08X}]{}", op_get_r1(op), referenced_pc, value_suffix);
@@ -2399,14 +2388,14 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
         case 0x9: // 11001001iiiiiiii and    r0, imm
         case 0xA: // 11001010iiiiiiii xor    r0, imm
         case 0xB: { // 11001011iiiiiiii or     r0, imm
-          static const array<const char*, 4> names = {"test", "and ", "xor ", "or  "};
+          static const std::array<const char*, 4> names = {"test", "and ", "xor ", "or  "};
           return std::format("{}    r0, ", names[op_get_r1(op) & 3]) + dasm_imm(op_get_uimm8(op));
         }
         case 0xC: // 11001100iiiiiiii test.b [r0 + gbr], imm
         case 0xD: // 11001101iiiiiiii and.b  [r0 + gbr], imm
         case 0xE: // 11001110iiiiiiii xor.b  [r0 + gbr], imm
         case 0xF: { // 11001111iiiiiiii or.b   [r0 + gbr], imm
-          static const array<const char*, 4> names = {"test.b", "and.b ", "xor.b ", "or.b  "};
+          static const std::array<const char*, 4> names = {"test.b", "and.b ", "xor.b ", "or.b  "};
           return std::format("{}  [gbr + r0], ", names[op_get_r1(op) & 3]) + dasm_imm(op_get_uimm8(op));
         }
       }
@@ -2414,14 +2403,14 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
 
     case 0xD: { // 1101nnnndddddddd mov.l  rn, [(pc & ~3) + 4 + d * 4]
       uint32_t referenced_pc = (s.pc & (~3)) + 4 + 4 * op_get_uimm8(op);
-      string value_suffix;
+      std::string value_suffix;
       try {
         if (s.mem) {
           value_suffix = std::format(" /* 0x{:08X} */", s.mem->read_u32l(referenced_pc));
         } else {
           value_suffix = std::format(" /* 0x{:08X} */", s.r.pget_u32l(referenced_pc - s.start_pc));
         }
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
         value_suffix = " /* reference out of range */";
       }
       return std::format("mov.l   r{}, [0x{:08X}]{}", op_get_r1(op), referenced_pc, value_suffix);
@@ -2454,7 +2443,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
           if (s.double_precision && (op & 0x0110)) {
             break;
           }
-          static const array<const char*, 6> names = {"fadd  ", "fsub  ", "fmul  ", "fdiv  ", "fcmpeq", "fcmpgt"};
+          static const std::array<const char*, 6> names = {"fadd  ", "fsub  ", "fmul  ", "fdiv  ", "fcmpeq", "fcmpgt"};
           return std::format("{}  {}r{}, {}r{}",
               names[op_get_r3(op)], size_ch, op_get_r1(op), size_ch, op_get_r2(op));
         }
@@ -2622,7 +2611,7 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
     }
 
     default:
-      throw logic_error("invalid op field");
+      throw std::logic_error("invalid op field");
   }
 
   return ".invalid";
@@ -2640,7 +2629,7 @@ int64_t SH4Emulator::Assembler::resolve_immediate(const Argument& arg) const {
     }
   });
   if (!ret.is_int()) {
-    throw runtime_error(std::format("Expression value ({}) is not an integer", ret.str()));
+    throw std::runtime_error(std::format("Expression value ({}) is not an integer", ret.str()));
   }
   return ret.as_int();
 }
@@ -2675,7 +2664,7 @@ uint16_t SH4Emulator::Assembler::asm_add_addc_addv_sub_subc_subv(const StreamIte
   bool is_add = si.op_name.starts_with("add");
   bool is_sub = si.op_name.starts_with("sub");
   if ((!is_add && !is_sub) || (si.op_name.size() > 4)) {
-    throw logic_error("add/sub called for incorrect opcode");
+    throw std::logic_error("add/sub called for incorrect opcode");
   }
   char suffix = (si.op_name.size() == 4) ? si.op_name[3] : 0;
 
@@ -2701,7 +2690,7 @@ uint16_t SH4Emulator::Assembler::asm_add_addc_addv_sub_subc_subv(const StreamIte
     // 0011nnnnmmmm1111 addv   rn, rm
     return asm_op_r1_r2_r3(0x3, si.args[0].reg_num, si.args[1].reg_num, is_sub ? 0xB : 0xF);
   }
-  throw logic_error("unhandled add/sub case");
+  throw std::logic_error("unhandled add/sub case");
 }
 
 uint16_t SH4Emulator::Assembler::asm_and_or(const StreamItem& si) const {
@@ -2736,7 +2725,7 @@ uint16_t SH4Emulator::Assembler::asm_bs_calls(const StreamItem& si) const {
     // 1011dddddddddddd calls  (pc + 4 + 2 * d)
     int32_t delta = this->compute_branch_delta(si.args[0], si.offset, si.offset + 4);
     if ((delta & 0xFFFFF001) != 0 && (delta & 0xFFFFF001) != 0xFFFFF000) {
-      throw runtime_error("invalid branch target");
+      throw std::runtime_error("invalid branch target");
     }
     return asm_op_imm12(is_calls ? 0xB : 0xA, delta >> 1);
 
@@ -2764,7 +2753,7 @@ uint16_t SH4Emulator::Assembler::asm_bt_bf_bts_bfs(const StreamItem& si) const {
   bool is_s = si.op_name.size() == 3;
   int32_t delta = this->compute_branch_delta(si.args[0], si.offset, si.offset + 4);
   if ((delta & 0xFFFFFF01) != 0 && (delta & 0xFFFFFF01) != 0xFFFFFF00) {
-    throw runtime_error("invalid branch target");
+    throw std::runtime_error("invalid branch target");
   }
   return asm_op_r1_imm8(0x8, 0x9 | (is_s ? 0x4 : 0x0) | (is_f ? 0x2 : 0x0), delta >> 1);
 }
@@ -2820,7 +2809,7 @@ uint16_t SH4Emulator::Assembler::asm_cmp_mnemonics(const StreamItem& si) const {
     } else if (si.op_name == "cmpstr") {
       return asm_op_r1_r2_r3(0x2, si.args[0].reg_num, si.args[1].reg_num, 0xC);
     } else {
-      throw runtime_error("invalid cmp mnemonic");
+      throw std::runtime_error("invalid cmp mnemonic");
     }
   }
 
@@ -2927,7 +2916,7 @@ uint16_t SH4Emulator::Assembler::asm_fipr(const StreamItem& si) const {
   // 1111nnmm11101101 fipr   fvn, fvm  # fs(n+3) = dot(fvn, fvm)
   si.check_arg_types({ArgType::FV_REGISTER, ArgType::FV_REGISTER});
   if ((si.args[0].reg_num & 0xF3) || (si.args[1].reg_num & 0xF3)) {
-    throw runtime_error("invalid fv register number");
+    throw std::runtime_error("invalid fv register number");
   }
   return asm_op_r1_r2_r3(0xF, si.args[0].reg_num | (si.args[1].reg_num >> 2), 0xE, 0xD);
 }
@@ -2966,7 +2955,7 @@ uint16_t SH4Emulator::Assembler::asm_fmac(const StreamItem& si) const {
 
 uint16_t SH4Emulator::Assembler::asm_fmov_fmov_s(const StreamItem& si) const {
   if (si.args.size() < 2) {
-    throw runtime_error("not enough arguments");
+    throw std::runtime_error("not enough arguments");
   }
   uint8_t reg1 = si.args[0].reg_num | ((si.args[0].type == ArgType::XD_REGISTER) ? 1 : 0);
   uint8_t reg2 = si.args[1].reg_num | ((si.args[1].type == ArgType::XD_REGISTER) ? 1 : 0);
@@ -3019,7 +3008,7 @@ uint16_t SH4Emulator::Assembler::asm_fmov_fmov_s(const StreamItem& si) const {
   }
 
   if (subopcode == 0) {
-    throw runtime_error("incorrect argument types");
+    throw std::runtime_error("incorrect argument types");
   }
   return asm_op_r1_r2_r3(0xF, reg1, reg2, subopcode);
 }
@@ -3070,14 +3059,14 @@ uint16_t SH4Emulator::Assembler::asm_ftrv(const StreamItem& si) const {
   // 1111nn0111111101 ftrv   fvn, xmtrx
   si.check_arg_types({ArgType::FV_REGISTER, ArgType::XMTRX});
   if (si.args[0].reg_num & 0xF3) {
-    throw runtime_error("invalid fv register number");
+    throw std::runtime_error("invalid fv register number");
   }
   return asm_op_r1_r2_r3(0xF, si.args[0].reg_num | 1, 0xF, 0xD);
 }
 
 uint16_t SH4Emulator::Assembler::asm_ldc_ldc_l(const StreamItem& si) const {
   if (si.args.size() != 2) {
-    throw runtime_error("incorrect number of arguments");
+    throw std::runtime_error("incorrect number of arguments");
   }
 
   if (si.args[0].type == ArgType::BANK_INT_REGISTER) {
@@ -3128,7 +3117,7 @@ uint16_t SH4Emulator::Assembler::asm_ldc_ldc_l(const StreamItem& si) const {
 
 uint16_t SH4Emulator::Assembler::asm_lds_lds_l(const StreamItem& si) const {
   if (si.args.size() != 2) {
-    throw runtime_error("incorrect number of arguments");
+    throw std::runtime_error("incorrect number of arguments");
   }
 
   bool is_postinc = (si.args[1].type == ArgType::POSTINC_MEMORY_REFERENCE);
@@ -3201,7 +3190,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
   } else if (si.op_name.at(4) == 'l') {
     size = 2;
   } else {
-    throw runtime_error("invalid operand size");
+    throw std::runtime_error("invalid operand size");
   }
 
   if (si.arg_types_match({ArgType::MEMORY_REFERENCE, ArgType::INT_REGISTER})) {
@@ -3226,7 +3215,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     int64_t offset = this->resolve_immediate(si.args[0]);
     check_range_t<int64_t>(offset, 0x00, 0x0F * (1 << size));
     if (offset & ((1 << size) - 1)) {
-      throw runtime_error("offset is not aligned");
+      throw std::runtime_error("offset is not aligned");
     }
 
     if (size == 2) {
@@ -3236,7 +3225,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     // 10000000nnnndddd mov.b  [rn + d], r0
     // 10000001nnnndddd mov.w  [rn + 2 * d], r0
     if (si.args[1].reg_num != 0) {
-      throw runtime_error("invalid source register");
+      throw std::runtime_error("invalid source register");
     }
     return asm_op_r1_r2_r3(0x8, size, si.args[0].reg_num, offset >> size);
 
@@ -3247,10 +3236,10 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     int64_t offset = this->resolve_immediate(si.args[0]);
     check_range_t<int64_t>(offset, 0x00, 0xFF * (1 << size));
     if (offset & ((1 << size) - 1)) {
-      throw runtime_error("offset is not aligned");
+      throw std::runtime_error("offset is not aligned");
     }
     if (si.args[1].reg_num != 0) {
-      throw runtime_error("invalid source register");
+      throw std::runtime_error("invalid source register");
     }
     return asm_op_r1_imm8(0xC, size, offset >> size);
 
@@ -3276,7 +3265,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     int64_t offset = this->resolve_immediate(si.args[1]);
     check_range_t<int64_t>(offset, 0x00, 0x0F * (1 << size));
     if (offset & ((1 << size) - 1)) {
-      throw runtime_error("offset is not aligned");
+      throw std::runtime_error("offset is not aligned");
     }
 
     if (size == 2) {
@@ -3286,7 +3275,7 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     // 10000100mmmmdddd mov.b  r0, [rm + d]  # sign-ext
     // 10000101mmmmdddd mov.w  r0, [rm + 2 * d]  # sign-ext
     if (si.args[0].reg_num != 0) {
-      throw runtime_error("invalid destination register");
+      throw std::runtime_error("invalid destination register");
     }
     return asm_op_r1_r2_r3(0x8, 4 | size, si.args[1].reg_num, offset >> size);
 
@@ -3297,10 +3286,10 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     int64_t offset = this->resolve_immediate(si.args[1]);
     check_range_t<int64_t>(offset, 0x00, 0xFF * (1 << size));
     if (offset & ((1 << size) - 1)) {
-      throw runtime_error("offset is not aligned");
+      throw std::runtime_error("offset is not aligned");
     }
     if (si.args[0].reg_num != 0) {
-      throw runtime_error("invalid destination register");
+      throw std::runtime_error("invalid destination register");
     }
     return asm_op_r1_imm8(0xC, 4 | size, offset >> size);
 
@@ -3314,10 +3303,10 @@ uint16_t SH4Emulator::Assembler::asm_mov_b_w_l(const StreamItem& si) const {
     } else if (size == 2) {
       delta = offset - ((si.offset & (~3)) + 4);
     } else {
-      throw runtime_error("invalid operand size");
+      throw std::runtime_error("invalid operand size");
     }
     if (delta & ((1 << size) - 1)) {
-      throw runtime_error("misaligned read offset");
+      throw std::runtime_error("misaligned read offset");
     }
     return asm_op_r1_imm8(0x9 | ((size == 2) ? 0x4 : 0x0), si.args[0].reg_num, delta >> size);
   }
@@ -3329,7 +3318,7 @@ uint16_t SH4Emulator::Assembler::asm_movca_l(const StreamItem& si) const {
   // 0000nnnn11000011 movca.l [rn], r0
   si.check_arg_types({ArgType::MEMORY_REFERENCE, ArgType::INT_REGISTER});
   if (si.args[1].reg_num != 0) {
-    throw runtime_error("movca.l source operand must be r0");
+    throw std::runtime_error("movca.l source operand must be r0");
   }
   return asm_op_r1_r2_r3(0x0, si.args[0].reg_num, 0xC, 0x3);
 }
@@ -3338,7 +3327,7 @@ uint16_t SH4Emulator::Assembler::asm_mova(const StreamItem& si) const {
   // 11000111dddddddd mova   r0, [(pc & ~3) + 4 + d * 4]
   si.check_arg_types({ArgType::INT_REGISTER, ArgType::PC_MEMORY_REFERENCE});
   if (si.args[0].reg_num != 0) {
-    throw runtime_error("mova dest operand must be r0");
+    throw std::runtime_error("mova dest operand must be r0");
   }
   int64_t target = this->resolve_immediate(si.args[1]);
   int32_t delta = target - ((si.offset & (~3)) + 4);
@@ -3400,7 +3389,7 @@ uint16_t SH4Emulator::Assembler::asm_ocbi_ocbp_ocbwb_pref(const StreamItem& si) 
   } else if (si.op_name == "ocbwb") {
     subtype = 0xB;
   } else {
-    throw logic_error("invalid cache opcode subtype");
+    throw std::logic_error("invalid cache opcode subtype");
   }
   return asm_op_r1_r2_r3(0x0, si.args[0].reg_num, subtype, 0x3);
 }
@@ -3476,7 +3465,7 @@ uint16_t SH4Emulator::Assembler::asm_shl_shr(const StreamItem& si) const {
       // 0100nnnn00101001 shr    rn, 16
       shift_spec = 0x28;
     } else {
-      throw runtime_error("shift distance must be 1, 2, 8, or 16");
+      throw std::runtime_error("shift distance must be 1, 2, 8, or 16");
     }
   }
   return asm_op_r1_imm8(0x4, si.args[0].reg_num, shift_spec | ((si.op_name.at(2) == 'r') ? 1 : 0));
@@ -3484,7 +3473,7 @@ uint16_t SH4Emulator::Assembler::asm_shl_shr(const StreamItem& si) const {
 
 uint16_t SH4Emulator::Assembler::asm_stc_stc_l(const StreamItem& si) const {
   if (si.args.size() != 2) {
-    throw runtime_error("incorrect number of arguments");
+    throw std::runtime_error("incorrect number of arguments");
   }
 
   bool is_predec = si.op_name.ends_with(".l");
@@ -3532,7 +3521,7 @@ uint16_t SH4Emulator::Assembler::asm_stc_stc_l(const StreamItem& si) const {
 
 uint16_t SH4Emulator::Assembler::asm_sts_sts_l(const StreamItem& si) const {
   if (si.args.size() != 2) {
-    throw runtime_error("incorrect number of arguments");
+    throw std::runtime_error("incorrect number of arguments");
   }
 
   bool is_predec = si.op_name.ends_with(".l");
@@ -3590,7 +3579,7 @@ uint16_t SH4Emulator::Assembler::asm_test_xor(const StreamItem& si) const {
   // 11001010iiiiiiii xor    r0, imm
   si.check_arg_types({ArgType::INT_REGISTER, ArgType::IMMEDIATE});
   if (si.args[0].reg_num != 0) {
-    throw runtime_error("register must be r0 for test/xor with imm");
+    throw std::runtime_error("register must be r0 for test/xor with imm");
   }
   int64_t imm = this->resolve_immediate(si.args[1]);
   check_range_t<int64_t>(imm, 0x00, 0xFF);
@@ -3621,7 +3610,7 @@ uint16_t SH4Emulator::Assembler::asm_xtrct(const StreamItem& si) const {
   return asm_op_r1_r2_r3(0x2, si.args[0].reg_num, si.args[1].reg_num, 0xD);
 }
 
-const unordered_map<string, SH4Emulator::Assembler::AssembleFunction>
+const std::unordered_map<std::string, SH4Emulator::Assembler::AssembleFunction>
     SH4Emulator::Assembler::assemble_functions = {
         {"add", &SH4Emulator::Assembler::asm_add_addc_addv_sub_subc_subv},
         {"addc", &SH4Emulator::Assembler::asm_add_addc_addv_sub_subc_subv},
@@ -3739,28 +3728,29 @@ const unordered_map<string, SH4Emulator::Assembler::AssembleFunction>
         {"xtrct", &SH4Emulator::Assembler::asm_xtrct},
 };
 
-string SH4Emulator::disassemble_one(uint32_t pc, uint16_t op, bool double_precision, std::shared_ptr<const MemoryContext> mem) {
-  le_uint16_t str = op;
+std::string SH4Emulator::disassemble_one(
+    uint32_t pc, uint16_t op, bool double_precision, std::shared_ptr<const MemoryContext> mem) {
+  phosg::le_uint16_t str = op;
   DisassemblyState s = {
       .pc = pc,
       .start_pc = pc,
       .double_precision = double_precision,
       .labels = nullptr,
       .branch_target_addresses = {},
-      .r = StringReader(&str, sizeof(str)),
+      .r = phosg::StringReader(&str, sizeof(str)),
       .mem = mem,
   };
   return SH4Emulator::disassemble_one(s, op);
 }
 
-string SH4Emulator::disassemble(
+std::string SH4Emulator::disassemble(
     const void* data,
     size_t size,
     uint32_t start_pc,
-    const multimap<uint32_t, string>* in_labels,
+    const std::multimap<uint32_t, std::string>* in_labels,
     bool double_precision,
     std::shared_ptr<const MemoryContext> mem) {
-  static const multimap<uint32_t, string> empty_labels_map = {};
+  static const std::multimap<uint32_t, std::string> empty_labels_map = {};
 
   DisassemblyState s = {
       .pc = start_pc,
@@ -3768,27 +3758,26 @@ string SH4Emulator::disassemble(
       .double_precision = double_precision,
       .labels = (in_labels ? in_labels : &empty_labels_map),
       .branch_target_addresses = {},
-      .r = StringReader(data, size),
+      .r = phosg::StringReader(data, size),
       .mem = mem,
   };
 
-  const le_uint16_t* opcodes = reinterpret_cast<const le_uint16_t*>(data);
+  const phosg::le_uint16_t* opcodes = reinterpret_cast<const phosg::le_uint16_t*>(data);
 
-  // Phase 1: generate the disassembly for each opcode, and collect branch
-  // target addresses
+  // Phase 1: generate the disassembly for each opcode, and collect branch target addresses
   size_t line_count = size / 2;
-  forward_list<string> lines;
+  std::forward_list<std::string> lines;
   auto add_line_it = lines.before_begin();
   for (size_t x = 0; x < line_count; x++, s.pc += 2) {
     uint32_t opcode = opcodes[x];
-    string line = std::format("{:08X}  {:04X}  ", s.pc, opcode);
+    std::string line = std::format("{:08X}  {:04X}  ", s.pc, opcode);
     line += SH4Emulator::disassemble_one(s, opcode);
     line += '\n';
     add_line_it = lines.emplace_after(add_line_it, std::move(line));
   }
 
-  // Phase 2: add labels from the passed-in labels dict and from disassembled
-  // branch opcodes; while doing so, count the number of bytes in the output.
+  // Phase 2: add labels from the passed-in labels dict and from disassembled branch opcodes; while doing so, count the
+  // number of bytes in the output.
   s.pc = start_pc;
   size_t ret_bytes = 0;
   auto branch_target_addresses_it = s.branch_target_addresses.lower_bound(start_pc);
@@ -3797,27 +3786,23 @@ string SH4Emulator::disassemble(
       line_it != lines.end();
       prev_line_it = line_it++, s.pc += 2) {
     for (; label_it != s.labels->end() && label_it->first <= s.pc + 1; label_it++) {
-      string label;
+      std::string label;
       if (label_it->first != s.pc) {
-        label = std::format("{}: // at {:08X} (misaligned)\n",
-            label_it->second, label_it->first);
+        label = std::format("{}: // at {:08X} (misaligned)\n", label_it->second, label_it->first);
       } else {
         label = std::format("{}:\n", label_it->second);
       }
       ret_bytes += label.size();
       prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
     }
-    for (; branch_target_addresses_it != s.branch_target_addresses.end() &&
-        branch_target_addresses_it->first <= s.pc;
+    for (; branch_target_addresses_it != s.branch_target_addresses.end() && branch_target_addresses_it->first <= s.pc;
         branch_target_addresses_it++) {
-      string label;
+      std::string label;
       const char* label_type = branch_target_addresses_it->second ? "fn" : "label";
       if (branch_target_addresses_it->first != s.pc) {
-        label = std::format("{}{:08X}: // (misaligned)\n",
-            label_type, branch_target_addresses_it->first);
+        label = std::format("{}{:08X}: // (misaligned)\n", label_type, branch_target_addresses_it->first);
       } else {
-        label = std::format("{}{:08X}:\n",
-            label_type, branch_target_addresses_it->first);
+        label = std::format("{}{:08X}:\n", label_type, branch_target_addresses_it->first);
       }
       ret_bytes += label.size();
       prev_line_it = lines.emplace_after(prev_line_it, std::move(label));
@@ -3827,7 +3812,7 @@ string SH4Emulator::disassemble(
   }
 
   // Phase 3: assemble the output lines into a single string and return it
-  string ret;
+  std::string ret;
   ret.reserve(ret_bytes);
   for (const auto& line : lines) {
     ret += line;
@@ -3836,9 +3821,7 @@ string SH4Emulator::disassemble(
 }
 
 EmulatorBase::AssembleResult SH4Emulator::assemble(
-    const string& text,
-    function<string(const string&)> get_include,
-    uint32_t start_address) {
+    const std::string& text, std::function<std::string(const std::string&)> get_include, uint32_t start_address) {
   Assembler a;
   a.start_address = start_address;
   a.assemble(text, get_include);
@@ -3851,56 +3834,55 @@ EmulatorBase::AssembleResult SH4Emulator::assemble(
 }
 
 EmulatorBase::AssembleResult SH4Emulator::assemble(
-    const string& text,
-    const vector<string>& include_dirs,
-    uint32_t start_address) {
+    const std::string& text, const std::vector<std::string>& include_dirs, uint32_t start_address) {
   if (include_dirs.empty()) {
     return SH4Emulator::assemble(text, nullptr, start_address);
 
   } else {
-    unordered_set<string> get_include_stack;
-    function<string(const string&)> get_include = [&](const string& name) -> string {
+    std::unordered_set<std::string> get_include_stack;
+    std::function<std::string(const std::string&)> get_include = [&](const std::string& name) -> std::string {
       for (const auto& dir : include_dirs) {
-        string filename = dir + "/" + name + ".inc.s";
+        std::string filename = dir + "/" + name + ".inc.s";
         if (std::filesystem::is_regular_file(filename)) {
           if (!get_include_stack.emplace(name).second) {
-            throw runtime_error("mutual recursion between includes: " + name);
+            throw std::runtime_error("mutual recursion between includes: " + name);
           }
-          const auto& ret = SH4Emulator::assemble(load_file(filename), get_include, start_address).code;
+          const auto& ret = SH4Emulator::assemble(phosg::load_file(filename), get_include, start_address).code;
           get_include_stack.erase(name);
           return ret;
         }
         filename = dir + "/" + name + ".inc.bin";
         if (std::filesystem::is_regular_file(filename)) {
-          return load_file(filename);
+          return phosg::load_file(filename);
         }
       }
-      throw runtime_error("data not found for include: " + name);
+      throw std::runtime_error("data not found for include: " + name);
     };
     return SH4Emulator::assemble(text, get_include, start_address);
   }
 }
 
-void SH4Emulator::Assembler::assemble(const string& text, function<string(const string&)> get_include) {
-  string effective_text = text;
-  strip_comments_inplace(effective_text);
+void SH4Emulator::Assembler::assemble(
+    const std::string& text, std::function<std::string(const std::string&)> get_include) {
+  std::string effective_text = text;
+  phosg::strip_comments_inplace(effective_text);
 
   // First pass: generate args and labels and collect metadata
-  StringReader r(effective_text);
+  phosg::StringReader r(effective_text);
   size_t line_num = 0;
   size_t stream_offset = 0;
   while (!r.eof()) {
-    string line = r.get_line();
+    std::string line = r.get_line();
     line_num++;
 
     try {
       // Strip comments and whitespace
-      size_t comment_pos = min<size_t>(min<size_t>(line.find("//"), line.find('#')), line.find(';'));
-      if (comment_pos != string::npos) {
+      size_t comment_pos = std::min<size_t>(std::min<size_t>(line.find("//"), line.find('#')), line.find(';'));
+      if (comment_pos != std::string::npos) {
         line = line.substr(0, comment_pos);
       }
-      strip_trailing_whitespace(line);
-      strip_leading_whitespace(line);
+      phosg::strip_trailing_whitespace(line);
+      phosg::strip_leading_whitespace(line);
 
       // If the line is blank, skip it
       if (line.empty()) {
@@ -3909,38 +3891,39 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         // If the line ends with :, it's a label
       } else if (line.ends_with(":")) {
         line.pop_back();
-        strip_trailing_whitespace(line);
+        phosg::strip_trailing_whitespace(line);
         if (!label_offsets.emplace(line, stream_offset).second) {
-          throw runtime_error(std::format("duplicate label: {}", line));
+          throw std::runtime_error(std::format("duplicate label: {}", line));
         }
 
       } else {
         // Get the opcode name and arguments
-        vector<string> tokens = split(line, ' ', 1);
+        auto tokens = phosg::split(line, ' ', 1);
         if (tokens.size() == 0) {
-          throw logic_error("no tokens in non-empty line");
+          throw std::logic_error("no tokens in non-empty line");
         }
-        const string& op_name = tokens[0];
+        const std::string& op_name = tokens[0];
 
-        vector<Argument> args;
+        std::vector<Argument> args;
         if (tokens.size() == 2) {
-          string& args_str = tokens[1];
-          strip_leading_whitespace(args_str);
+          std::string& args_str = tokens[1];
+          phosg::strip_leading_whitespace(args_str);
           if (op_name == ".meta") {
             size_t equals_pos = args_str.find('=');
-            if (equals_pos == string::npos) {
+            if (equals_pos == std::string::npos) {
               this->metadata_keys.emplace(args_str, "");
             } else {
-              this->metadata_keys.emplace(args_str.substr(0, equals_pos), parse_data_string(args_str.substr(equals_pos + 1)));
+              this->metadata_keys.emplace(args_str.substr(0, equals_pos),
+                  phosg::parse_data_string(args_str.substr(equals_pos + 1)));
             }
             continue;
           } else if ((op_name == ".binary") || (op_name == ".include")) {
             args.emplace_back(args_str, true);
           } else {
-            vector<string> arg_strs = split(args_str, ',');
+            auto arg_strs = phosg::split(args_str, ',');
             for (auto& arg_str : arg_strs) {
-              strip_leading_whitespace(arg_str);
-              strip_trailing_whitespace(arg_str);
+              phosg::strip_leading_whitespace(arg_str);
+              phosg::strip_trailing_whitespace(arg_str);
               args.emplace_back(arg_str);
             }
           }
@@ -3949,19 +3932,19 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         const StreamItem& si = this->stream.emplace_back(StreamItem{stream_offset, line_num, op_name, std::move(args)});
         if (si.op_name == ".include") {
           si.check_arg_types({ArgType::RAW});
-          const string& inc_name = si.args[0].raw_data;
+          const std::string& inc_name = si.args[0].raw_data;
           if (!get_include) {
-            throw runtime_error("includes are not available");
+            throw std::runtime_error("includes are not available");
           }
-          string contents;
+          std::string contents;
           try {
-            const string& contents = this->includes_cache.at(inc_name);
+            const std::string& contents = this->includes_cache.at(inc_name);
             stream_offset += (contents.size() + 1) & (~1);
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
             try {
               contents = get_include(inc_name);
-            } catch (const exception& e) {
-              throw runtime_error(std::format("failed to get include data: {}", e.what()));
+            } catch (const std::exception& e) {
+              throw std::runtime_error(std::format("failed to get include data: {}", e.what()));
             }
             stream_offset += (contents.size() + 1) & (~1);
             this->includes_cache.emplace(inc_name, std::move(contents));
@@ -3971,7 +3954,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
           si.check_arg_types({ArgType::IMMEDIATE});
           uint32_t alignment = this->resolve_immediate(si.args[0]);
           if (alignment & (alignment - 1)) {
-            throw runtime_error(".align argument must be a power of two");
+            throw std::runtime_error(".align argument must be a power of two");
           }
           alignment--;
           stream_offset = (stream_offset + alignment) & (~alignment);
@@ -3984,15 +3967,15 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
           si.check_arg_types({ArgType::RAW});
           // TODO: It's not great that we call parse_data_string here just to get the length of the result data. Find a
           // way to not have to do this.
-          string data = parse_data_string(si.args[0].raw_data);
+          auto data = phosg::parse_data_string(si.args[0].raw_data);
           stream_offset += (data.size() + 1) & (~1);
 
         } else {
           stream_offset += 2;
         }
       }
-    } catch (const exception& e) {
-      throw runtime_error(std::format("(line {}) {}", line_num, e.what()));
+    } catch (const std::exception& e) {
+      throw std::runtime_error(std::format("(line {}) {}", line_num, e.what()));
     }
   }
 
@@ -4002,13 +3985,13 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
       if (si.op_name == ".include") {
         si.check_arg_types({ArgType::RAW});
         try {
-          const string& include_contents = this->includes_cache.at(si.args[0].raw_data);
+          const std::string& include_contents = this->includes_cache.at(si.args[0].raw_data);
           this->code.write(include_contents);
           while (this->code.size() & 1) {
             this->code.put_u8(0);
           }
-        } catch (const out_of_range&) {
-          throw logic_error("include data missing from cache");
+        } catch (const std::out_of_range&) {
+          throw std::logic_error("include data missing from cache");
         }
 
       } else if (si.op_name == ".align") {
@@ -4022,7 +4005,7 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
 
       } else if (si.op_name == ".binary") {
         si.check_arg_types({ArgType::RAW});
-        string data = parse_data_string(si.args[0].raw_data);
+        auto data = phosg::parse_data_string(si.args[0].raw_data);
         data.resize((data.size() + 1) & (~1), '\0');
         this->code.write(data);
 
@@ -4030,8 +4013,8 @@ void SH4Emulator::Assembler::assemble(const string& text, function<string(const 
         auto fn = this->assemble_functions.at(si.op_name);
         this->code.put_u16l((this->*fn)(si));
       }
-    } catch (const exception& e) {
-      throw runtime_error(std::format("(line {}) {}", si.line_num, e.what()));
+    } catch (const std::exception& e) {
+      throw std::runtime_error(std::format("(line {}) {}", si.line_num, e.what()));
     }
   }
 }
@@ -4042,51 +4025,51 @@ bool SH4Emulator::test_assembler(bool stop_on_failure, bool verbose) {
   size_t num_succeeded = 0;
   for (uint32_t opcode = 0; (opcode < 0x10000) && (!stop_on_failure || (num_failed == 0)); opcode++) {
     for (uint8_t double_precision = 0; double_precision < 2; double_precision++) {
-      string disassembly = SH4Emulator::disassemble_one(0, opcode, double_precision);
+      std::string disassembly = SH4Emulator::disassemble_one(0, opcode, double_precision);
       if (disassembly.starts_with(".invalid")) {
         if (verbose) {
-          fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (skipping)\n", opcode, double_precision ? 'd' : 's', disassembly);
+          phosg::fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (skipping)\n", opcode, double_precision ? 'd' : 's', disassembly);
         }
         num_skipped++;
         continue;
       }
 
-      string assembled;
+      std::string assembled;
       try {
         assembled = SH4Emulator::assemble(disassembly).code;
-      } catch (const exception& e) {
-        fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly failed: {})\n",
+      } catch (const std::exception& e) {
+        phosg::fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly failed: {})\n",
             opcode, double_precision ? 'd' : 's', disassembly, e.what());
         num_failed++;
         continue;
       }
 
       if (assembled.size() != 2) {
-        fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect data size)\n",
+        phosg::fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect data size)\n",
             opcode, double_precision ? 'd' : 's', disassembly);
-        print_data(stderr, assembled);
+        phosg::print_data(stderr, assembled);
         num_failed++;
         continue;
       }
 
-      StringReader r(assembled);
+      phosg::StringReader r(assembled);
       uint32_t assembled_opcode = r.get_u16l();
       if (assembled_opcode != opcode) {
-        fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect opcode {:04X})\n",
+        phosg::fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (assembly produced incorrect opcode {:04X})\n",
             opcode, double_precision ? 'd' : 's', disassembly, assembled_opcode);
         num_failed++;
         continue;
       }
 
       if (verbose) {
-        fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (correct)\n", opcode, double_precision ? 'd' : 's', disassembly);
+        phosg::fwrite_fmt(stderr, "[{:04X}:{}] \"{}\" (correct)\n", opcode, double_precision ? 'd' : 's', disassembly);
       }
       num_succeeded++;
     }
   }
 
   size_t num_total = num_succeeded + num_failed;
-  fwrite_fmt(stderr, "Results: {} skipped, {} succeeded ({:g}%), {} failed ({:g}%)\n",
+  phosg::fwrite_fmt(stderr, "Results: {} skipped, {} succeeded ({:g}%), {} failed ({:g}%)\n",
       num_skipped,
       num_succeeded, static_cast<float>(num_succeeded * 100) / num_total,
       num_failed, static_cast<float>(num_failed * 100) / num_total);

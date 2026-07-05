@@ -6,9 +6,6 @@
 #include <stdexcept>
 #include <vector>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 /* This decoder is based on the MACE decoder in libavcodec/ffmpeg.
@@ -174,18 +171,18 @@ static int16_t read_table(ChannelData& channel, uint8_t value, size_t table_inde
   return current;
 }
 
-vector<le_int16_t> decode_mace(
+std::vector<phosg::le_int16_t> decode_mace(
     const void* vdata, size_t size, bool stereo, bool is_mace3) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
-  vector<ChannelData> channel_data(stereo ? 2 : 1);
-  vector<le_int16_t> result_data(size * (is_mace3 ? 3 : 6));
+  std::vector<ChannelData> channel_data(stereo ? 2 : 1);
+  std::vector<phosg::le_int16_t> result_data(size * (is_mace3 ? 3 : 6));
 
   size_t bytes_per_frame = (is_mace3 ? 2 : 1) * channel_data.size();
   size_t output_offset = 0;
   for (size_t input_offset = 0; input_offset < size;) {
     if (input_offset + bytes_per_frame > size) {
-      throw runtime_error("odd number of bytes remaining");
+      throw std::runtime_error("odd number of bytes remaining");
     }
 
     for (size_t which_channel = 0; which_channel < channel_data.size(); which_channel++) {
@@ -252,7 +249,7 @@ vector<le_int16_t> decode_mace(
 }
 
 struct IMA4Packet {
-  be_uint16_t header;
+  phosg::be_uint16_t header;
   uint8_t data[32];
 
   uint16_t predictor() const {
@@ -266,7 +263,7 @@ struct IMA4Packet {
   }
 };
 
-vector<le_int16_t> decode_ima4(const void* vdata, size_t size, bool stereo) {
+std::vector<phosg::le_int16_t> decode_ima4(const void* vdata, size_t size, bool stereo) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
   static const int16_t index_table[16] = {
@@ -283,9 +280,9 @@ vector<le_int16_t> decode_ima4(const void* vdata, size_t size, bool stereo) {
       15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767};
 
   if (size % (stereo ? 68 : 34)) {
-    throw runtime_error("ima4 data size must be a multiple of 34 bytes");
+    throw std::runtime_error("ima4 data size must be a multiple of 34 bytes");
   }
-  vector<le_int16_t> result_data((size * 64) / 34);
+  std::vector<phosg::le_int16_t> result_data((size * 64) / 34);
 
   struct ChannelState {
     int32_t predictor;
@@ -367,10 +364,10 @@ vector<le_int16_t> decode_ima4(const void* vdata, size_t size, bool stereo) {
   return result_data;
 }
 
-vector<le_int16_t> decode_alaw(const void* vdata, size_t size) {
+std::vector<phosg::le_int16_t> decode_alaw(const void* vdata, size_t size) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
-  vector<le_int16_t> ret(size);
+  std::vector<phosg::le_int16_t> ret(size);
   for (size_t x = 0; x < size; x++) {
     int8_t sample = static_cast<int8_t>(data[x]) ^ 0x55;
     int8_t sign = (sample & 0x80) ? -1 : 1;
@@ -389,12 +386,12 @@ vector<le_int16_t> decode_alaw(const void* vdata, size_t size) {
   return ret;
 }
 
-vector<le_int16_t> decode_ulaw(const void* vdata, size_t size) {
+std::vector<phosg::le_int16_t> decode_ulaw(const void* vdata, size_t size) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
   static const uint16_t ULAW_BIAS = 33;
 
-  vector<le_int16_t> ret(size);
+  std::vector<phosg::le_int16_t> ret(size);
   for (size_t x = 0; x < size; x++) {
     int8_t sample = ~static_cast<int8_t>(data[x]);
 
@@ -408,7 +405,7 @@ vector<le_int16_t> decode_ulaw(const void* vdata, size_t size) {
   return ret;
 }
 
-vector<float> decode_afc(const void* data, size_t size, bool small_frames) {
+std::vector<float> decode_afc(const void* data, size_t size, bool small_frames) {
   static const int16_t coef[16][2] = {
       {0x0000, 0x0000},
       {0x0800, 0x0000},
@@ -429,14 +426,14 @@ vector<float> decode_afc(const void* data, size_t size, bool small_frames) {
 
   size_t frame_size = small_frames ? 5 : 9;
   if (size % frame_size != 0) {
-    throw invalid_argument("input size is not a multiple of frame size");
+    throw std::invalid_argument("input size is not a multiple of frame size");
   }
 
   size_t frame_count = size / frame_size;
   size_t output_sample_count = frame_count * 16;
 
   int16_t history[2] = {0, 0};
-  vector<float> output_samples(output_sample_count, 0);
+  std::vector<float> output_samples(output_sample_count, 0);
   for (size_t frame_index = 0; frame_index < frame_count; frame_index++) {
     const int8_t* frame_data = reinterpret_cast<const int8_t*>(data) +
         (frame_index * frame_size);

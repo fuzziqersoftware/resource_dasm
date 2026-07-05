@@ -11,9 +11,6 @@
 
 #include "../DataCodecs/Codecs.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 ResourceFile::DecodedPICTResource decode_NPIC(const std::string& data) {
@@ -31,28 +28,28 @@ ResourceFile::DecodedPICTResource decode_NPIC(const std::string& data) {
 // row, MSB first.
 
 struct SHPSHeader {
-  /* 0000 */ be_uint16_t frame_count;
-  /* 0002 */ be_uint32_t decompressed_pixel_buffer_size;
-  /* 0006 */ be_uint32_t decompressed_mask_buffer_size;
-  /* 000A */ be_uint32_t pixel_buffer_offset;
-  /* 000E */ be_uint32_t mask_buffer_offset;
-  /* 0012 */ be_uint16_t frame_height;
-  /* 0014 */ be_uint16_t frame_width;
-  /* 0016 */ be_uint32_t unknown_a1;
+  /* 0000 */ phosg::be_uint16_t frame_count;
+  /* 0002 */ phosg::be_uint32_t decompressed_pixel_buffer_size;
+  /* 0006 */ phosg::be_uint32_t decompressed_mask_buffer_size;
+  /* 000A */ phosg::be_uint32_t pixel_buffer_offset;
+  /* 000E */ phosg::be_uint32_t mask_buffer_offset;
+  /* 0012 */ phosg::be_uint16_t frame_height;
+  /* 0014 */ phosg::be_uint16_t frame_width;
+  /* 0016 */ phosg::be_uint32_t unknown_a1;
   /* 001A */ uint8_t unknown_a2[0x1E];
-  /* 0038 */ be_uint16_t used_color_table_entries;
+  /* 0038 */ phosg::be_uint16_t used_color_table_entries;
   /* 003A */ ColorTableEntry color_table[0x100];
-  /* 083A */ be_uint16_t unknown_a3;
+  /* 083A */ phosg::be_uint16_t unknown_a3;
   /* 083C (compressed pixel and mask RLE streams follow here, in that order) */
 } __attribute__((packed));
 static_assert(sizeof(SHPSHeader) == 0x83C, "SHPSHeader size is incorrect");
 
-vector<ImageRGBA8888N> decode_SHPS(const string& data) {
-  StringReader r(data);
+std::vector<phosg::ImageRGBA8888N> decode_SHPS(const std::string& data) {
+  phosg::StringReader r(data);
   const auto& header = r.get<SHPSHeader>();
 
   if (header.frame_width != 32 || header.frame_height != 32) {
-    throw runtime_error("SHPS frames must be 32x32");
+    throw std::runtime_error("SHPS frames must be 32x32");
   }
 
   // Decode the embedded color table. Entries can be sparse and out of order; a fully-zero entry is unused and must not
@@ -72,18 +69,18 @@ vector<ImageRGBA8888N> decode_SHPS(const string& data) {
   // header.mask_stream_offset, and the mask stream immediately follows that
   size_t pixel_data_max_size = r.size() - header.pixel_buffer_offset;
   size_t mask_data_max_size = r.size() - header.mask_buffer_offset;
-  string pixel_data = unpack_pathways(r.pgetv(header.pixel_buffer_offset, pixel_data_max_size), pixel_data_max_size);
-  string mask_data = unpack_pathways(r.pgetv(header.mask_buffer_offset, mask_data_max_size), mask_data_max_size);
+  std::string pixel_data = unpack_pathways(r.pgetv(header.pixel_buffer_offset, pixel_data_max_size), pixel_data_max_size);
+  std::string mask_data = unpack_pathways(r.pgetv(header.mask_buffer_offset, mask_data_max_size), mask_data_max_size);
 
   auto mask = phosg::ImageG1::from_data_reference(
       mask_data.data(), header.frame_width, header.frame_height * header.frame_count);
   auto pixels = phosg::ImageG8::from_data_reference(
       pixel_data.data(), header.frame_width, header.frame_height * header.frame_count);
 
-  vector<ImageRGBA8888N> ret;
+  std::vector<phosg::ImageRGBA8888N> ret;
   ret.reserve(header.frame_count);
   for (size_t frame_index = 0; frame_index < header.frame_count; frame_index++) {
-    ImageRGBA8888N frame(header.frame_width, header.frame_height);
+    phosg::ImageRGBA8888N frame(header.frame_width, header.frame_height);
     for (size_t y = 0; y < header.frame_height; y++) {
       size_t src_y = frame_index * header.frame_height + y;
       for (size_t x = 0; x < header.frame_width; x++) {

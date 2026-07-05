@@ -7,12 +7,9 @@
 #include <string>
 #include <vector>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-static uint32_t decode_int_1_63(BitReader& r) {
+static uint32_t decode_int_1_63(phosg::BitReader& r) {
   // Decodes an integer in the range 1-63. Input => output map:
   // 0 => 1
   // 100 => 2
@@ -44,11 +41,11 @@ static uint32_t decode_int_1_63(BitReader& r) {
       }
     }
     default:
-      throw logic_error("impossible case");
+      throw std::logic_error("impossible case");
   }
 }
 
-static uint32_t decode_int_0_2042(BitReader& r) {
+static uint32_t decode_int_0_2042(phosg::BitReader& r) {
   // 0x => x (0 or 1)
   // 100 => 2
   // 101x => 3 + x (3 or 4)
@@ -98,11 +95,11 @@ static uint32_t decode_int_0_2042(BitReader& r) {
     case 10:
       return r.read(10) + 1019;
     default:
-      throw logic_error("impossible case");
+      throw std::logic_error("impossible case");
   }
 }
 
-static uint32_t read_int_max_15(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_15(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return 1;
   }
@@ -118,11 +115,11 @@ static uint32_t read_int_max_15(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 21) {
     return r.read(4) + 6;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_2A(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_2A(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(1) + 1;
   }
@@ -140,11 +137,11 @@ static uint32_t read_int_max_2A(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 42) {
     return r.read(5) + 11;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_54(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_54(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(2) + 1;
   }
@@ -164,11 +161,11 @@ static uint32_t read_int_max_54(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x54) {
     return r.read(6) + 0x15;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_A8(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_A8(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(3) + 1;
   }
@@ -190,11 +187,11 @@ static uint32_t read_int_max_A8(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0xA8) {
     return r.read(7) + 0x29;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_150(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_150(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(4) + 1;
   }
@@ -218,11 +215,11 @@ static uint32_t read_int_max_150(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x150) {
     return r.read(8) + 0x51;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_2A0(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_2A0(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(5) + 1;
   }
@@ -248,11 +245,11 @@ static uint32_t read_int_max_2A0(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x2A0) {
     return r.read(9) + 0xA1;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_540(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_540(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(6) + 1;
   }
@@ -280,11 +277,11 @@ static uint32_t read_int_max_540(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x540) {
     return r.read(10) + 0x141;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_A80(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_A80(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(7) + 1;
   }
@@ -314,11 +311,11 @@ static uint32_t read_int_max_A80(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0xA80) {
     return r.read(11) + 0x281;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_1500(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_1500(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(8) + 1;
   }
@@ -350,11 +347,11 @@ static uint32_t read_int_max_1500(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x1500) {
     return r.read(12) + 0x501;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_2A00(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_2A00(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(9) + 1;
   }
@@ -388,11 +385,11 @@ static uint32_t read_int_max_2A00(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x2A00) {
     return r.read(13) + 0xA01;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_5400(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_5400(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(10) + 1;
   }
@@ -428,11 +425,11 @@ static uint32_t read_int_max_5400(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x5400) {
     return r.read(14) + 0x1401;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_A800(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_A800(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(11) + 1;
   }
@@ -470,11 +467,11 @@ static uint32_t read_int_max_A800(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0xA800) {
     return r.read(15) + 0x2801;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_15000(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_15000(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(12) + 1;
   }
@@ -514,11 +511,11 @@ static uint32_t read_int_max_15000(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x15000) {
     return r.read(16) + 0x5001;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_2A000(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_2A000(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(13) + 1;
   }
@@ -560,11 +557,11 @@ static uint32_t read_int_max_2A000(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x2A000) {
     return r.read(17) + 0xA001;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max_54000(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max_54000(uint32_t max_value, phosg::BitReader& r) {
   if (r.read(1) == 0) {
     return r.read(14) + 1;
   }
@@ -608,11 +605,11 @@ static uint32_t read_int_max_54000(uint32_t max_value, BitReader& r) {
   } else if (max_value <= 0x54000) {
     return r.read(18) + 0x14001;
   } else {
-    throw logic_error("invalid max value");
+    throw std::logic_error("invalid max value");
   }
 }
 
-static uint32_t read_int_max(uint32_t max_value, BitReader& r) {
+static uint32_t read_int_max(uint32_t max_value, phosg::BitReader& r) {
   if (max_value <= 0x0A) {
     return read_int_max_15(max_value, r);
   } else if (max_value <= 0x14) {
@@ -646,12 +643,9 @@ static uint32_t read_int_max(uint32_t max_value, BitReader& r) {
   }
 }
 
-string decompress_system3(
-    const CompressedResourceHeader& header,
-    const void* source,
-    size_t size) {
-  BitReader r(source, size * 8);
-  StringWriter w;
+std::string decompress_system3(const CompressedResourceHeader& header, const void* source, size_t size) {
+  phosg::BitReader r(source, size * 8);
+  phosg::StringWriter w;
   w.str().reserve(header.decompressed_size);
 
   bool stream_block_allowed = true;
@@ -667,15 +661,13 @@ string decompress_system3(
     if ((backreference_bytes <= 0) && stream_block_allowed) {
       stream_bytes = decode_int_1_63(r);
       stream_block_allowed = (stream_bytes >= 0x3F);
-
     } else {
       backreference_bytes += 2;
       if (!stream_block_allowed) {
         backreference_bytes++;
       }
       stream_block_allowed = true;
-      backreference_offset = read_int_max(
-          bytes_written_before_command, r);
+      backreference_offset = read_int_max(bytes_written_before_command, r);
     }
 
     // Execute the decoded command
@@ -687,20 +679,18 @@ string decompress_system3(
 
     } else {
       if (backreference_offset > w.str().size()) {
-        throw runtime_error("backreference beyond beginning of string");
+        throw std::runtime_error("backreference beyond beginning of string");
       }
       // It'd be nice to use memcpy or operator+ or something faster here, but:
-      // 1. The string can be reallocated and moved during this loop (even
-      //    though we called .reserve above), and
-      // 2. Backreferences technically can overlap the current end to form a
-      //    repeating pattern.
+      // 1. The string can be reallocated and moved during this loop (even though we called .reserve above), and
+      // 2. Backreferences technically can overlap the current end to form a repeating pattern.
       for (; backreference_bytes > 0; backreference_bytes--) {
         w.put_s8(w.str()[w.str().size() - backreference_offset]);
       }
     }
 
     if (w.str().size() <= bytes_written_before_command) {
-      throw logic_error("decompression did not advance");
+      throw std::logic_error("decompression did not advance");
     }
   }
 

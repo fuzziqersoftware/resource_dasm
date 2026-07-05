@@ -14,8 +14,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 class QuickDrawPortInterface {
 public:
   virtual ~QuickDrawPortInterface();
@@ -25,7 +23,7 @@ public:
   virtual size_t height() const = 0;
   virtual void write(ssize_t x, ssize_t y, uint32_t color) = 0;
   virtual void blit(
-      const ImageRGB888& src,
+      const phosg::ImageRGB888& src,
       ssize_t dest_x,
       ssize_t dest_y,
       size_t w,
@@ -36,7 +34,7 @@ public:
       ssize_t mask_origin_x = 0,
       ssize_t mask_origin_y = 0) = 0;
   virtual void blit(
-      const ImageRGBA8888N& src,
+      const phosg::ImageRGBA8888N& src,
       ssize_t dest_x,
       ssize_t dest_y,
       size_t w,
@@ -95,12 +93,12 @@ public:
   virtual int16_t get_background_color_index() const = 0;
   virtual void set_background_color_index(int16_t z) = 0;
 
-  virtual const ImageRGB888& get_pen_pixel_pattern() const = 0;
-  virtual void set_pen_pixel_pattern(ImageRGB888&& z) = 0;
-  virtual const ImageRGB888& get_fill_pixel_pattern() const = 0;
-  virtual void set_fill_pixel_pattern(ImageRGB888&& z) = 0;
-  virtual const ImageRGB888& get_background_pixel_pattern() const = 0;
-  virtual void set_background_pixel_pattern(ImageRGB888&& z) = 0;
+  virtual const phosg::ImageRGB888& get_pen_pixel_pattern() const = 0;
+  virtual void set_pen_pixel_pattern(phosg::ImageRGB888&& z) = 0;
+  virtual const phosg::ImageRGB888& get_fill_pixel_pattern() const = 0;
+  virtual void set_fill_pixel_pattern(phosg::ImageRGB888&& z) = 0;
+  virtual const phosg::ImageRGB888& get_background_pixel_pattern() const = 0;
+  virtual void set_background_pixel_pattern(phosg::ImageRGB888&& z) = 0;
   virtual Pattern get_pen_mono_pattern() const = 0;
   virtual void set_pen_mono_pattern(Pattern z) = 0;
   virtual Pattern get_fill_mono_pattern() const = 0;
@@ -154,88 +152,86 @@ protected:
   Rect pict_last_rect;
   Point pict_text_origin; // Saved text origin for DVText/DHText
 
-  static std::pair<Pattern, ImageRGB888> pict_read_pixel_pattern(StringReader& r);
-  static std::shared_ptr<Region> pict_read_mask_region(StringReader& r,
-      const Rect& dest_rect, Rect& mask_rect);
+  static std::pair<Pattern, phosg::ImageRGB888> pict_read_pixel_pattern(phosg::StringReader& r);
+  static std::shared_ptr<Region> pict_read_mask_region(phosg::StringReader& r, const Rect& dest_rect, Rect& mask_rect);
 
-  void pict_skip_0(StringReader& r, uint16_t opcode);
-  void pict_skip_2(StringReader& r, uint16_t opcode);
-  void pict_skip_8(StringReader& r, uint16_t opcode);
-  void pict_skip_12(StringReader& r, uint16_t opcode);
-  void pict_skip_var16(StringReader& r, uint16_t opcode);
-  void pict_skip_var32(StringReader& r, uint16_t opcode);
-  void pict_skip_long_comment(StringReader& r, uint16_t opcode);
-  void pict_unimplemented_opcode(StringReader& r, uint16_t opcode);
+  void pict_skip_0(phosg::StringReader& r, uint16_t opcode);
+  void pict_skip_2(phosg::StringReader& r, uint16_t opcode);
+  void pict_skip_8(phosg::StringReader& r, uint16_t opcode);
+  void pict_skip_12(phosg::StringReader& r, uint16_t opcode);
+  void pict_skip_var16(phosg::StringReader& r, uint16_t opcode);
+  void pict_skip_var32(phosg::StringReader& r, uint16_t opcode);
+  void pict_skip_long_comment(phosg::StringReader& r, uint16_t opcode);
+  void pict_unimplemented_opcode(phosg::StringReader& r, uint16_t opcode);
 
-  void pict_set_clipping_region(StringReader& r, uint16_t opcode);
-  void pict_set_font_number(StringReader& r, uint16_t opcode);
-  void pict_set_font_style_flags(StringReader& r, uint16_t opcode);
-  void pict_set_text_source_mode(StringReader& r, uint16_t opcode);
-  void pict_set_text_extra_space(StringReader& r, uint16_t opcode);
-  void pict_set_text_nonspace_extra_width(StringReader& r, uint16_t opcode);
-  void pict_set_font_number_and_name(StringReader& r, uint16_t opcode);
-  void pict_set_pen_size(StringReader& r, uint16_t opcode);
-  void pict_set_pen_mode(StringReader& r, uint16_t opcode);
-  void pict_set_background_pattern(StringReader& r, uint16_t opcode);
-  void pict_set_pen_pattern(StringReader& r, uint16_t opcode);
-  void pict_set_fill_pattern(StringReader& r, uint16_t opcode);
-  void pict_set_background_pixel_pattern(StringReader& r, uint16_t opcode);
-  void pict_set_pen_pixel_pattern(StringReader& r, uint16_t opcode);
-  void pict_set_fill_pixel_pattern(StringReader& r, uint16_t opcode);
-  void pict_set_oval_size(StringReader& r, uint16_t opcode);
-  void pict_set_origin_dh_dv(StringReader& r, uint16_t opcode);
-  void pict_set_text_ratio(StringReader& r, uint16_t opcode);
-  void pict_set_text_size(StringReader& r, uint16_t opcode);
-  void pict_set_foreground_color32(StringReader& r, uint16_t opcode);
-  void pict_set_background_color32(StringReader& r, uint16_t opcode);
-  void pict_set_version(StringReader& r, uint16_t opcode);
-  void pict_set_highlight_mode_flag(StringReader& r, uint16_t opcode);
-  void pict_set_highlight_color(StringReader& r, uint16_t opcode);
-  void pict_set_foreground_color(StringReader& r, uint16_t opcode);
-  void pict_set_background_color(StringReader& r, uint16_t opcode);
-  void pict_set_op_color(StringReader& r, uint16_t opcode);
-  void pict_set_default_highlight_color(StringReader& r, uint16_t opcode);
+  void pict_set_clipping_region(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_font_number(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_font_style_flags(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_text_source_mode(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_text_extra_space(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_text_nonspace_extra_width(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_font_number_and_name(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_pen_size(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_pen_mode(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_background_pattern(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_pen_pattern(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_fill_pattern(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_background_pixel_pattern(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_pen_pixel_pattern(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_fill_pixel_pattern(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_oval_size(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_origin_dh_dv(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_text_ratio(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_text_size(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_foreground_color32(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_background_color32(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_version(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_highlight_mode_flag(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_highlight_color(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_foreground_color(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_background_color(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_op_color(phosg::StringReader& r, uint16_t opcode);
+  void pict_set_default_highlight_color(phosg::StringReader& r, uint16_t opcode);
 
-  void pict_fill_current_rect_with_pattern(const Pattern& pat, const ImageRGB888& pixel_pat);
-  void pict_erase_last_rect(StringReader& r, uint16_t opcode);
-  void pict_erase_rect(StringReader& r, uint16_t opcode);
-  void pict_fill_last_rect(StringReader& r, uint16_t opcode);
-  void pict_fill_rect(StringReader& r, uint16_t opcode);
-  void pict_fill_last_oval(StringReader& r, uint16_t opcode);
-  void pict_fill_oval(StringReader& r, uint16_t opcode);
+  void pict_fill_current_rect_with_pattern(const Pattern& pat, const phosg::ImageRGB888& pixel_pat);
+  void pict_erase_last_rect(phosg::StringReader& r, uint16_t opcode);
+  void pict_erase_rect(phosg::StringReader& r, uint16_t opcode);
+  void pict_fill_last_rect(phosg::StringReader& r, uint16_t opcode);
+  void pict_fill_rect(phosg::StringReader& r, uint16_t opcode);
+  void pict_fill_last_oval(phosg::StringReader& r, uint16_t opcode);
+  void pict_fill_oval(phosg::StringReader& r, uint16_t opcode);
 
   void pict_draw_line(Point start, Point end);
-  void pict_line(StringReader& r, uint16_t opcode);
-  void pict_line_from(StringReader& r, uint16_t opcode);
-  void pict_short_line(StringReader& r, uint16_t opcode);
-  void pict_short_line_from(StringReader& r, uint16_t opcode);
+  void pict_line(phosg::StringReader& r, uint16_t opcode);
+  void pict_line_from(phosg::StringReader& r, uint16_t opcode);
+  void pict_short_line(phosg::StringReader& r, uint16_t opcode);
+  void pict_short_line_from(phosg::StringReader& r, uint16_t opcode);
 
-  void pict_frame_last_rect(StringReader& r, uint16_t opcode);
-  void pict_frame_rect(StringReader& r, uint16_t opcode);
-  void pict_paint_last_rect(StringReader& r, uint16_t opcode);
-  void pict_paint_rect(StringReader& r, uint16_t opcode);
+  void pict_frame_last_rect(phosg::StringReader& r, uint16_t opcode);
+  void pict_frame_rect(phosg::StringReader& r, uint16_t opcode);
+  void pict_paint_last_rect(phosg::StringReader& r, uint16_t opcode);
+  void pict_paint_rect(phosg::StringReader& r, uint16_t opcode);
 
   void pict_render_text(const std::string& text);
-  void pict_long_text(StringReader& r, uint16_t opcode);
-  void pict_dh_text(StringReader& r, uint16_t opcode);
-  void pict_dv_text(StringReader& r, uint16_t opcode);
-  void pict_dh_dv_text(StringReader& r, uint16_t opcode);
+  void pict_long_text(phosg::StringReader& r, uint16_t opcode);
+  void pict_dh_text(phosg::StringReader& r, uint16_t opcode);
+  void pict_dv_text(phosg::StringReader& r, uint16_t opcode);
+  void pict_dh_dv_text(phosg::StringReader& r, uint16_t opcode);
 
-  static std::string unpack_bits(StringReader& r, size_t row_count,
-      uint16_t row_bytes, bool sizes_are_words, bool chunks_are_words);
-  static std::string unpack_bits(StringReader& r, size_t row_count,
-      uint16_t row_bytes, bool chunks_are_words);
+  static std::string unpack_bits(
+      phosg::StringReader& r, size_t row_count, uint16_t row_bytes, bool sizes_are_words, bool chunks_are_words);
+  static std::string unpack_bits(phosg::StringReader& r, size_t row_count, uint16_t row_bytes, bool chunks_are_words);
 
-  void pict_copy_bits_indexed_color(StringReader& r, uint16_t opcode);
-  void pict_packed_copy_bits_direct_color(StringReader& r, uint16_t opcode);
+  void pict_copy_bits_indexed_color(phosg::StringReader& r, uint16_t opcode);
+  void pict_packed_copy_bits_direct_color(phosg::StringReader& r, uint16_t opcode);
 
-  ImageRGBA8888N pict_decode_smc(
+  phosg::ImageRGBA8888N pict_decode_smc(
       const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, const std::string& data);
-  ImageRGBA8888N pict_decode_rpza(const PictQuickTimeImageDescription& desc, const std::string& data);
+  phosg::ImageRGBA8888N pict_decode_rpza(const PictQuickTimeImageDescription& desc, const std::string& data);
 
-  void pict_write_quicktime_data(StringReader& r, uint16_t opcode);
+  void pict_write_quicktime_data(phosg::StringReader& r, uint16_t opcode);
 
-  static const std::vector<void (QuickDrawEngine::*)(StringReader&, uint16_t)> render_functions;
+  static const std::vector<void (QuickDrawEngine::*)(phosg::StringReader&, uint16_t)> render_functions;
 };
 
 std::vector<ColorTableEntry> create_default_clut();

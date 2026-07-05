@@ -2,12 +2,10 @@
 
 #include <stdexcept>
 
-using namespace std;
-
 namespace ResourceDASM {
 
 // Universal Interfaces 3.4.2, 'ver*'-defines
-const map<int64_t, string> REGION_NAMES = {
+const std::map<int64_t, std::string> REGION_NAMES = {
     {0, "United States"},
     {1, "France"},
     {2, "Britain"},
@@ -93,7 +91,7 @@ const map<int64_t, string> REGION_NAMES = {
     {108, "Ireland (English with Euro)"},
 };
 
-const map<int64_t, string> STANDARD_FONT_NAMES = {
+const std::map<int64_t, std::string> STANDARD_FONT_NAMES = {
     {0, "Chicago"},
     {1, "Helvetica"}, // this is actually "inherit"
     {2, "New York"},
@@ -179,7 +177,7 @@ const map<int64_t, string> STANDARD_FONT_NAMES = {
 const char* name_for_region_code(uint16_t region_code) {
   try {
     return REGION_NAMES.at(region_code).c_str();
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return nullptr;
   }
 }
@@ -187,7 +185,7 @@ const char* name_for_region_code(uint16_t region_code) {
 const char* name_for_font_id(uint16_t font_id) {
   try {
     return STANDARD_FONT_NAMES.at(font_id).c_str();
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return nullptr;
   }
 }

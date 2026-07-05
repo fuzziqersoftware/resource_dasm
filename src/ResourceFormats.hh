@@ -646,7 +646,7 @@ struct SMSSongResourceHeader {
   // 11 = catacombs
   uint8_t reverb_type;
   phosg::be_uint16_t tempo_bias; // 0 = default = 16667; linear, so 8333 = half-speed
-  // Note: Some older TMPLs show the following two fields as a single be_int16_t
+  // Note: Some older TMPLs show the following two fields as a single phosg::be_int16_t
   // semitone_shift field; it looks like the filter_type field was added later
   // in development. I haven't yet seen any SONGs that have nonzero filter_type.
   // Similarly, RMF docs combine these two bytes into one field (as it was in

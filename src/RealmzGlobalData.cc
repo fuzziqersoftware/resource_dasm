@@ -22,12 +22,9 @@
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-string first_file_that_exists(const vector<string>& names) {
+std::string first_file_that_exists(const std::vector<std::string>& names) {
   for (const auto& it : names) {
     if (std::filesystem::is_regular_file(it)) {
       return it;
@@ -36,8 +33,8 @@ string first_file_that_exists(const vector<string>& names) {
   return "";
 }
 
-RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
-  this->global_rsf = parse_resource_fork(load_file(first_file_that_exists({(this->dir + "/the_family_jewels.rsf"),
+RealmzGlobalData::RealmzGlobalData(const std::string& dir) : dir(dir) {
+  this->global_rsf = parse_resource_fork(phosg::load_file(first_file_that_exists({(this->dir + "/the_family_jewels.rsf"),
       (this->dir + "/The Family Jewels.rsf"),
       (this->dir + "/THE FAMILY JEWELS.RSF"),
       (this->dir + "/the_family_jewels.rsrc"),
@@ -49,7 +46,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
       (this->dir + "/the_family_jewels/..namedfork/rsrc"),
       (this->dir + "/The Family Jewels/..namedfork/rsrc"),
       (this->dir + "/THE FAMILY JEWELS/..namedfork/rsrc")})));
-  this->portraits_rsf = parse_resource_fork(load_file(first_file_that_exists({(this->dir + "/portraits.rsf"),
+  this->portraits_rsf = parse_resource_fork(phosg::load_file(first_file_that_exists({(this->dir + "/portraits.rsf"),
       (this->dir + "/Portraits.rsf"),
       (this->dir + "/PORTRAITS.RSF"),
       (this->dir + "/portraits.rsrc"),
@@ -61,7 +58,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
       (this->dir + "/portraits/..namedfork/rsrc"),
       (this->dir + "/Portraits/..namedfork/rsrc"),
       (this->dir + "/PORTRAITS/..namedfork/rsrc")})));
-  this->tacticals_rsf = parse_resource_fork(load_file(first_file_that_exists({(this->dir + "/tacticals.rsf"),
+  this->tacticals_rsf = parse_resource_fork(phosg::load_file(first_file_that_exists({(this->dir + "/tacticals.rsf"),
       (this->dir + "/Tacticals.rsf"),
       (this->dir + "/TACTICALS.RSF"),
       (this->dir + "/tacticals.rsrc"),
@@ -73,7 +70,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
       (this->dir + "/tacticals/..namedfork/rsrc"),
       (this->dir + "/Tacticals/..namedfork/rsrc"),
       (this->dir + "/TACTICALS/..namedfork/rsrc")})));
-  this->custom_names_rsf = parse_resource_fork(load_file(first_file_that_exists({(this->dir + "/custom_names.rsf"),
+  this->custom_names_rsf = parse_resource_fork(phosg::load_file(first_file_that_exists({(this->dir + "/custom_names.rsf"),
       (this->dir + "/Custom Names.rsf"),
       (this->dir + "/CUSTOM NAMES.RSF"),
       (this->dir + "/custom_names.rsrc"),
@@ -85,7 +82,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
       (this->dir + "/custom_names/..namedfork/rsrc"),
       (this->dir + "/Custom Names/..namedfork/rsrc"),
       (this->dir + "/CUSTOM NAMES/..namedfork/rsrc")})));
-  this->scenario_names_rsf = parse_resource_fork(load_file(first_file_that_exists({(this->dir + "/scenario_names.rsf"),
+  this->scenario_names_rsf = parse_resource_fork(phosg::load_file(first_file_that_exists({(this->dir + "/scenario_names.rsf"),
       (this->dir + "/Scenario Names.rsf"),
       (this->dir + "/SCENARIO NAMES.RSF"),
       (this->dir + "/scenario_names.rsrc"),
@@ -97,7 +94,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
       (this->dir + "/scenario_names/..namedfork/rsrc"),
       (this->dir + "/Scenario Names/..namedfork/rsrc"),
       (this->dir + "/SCENARIO NAMES/..namedfork/rsrc")})));
-  this->data_id_rsf = parse_resource_fork(load_file(first_file_that_exists({(this->dir + "/data_id.rsf"),
+  this->data_id_rsf = parse_resource_fork(phosg::load_file(first_file_that_exists({(this->dir + "/data_id.rsf"),
       (this->dir + "/Data ID.rsf"),
       (this->dir + "/DATA ID.RSF"),
       (this->dir + "/data_id.rsrc"),
@@ -128,7 +125,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
   this->spell_names = this->load_spell_names(this->custom_names_rsf);
   this->item_strings = this->load_item_strings(this->data_id_rsf);
 
-  static const unordered_map<string, vector<string>> land_type_to_filenames({
+  static const std::unordered_map<std::string, std::vector<std::string>> land_type_to_filenames({
       {"indoor", {"data_castle_bd", "Data Castle BD", "DATA CASTLE BD"}},
       {"desert", {"data_desert_bd", "Data Desert BD", "DATA DESERT BD"}},
       {"outdoor", {"data_p_bd", "Data P BD", "DATA P BD"}},
@@ -137,16 +134,16 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
       {"abyss", {"data_swamp_bd", "Data Swamp BD", "DATA SWAMP BD"}},
   });
   for (const auto& it : land_type_to_filenames) {
-    vector<string> filenames;
+    std::vector<std::string> filenames;
     for (const auto& filename : it.second) {
       filenames.emplace_back(std::format("{}/{}", this->dir, filename));
     }
 
-    string filename = first_file_that_exists(filenames);
+    std::string filename = first_file_that_exists(filenames);
     if (!filename.empty()) {
       this->land_type_to_tileset_definition.emplace(it.first, load_tileset_definition(filename));
     } else {
-      fwrite_fmt(stderr, "warning: tileset definition for {} is missing\n", it.first);
+      phosg::fwrite_fmt(stderr, "warning: tileset definition for {} is missing\n", it.first);
     }
   }
 }
@@ -155,7 +152,7 @@ RealmzGlobalData::RealmzGlobalData(const string& dir) : dir(dir) {
 // Things that are apparently hardcoded and don't appear in resources
 
 const char* RealmzGlobalData::name_for_condition(size_t condition_id) {
-  array<const char*, 40> names = {
+  std::array<const char*, 40> names = {
       /*  0 */ "Runs away",
       /*  1 */ "Helpless",
       /*  2 */ "Tangled",
@@ -201,7 +198,7 @@ const char* RealmzGlobalData::name_for_condition(size_t condition_id) {
 }
 
 const char* RealmzGlobalData::name_for_party_condition(size_t condition_id) {
-  array<const char*, 10> names = {
+  std::array<const char*, 10> names = {
       /* 0 */ "Torch lit",
       /* 1 */ "Waterworld",
       /* 2 */ "Dragon Hide",
@@ -217,7 +214,7 @@ const char* RealmzGlobalData::name_for_party_condition(size_t condition_id) {
 }
 
 const char* RealmzGlobalData::name_for_special_bonus(size_t id) {
-  array<const char*, 12> names = {
+  std::array<const char*, 12> names = {
       /*  0 */ "Vs. Magic Using",
       /*  1 */ "Vs. Undead",
       /*  2 */ "Vs. Demon/Devil",
@@ -235,7 +232,7 @@ const char* RealmzGlobalData::name_for_special_bonus(size_t id) {
 }
 
 const char* RealmzGlobalData::name_for_special_ability(size_t id) {
-  array<const char*, 15> names = {
+  std::array<const char*, 15> names = {
       /*  0 */ "Sneak Attack",
       /*  1 */ "Unused (1)",
       /*  2 */ "Unused (2)",
@@ -256,7 +253,7 @@ const char* RealmzGlobalData::name_for_special_ability(size_t id) {
 } // namespace ResourceDASM
 
 const char* RealmzGlobalData::name_for_age_group(size_t age_group) {
-  array<const char*, 5> names = {
+  std::array<const char*, 5> names = {
       /*  1 */ "Youth",
       /*  2 */ "Young",
       /*  3 */ "Prime",
@@ -267,7 +264,7 @@ const char* RealmzGlobalData::name_for_age_group(size_t age_group) {
 }
 
 const char* RealmzGlobalData::name_for_item_category_flag(uint8_t flag_index) {
-  static const array<const char*, 64> names = {
+  static const std::array<const char*, 64> names = {
       /* 8000000000000000 */ "small blunt weapon",
       /* 4000000000000000 */ "medium blunt weapon",
       /* 2000000000000000 */ "large blunt weapon",
@@ -337,7 +334,7 @@ const char* RealmzGlobalData::name_for_item_category_flag(uint8_t flag_index) {
 }
 
 const char* RealmzGlobalData::name_for_race_flag(uint8_t flag_index) {
-  static const array<const char*, 16> names = {
+  static const std::array<const char*, 16> names = {
       /* 8000 */ "short",
       /* 4000 */ "elvish",
       /* 2000 */ "half",
@@ -359,7 +356,7 @@ const char* RealmzGlobalData::name_for_race_flag(uint8_t flag_index) {
 }
 
 const char* RealmzGlobalData::name_for_caste_flag(uint8_t flag_index) {
-  static const array<const char*, 64> names = {
+  static const std::array<const char*, 64> names = {
       /* 8000 */ "warrior",
       /* 4000 */ "thief",
       /* 2000 */ "archer",
@@ -383,12 +380,12 @@ const char* RealmzGlobalData::name_for_caste_flag(uint8_t flag_index) {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA * BD (tileset definitions)
 
-RealmzGlobalData::TileSetDefinition RealmzGlobalData::load_tileset_definition(const string& filename) {
-  return load_object_file<TileSetDefinition>(filename, true);
+RealmzGlobalData::TileSetDefinition RealmzGlobalData::load_tileset_definition(const std::string& filename) {
+  return phosg::load_object_file<TileSetDefinition>(filename, true);
 }
 
-int16_t RealmzGlobalData::pict_resource_id_for_land_type(const string& land_type) {
-  static const unordered_map<string, int16_t> land_type_to_resource_id({
+int16_t RealmzGlobalData::pict_resource_id_for_land_type(const std::string& land_type) {
+  static const std::unordered_map<std::string, int16_t> land_type_to_resource_id({
       {"outdoor", 300},
       {"dungeon", 302},
       {"cave", 303},
@@ -403,14 +400,14 @@ int16_t RealmzGlobalData::pict_resource_id_for_land_type(const string& land_type
   return land_type_to_resource_id.at(land_type);
 }
 
-ImageRGB888 RealmzGlobalData::generate_tileset_definition_legend(
-    const TileSetDefinition& ts, const ImageRGBA8888N& positive_pattern) {
+phosg::ImageRGB888 RealmzGlobalData::generate_tileset_definition_legend(
+    const TileSetDefinition& ts, const phosg::ImageRGBA8888N& positive_pattern) {
 
   if (positive_pattern.get_width() != 640 || positive_pattern.get_height() != 320) {
-    throw runtime_error("postiive pattern is not 640x320");
+    throw std::runtime_error("postiive pattern is not 640x320");
   }
 
-  ImageRGB888 result(32 * 15, 97 * 200);
+  phosg::ImageRGB888 result(32 * 15, 97 * 200);
   for (size_t x = 0; x < 200; x++) {
 
     // Tile 0 is unused apparently? (there are 201 of them)
@@ -542,15 +539,15 @@ ImageRGB888 RealmzGlobalData::generate_tileset_definition_legend(
   return result;
 }
 
-string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition& ts, const char* name) {
-  BlockStringWriter w;
+std::string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition& ts, const char* name) {
+  phosg::BlockStringWriter w;
   w.write_fmt("===== TILESET {}", name);
   w.write("  ID |  ID | BASE |  SOUND | SOLID | PATH | SHORE |  BOAT | FLY | OPAQUE |  FOREST | TM | BATTLE EXPANSION           | BATTLE EXPANSION                   ");
 
   for (size_t x = 0; x < 201; x++) {
     const TileDefinition& t = ts.tiles[x];
 
-    string solid_type_str;
+    std::string solid_type_str;
     if (t.solid_type == 1) {
       solid_type_str = "LARGE";
     } else if (t.solid_type == 2) {
@@ -561,7 +558,7 @@ string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition&
       solid_type_str = std::format(" {:04X}", t.solid_type);
     }
 
-    string boat_type_str;
+    std::string boat_type_str;
     if (t.is_need_boat == 1) {
       boat_type_str = " BOAT";
     } else if (t.is_need_boat == 2) {
@@ -572,7 +569,7 @@ string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition&
       boat_type_str = std::format(" {:04X}", t.is_need_boat);
     }
 
-    string forest_type_str;
+    std::string forest_type_str;
     if (t.special_type == 1) {
       forest_type_str = "  TREES";
     } else if (t.special_type == 2) {
@@ -628,35 +625,35 @@ string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition&
 ////////////////////////////////////////////////////////////////////////////////
 // CUSTOM NAMES.RSF
 
-vector<string> RealmzGlobalData::load_race_names(const ResourceFile& rsf) {
+std::vector<std::string> RealmzGlobalData::load_race_names(const ResourceFile& rsf) {
   auto races_STRN = rsf.decode_STRN(129);
   return std::move(races_STRN.strs);
 }
 
-vector<string> RealmzGlobalData::load_caste_names(const ResourceFile& rsf) {
+std::vector<std::string> RealmzGlobalData::load_caste_names(const ResourceFile& rsf) {
   auto castes_STRN = rsf.decode_STRN(131);
   return std::move(castes_STRN.strs);
 }
 
-map<uint16_t, string> RealmzGlobalData::load_spell_names(const ResourceFile& rsf) {
+std::map<uint16_t, std::string> RealmzGlobalData::load_spell_names(const ResourceFile& rsf) {
   static const char* class_names[5] = {
       "Sorcerer", "Priest", "Enchanter", "Special", "Custom"};
   static const char* special_level_names[7] = {
       "ProJo", "ProJo/Breath", "Potion", "Missile", "ImproveMissile", "Misc", "Unnamed"};
 
-  map<uint16_t, string> ret;
+  std::map<uint16_t, std::string> ret;
   for (size_t x = 0; x < 5; x++) {
     for (size_t y = 0; y < 7; y++) {
       try {
         auto decoded = rsf.decode_STRN(((x + 1) * 1000) + y);
-        string prefix = (x == 3)
+        std::string prefix = (x == 3)
             ? std::format("({}/{}) ", class_names[x], special_level_names[y])
             : std::format("({}/L{}) ", class_names[x], y + 1);
         for (size_t z = 0; z < decoded.strs.size(); z++) {
           uint16_t spell_id = ((x + 1) * 1000) + ((y + 1) * 100) + (z + 1);
           ret.emplace(spell_id, prefix + decoded.strs[z]);
         }
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
       }
     }
   }
@@ -664,14 +661,14 @@ map<uint16_t, string> RealmzGlobalData::load_spell_names(const ResourceFile& rsf
   return ret;
 }
 
-const string& RealmzGlobalData::name_for_spell(uint16_t id) const {
+const std::string& RealmzGlobalData::name_for_spell(uint16_t id) const {
   return this->spell_names.at(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA CASTE
 
-static void disassemble_special_abilities(BlockStringWriter& w, const RealmzGlobalData::SpecialAbilities& sa) {
+static void disassemble_special_abilities(phosg::BlockStringWriter& w, const RealmzGlobalData::SpecialAbilities& sa) {
   w.write_fmt("    sneak_attack                        {}", sa.sneak_attack);
   w.write_fmt("    unknown_a1[0]                       {}", sa.unknown_a1[0]);
   w.write_fmt("    unknown_a1[1]                       {}", sa.unknown_a1[1]);
@@ -688,7 +685,7 @@ static void disassemble_special_abilities(BlockStringWriter& w, const RealmzGlob
   w.write_fmt("    turn_undead                         {}", sa.turn_undead);
 }
 
-static void disassemble_drvs_abilities(BlockStringWriter& w, const RealmzGlobalData::DRVsAbilities& drv) {
+static void disassemble_drvs_abilities(phosg::BlockStringWriter& w, const RealmzGlobalData::DRVsAbilities& drv) {
   w.write_fmt("    charm                               {}", drv.charm);
   w.write_fmt("    heat                                {}", drv.heat);
   w.write_fmt("    cold                                {}", drv.cold);
@@ -698,12 +695,12 @@ static void disassemble_drvs_abilities(BlockStringWriter& w, const RealmzGlobalD
   w.write_fmt("    magical                             {}", drv.magical);
 }
 
-vector<RealmzGlobalData::CasteDefinition> RealmzGlobalData::load_caste_definitions(const string& filename) {
-  return load_vector_file<CasteDefinition>(filename);
+std::vector<RealmzGlobalData::CasteDefinition> RealmzGlobalData::load_caste_definitions(const std::string& filename) {
+  return phosg::load_vector_file<CasteDefinition>(filename);
 }
 
-string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, size_t index, const char* name) const {
-  BlockStringWriter w;
+std::string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, size_t index, const char* name) const {
+  phosg::BlockStringWriter w;
   if (name) {
     w.write_fmt("===== CASTE {} [CST{}] ({})", index, index, name);
   } else {
@@ -725,7 +722,7 @@ string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, 
   w.write_fmt("  sorcerer_spells                       {}, start_skill_level={}, max_spell_level={}", c.sorcerer_spell_capability.enabled ? "enabled" : "disabled", c.sorcerer_spell_capability.start_skill_level, c.sorcerer_spell_capability.max_spell_level);
   w.write_fmt("  priest_spells                         {}, start_skill_level={}, max_spell_level={}", c.priest_spell_capability.enabled ? "enabled" : "disabled", c.priest_spell_capability.start_skill_level, c.priest_spell_capability.max_spell_level);
   w.write_fmt("  enchanter_spells                      {}, start_skill_level={}, max_spell_level={}", c.enchanter_spell_capability.enabled ? "enabled" : "disabled", c.enchanter_spell_capability.start_skill_level, c.enchanter_spell_capability.max_spell_level);
-  string a2_str = format_data_string(c.unknown_a2, sizeof(c.unknown_a2));
+  std::string a2_str = phosg::format_data_string(c.unknown_a2, sizeof(c.unknown_a2));
   w.write_fmt("  a2                                    {}", a2_str);
   w.write_fmt("  brawn_range                           [{}, {}]", c.brawn_range.low, c.brawn_range.high);
   w.write_fmt("  knowledge_range                       [{}, {}]", c.knowledge_range.low, c.knowledge_range.high);
@@ -747,7 +744,7 @@ string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, 
   w.write_fmt("  melee_hit_chance                      {} + {}/level", c.melee_hit_chance_start, c.melee_hit_chance_level_up_bonus);
   w.write_fmt("  missile_hit_chance                    {} + {}/level", c.missile_hit_chance_start, c.missile_hit_chance_level_up_bonus);
   w.write_fmt("  hand_to_hand_damage                   {} + {}/level", c.hand_to_hand_damage_start, c.hand_to_hand_damage_level_up_bonus);
-  string a3_str = format_data_string(c.unknown_a3, sizeof(c.unknown_a3));
+  std::string a3_str = phosg::format_data_string(c.unknown_a3, sizeof(c.unknown_a3));
   w.write_fmt("  a3                                    {}", a3_str);
   w.write_fmt("  caste_category                        {}", c.caste_category);
   w.write_fmt("  min_age_group                         {} // {}", c.min_age_group, RealmzGlobalData::name_for_age_group(c.min_age_group));
@@ -765,7 +762,7 @@ string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, 
     if (c.starting_items[z]) {
       try {
         w.write_fmt("  starting_items[{:2}]                    {} ({})", z, c.starting_items[z], this->strings_for_item(c.starting_items[z]).name);
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
         w.write_fmt("  starting_items[{:2}]                    {}", z, c.starting_items[z]);
       }
     }
@@ -786,19 +783,19 @@ string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, 
   }
   w.write_fmt("  portrait_id                           {}", c.portrait_id);
   w.write_fmt("  max_spells_per_round                  {}", c.max_spells_per_round);
-  string a4_str = format_data_string(c.unknown_a4, sizeof(c.unknown_a4));
+  std::string a4_str = phosg::format_data_string(c.unknown_a4, sizeof(c.unknown_a4));
   w.write_fmt("  a4                                    {}", a4_str);
   w.write("");
   return w.close("\n");
 }
 
-string RealmzGlobalData::disassemble_all_caste_definitions() const {
-  BlockStringWriter w;
+std::string RealmzGlobalData::disassemble_all_caste_definitions() const {
+  phosg::BlockStringWriter w;
   for (size_t z = 0; z < this->caste_definitions.size(); z++) {
     const char* name = nullptr;
     try {
       name = this->caste_names.at(z).c_str();
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
     w.write(this->disassemble_caste_definition(this->caste_definitions[z], z, name));
   }
@@ -808,12 +805,12 @@ string RealmzGlobalData::disassemble_all_caste_definitions() const {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ID
 
-vector<RealmzGlobalData::ItemDefinition> RealmzGlobalData::load_item_definitions(const string& filename) {
-  return load_vector_file<ItemDefinition>(filename);
+std::vector<RealmzGlobalData::ItemDefinition> RealmzGlobalData::load_item_definitions(const std::string& filename) {
+  return phosg::load_vector_file<ItemDefinition>(filename);
 }
 
-string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, size_t item_id, const ItemStrings* strings) const {
-  static const array<const char*, 26> wear_class_names = {
+std::string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, size_t item_id, const ItemStrings* strings) const {
+  static const std::array<const char*, 26> wear_class_names = {
       /* 0 */ "ring",
       /* 1 */ "(unused-1)",
       /* 2 */ "melee weapon",
@@ -842,20 +839,20 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
       /* 25 */ "scenario item",
   };
 
-  BlockStringWriter w;
+  phosg::BlockStringWriter w;
   w.write_fmt("===== ITEM id={} [ITM{}]", item_id, item_id);
 
   if (strings) {
     if (!strings->name.empty()) {
-      string s = format_data_string(strings->name);
+      std::string s = phosg::format_data_string(strings->name);
       w.write_fmt("  name                        {}", s);
     }
     if (!strings->unidentified_name.empty()) {
-      string s = format_data_string(strings->unidentified_name);
+      std::string s = phosg::format_data_string(strings->unidentified_name);
       w.write_fmt("  unidentified_name           {}", s);
     }
     if (!strings->description.empty()) {
-      string s = format_data_string(strings->description);
+      std::string s = phosg::format_data_string(strings->description);
       w.write_fmt("  description                 {}", s);
     }
   }
@@ -879,7 +876,7 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
   w.write_fmt("  disguise_item_id            {}", i.disguise_item_id);
   try {
     w.write_fmt("  wear_class                  {} ({})", i.wear_class, wear_class_names.at(i.wear_class));
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     w.write_fmt("  wear_class                  {}", i.wear_class);
   }
   w.write_fmt("  category_flags              {:016X}", i.category_flags);
@@ -924,18 +921,18 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
   }
   try {
     w.write_fmt("  specific_race               RCE{} // {}", i.specific_race, this->race_names.at(i.specific_race));
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     w.write_fmt("  specific_race               RCE{}", i.specific_race);
   }
   try {
     w.write_fmt("  specific_caste              CST{} // {}", i.specific_caste, this->caste_names.at(i.specific_caste));
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     w.write_fmt("  specific_caste              CST{}", i.specific_caste);
   }
-  string a2_str = format_data_string(i.unknown_a2, sizeof(i.unknown_a2));
+  std::string a2_str = phosg::format_data_string(i.unknown_a2, sizeof(i.unknown_a2));
   w.write_fmt("  a2                          {}", a2_str);
   w.write_fmt("  damage                      {}", i.damage);
-  string a3_str = format_data_string(i.unknown_a3, sizeof(i.unknown_a3));
+  std::string a3_str = phosg::format_data_string(i.unknown_a3, sizeof(i.unknown_a3));
   w.write_fmt("  a3                          {}", a3_str);
   w.write_fmt("  heat_bonus_damage           {}", i.heat_bonus_damage);
   w.write_fmt("  cold_bonus_damage           {}", i.cold_bonus_damage);
@@ -968,7 +965,7 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
     try {
       const auto& name = this->name_for_spell(i.specials[1]);
       w.write_fmt("  specials[1]                 {} ({})", i.specials[1], name);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       w.write_fmt("  specials[1]                 {} (unknown spell)", i.specials[1]);
     }
   } else if (special1_is_condition) {
@@ -1002,23 +999,23 @@ string RealmzGlobalData::disassemble_item_definition(const ItemDefinition& i, si
   return w.close("\n");
 }
 
-string RealmzGlobalData::disassemble_all_item_definitions() const {
-  deque<string> blocks;
+std::string RealmzGlobalData::disassemble_all_item_definitions() const {
+  std::deque<std::string> blocks;
   for (size_t z = 0; z < this->item_definitions.size(); z++) {
     const ItemStrings* strings = nullptr;
     try {
       strings = &this->strings_for_item(z);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
     blocks.emplace_back(this->disassemble_item_definition(this->item_definitions[z], z, strings));
   }
-  return join(blocks, "");
+  return phosg::join(blocks, "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // DATA ID.RSF
 
-unordered_map<uint16_t, RealmzGlobalData::ItemStrings> RealmzGlobalData::load_item_strings(const ResourceFile& rsf) {
+std::unordered_map<uint16_t, RealmzGlobalData::ItemStrings> RealmzGlobalData::load_item_strings(const ResourceFile& rsf) {
   // Resource IDs:
   // 0 = unidentified name of weapon (e.g. Flail)
   // 1 = identified name of weapon (e.g. Flail of Cat Tails +4)
@@ -1027,38 +1024,39 @@ unordered_map<uint16_t, RealmzGlobalData::ItemStrings> RealmzGlobalData::load_it
   // 400, 401, 402: the above, but for armors
   // 600, 601, 602: the above, but for magic items
   // 800, 801, 802: the above, but for supplies
-  unordered_map<uint16_t, ItemStrings> ret;
+  std::unordered_map<uint16_t, ItemStrings> ret;
   for (size_t base_id = 0; base_id <= 800; base_id += 200) {
     ResourceFile::DecodedStringSequence unidentified_STRN;
     ResourceFile::DecodedStringSequence identified_STRN;
     ResourceFile::DecodedStringSequence description_STRN;
     try {
       unidentified_STRN = rsf.decode_STRN(base_id + 0);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
     try {
       identified_STRN = rsf.decode_STRN(base_id + 1);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
     try {
       description_STRN = rsf.decode_STRN(base_id + 2);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
 
-    size_t class_max_id = max<size_t>({unidentified_STRN.strs.size(), identified_STRN.strs.size(), description_STRN.strs.size()});
+    size_t class_max_id = std::max<size_t>(
+        {unidentified_STRN.strs.size(), identified_STRN.strs.size(), description_STRN.strs.size()});
     for (size_t z = 0; z < class_max_id; z++) {
       auto& info = ret[base_id + z];
       try {
         info.unidentified_name = std::move(unidentified_STRN.strs.at(z));
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
       }
       try {
         info.name = std::move(identified_STRN.strs.at(z));
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
       }
       try {
         info.description = std::move(description_STRN.strs.at(z));
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
       }
       if (info.unidentified_name.empty() && info.name.empty() && info.description.empty()) {
         ret.erase(base_id + z);
@@ -1075,12 +1073,12 @@ const RealmzGlobalData::ItemStrings& RealmzGlobalData::strings_for_item(uint16_t
 ////////////////////////////////////////////////////////////////////////////////
 // DATA RACE
 
-vector<RealmzGlobalData::RaceDefinition> RealmzGlobalData::load_race_definitions(const string& filename) {
-  return load_vector_file<RaceDefinition>(filename);
+std::vector<RealmzGlobalData::RaceDefinition> RealmzGlobalData::load_race_definitions(const std::string& filename) {
+  return phosg::load_vector_file<RaceDefinition>(filename);
 }
 
-string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, size_t index, const char* name) const {
-  BlockStringWriter w;
+std::string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, size_t index, const char* name) const {
+  phosg::BlockStringWriter w;
   if (name) {
     w.write_fmt("===== RACE {} [RCE{}] ({})", index, index, name);
   } else {
@@ -1111,14 +1109,14 @@ string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, si
   w.write_fmt("  agility_range                         [{}, {}]", r.agility_range.low, r.agility_range.high);
   w.write_fmt("  vitality_range                        [{}, {}]", r.vitality_range.low, r.vitality_range.high);
   w.write_fmt("  luck_range                            [{}, {}]", r.luck_range.low, r.luck_range.high);
-  string a2_str = format_data_string(r.unknown_a2, sizeof(r.unknown_a2));
+  std::string a2_str = phosg::format_data_string(r.unknown_a2, sizeof(r.unknown_a2));
   w.write_fmt("  a2                                    {}", a2_str);
   for (size_t z = 0; z < 40; z++) {
     if (r.condition_levels[z]) {
       w.write_fmt("  condition_levels[{:2}]                  {} // {}", z, r.condition_levels[z], RealmzGlobalData::name_for_condition(z));
     }
   }
-  string a3_str = format_data_string(r.unknown_a3, sizeof(r.unknown_a3));
+  std::string a3_str = phosg::format_data_string(r.unknown_a3, sizeof(r.unknown_a3));
   w.write_fmt("  a3                                    {}", a3_str);
   w.write_fmt("  base_movement                         {}", r.base_movement);
   w.write_fmt("  magic_resistance_adjust               {}", r.magic_resistance_adjust);
@@ -1130,13 +1128,13 @@ string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, si
   for (size_t z = 0; z < 30; z++) {
     if (r.possible_castes[z]) {
       try {
-        const string& name = this->caste_names.at(z);
+        const std::string& name = this->caste_names.at(z);
         if (name.empty()) {
           w.write_fmt("    CST{}", z);
         } else {
           w.write_fmt("    CST{} ({})", z, name);
         }
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
         w.write_fmt("    CST{}", z);
       }
     }
@@ -1177,19 +1175,19 @@ string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, si
     }
     race_flags_remaining <<= 1;
   }
-  string a4_str = format_data_string(r.unknown_a4, sizeof(r.unknown_a4));
+  std::string a4_str = phosg::format_data_string(r.unknown_a4, sizeof(r.unknown_a4));
   w.write_fmt("  a4                                    {}", a4_str);
   w.write("");
   return w.close("\n");
 }
 
-string RealmzGlobalData::disassemble_all_race_definitions() const {
-  BlockStringWriter w;
+std::string RealmzGlobalData::disassemble_all_race_definitions() const {
+  phosg::BlockStringWriter w;
   for (size_t z = 0; z < this->race_definitions.size(); z++) {
     const char* name = nullptr;
     try {
       name = this->race_names.at(z).c_str();
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
     w.write(this->disassemble_race_definition(this->race_definitions[z], z, name));
   }
@@ -1199,24 +1197,24 @@ string RealmzGlobalData::disassemble_all_race_definitions() const {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA S
 
-map<uint16_t, RealmzGlobalData::SpellDefinition> RealmzGlobalData::load_spell_definitions(const string& filename) {
-  auto f = fopen_unique(filename, "rb");
+std::map<uint16_t, RealmzGlobalData::SpellDefinition> RealmzGlobalData::load_spell_definitions(const std::string& filename) {
+  auto f = phosg::fopen_unique(filename, "rb");
 
-  map<uint16_t, SpellDefinition> ret;
+  std::map<uint16_t, SpellDefinition> ret;
   for (size_t x = 0; x < 5; x++) {
     for (size_t y = 0; y < 7; y++) {
       for (size_t z = 0; z < 15; z++) {
         uint16_t spell_id = ((x + 1) * 1000) + ((y + 1) * 100) + (z + 1);
         auto& def = ret[spell_id];
-        freadx(f.get(), &def, sizeof(def));
+        phosg::freadx(f.get(), &def, sizeof(def));
       }
     }
   }
   return ret;
 }
 
-string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const char* name) const {
-  BlockStringWriter w;
+std::string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const char* name) const {
+  phosg::BlockStringWriter w;
   if (name) {
     w.write_fmt("===== SPELL id={} [SPL{}] ({})", spell_id, spell_id, name);
   } else {
@@ -1247,13 +1245,13 @@ string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition& s, 
   return w.close("\n");
 }
 
-string RealmzGlobalData::disassemble_all_spell_definitions() const {
-  BlockStringWriter w;
+std::string RealmzGlobalData::disassemble_all_spell_definitions() const {
+  phosg::BlockStringWriter w;
   for (const auto& it : this->spell_definitions) {
     const char* name = nullptr;
     try {
       name = this->name_for_spell(it.first).c_str();
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
     w.write(this->disassemble_spell_definition(it.second, it.first, name));
   }

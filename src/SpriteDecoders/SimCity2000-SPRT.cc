@@ -11,25 +11,23 @@
 #include <stdexcept>
 #include <string>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 struct SpriteEntry {
-  be_uint16_t id;
-  be_uint32_t offset;
-  be_uint16_t height;
-  be_uint16_t width;
+  phosg::be_uint16_t id;
+  phosg::be_uint32_t offset;
+  phosg::be_uint16_t height;
+  phosg::be_uint16_t width;
 } __attribute__((packed));
 
-static ImageRGBA8888N decode_sprite_entry(
-    StringReader& r, uint16_t width, uint16_t height, const vector<ColorTableEntry>& pltt) {
-  // SC2K sprites are encoded as byte streams. Opcodes are be_uint16_ts, where the low byte specifies the command
-  // number and the high byte specifies a count (which is only used by some commands). Some opcodes are followed by
-  // multiple data bytes (possibly an odd number), but opcodes are always word-aligned. There are only 5 opcodes.
+static phosg::ImageRGBA8888N decode_sprite_entry(
+    phosg::StringReader& r, uint16_t width, uint16_t height, const std::vector<ColorTableEntry>& pltt) {
+  // SC2K sprites are encoded as byte streams. Opcodes are phosg::be_uint16_ts, where the low byte specifies the
+  // command number and the high byte specifies a count (which is only used by some commands). Some opcodes are
+  // followed by multiple data bytes (possibly an odd number), but opcodes are always word-aligned. There are only 5
+  // opcodes.
 
-  ImageRGBA8888N ret(width, height);
+  phosg::ImageRGBA8888N ret(width, height);
   ret.clear(0xFFFFFF00); // All transparent by default
 
   int16_t y = -1;
@@ -61,16 +59,16 @@ static ImageRGBA8888N decode_sprite_entry(
         break;
       }
       default:
-        throw runtime_error(std::format("invalid opcode: {:04X}", opcode));
+        throw std::runtime_error(std::format("invalid opcode: {:04X}", opcode));
     }
   }
 }
 
-vector<ImageRGBA8888N> decode_SPRT(const string& data, const vector<ColorTableEntry>& pltt) {
-  StringReader r(data);
+std::vector<phosg::ImageRGBA8888N> decode_SPRT(const std::string& data, const std::vector<ColorTableEntry>& pltt) {
+  phosg::StringReader r(data);
   uint16_t count = r.get_u16b();
 
-  vector<ImageRGBA8888N> ret;
+  std::vector<phosg::ImageRGBA8888N> ret;
   for (size_t x = 0; x < count; x++) {
     const auto& entry = r.get<SpriteEntry>();
     auto sub_r = r.sub(entry.offset);

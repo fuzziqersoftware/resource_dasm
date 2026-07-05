@@ -8,13 +8,10 @@
 
 #include "../ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 uint16_t macbinary_crc16(const void* data, size_t size) {
-  StringReader r(data, size);
+  phosg::StringReader r(data, size);
   uint16_t crc = 0;
   while (!r.eof()) {
     uint16_t ch = r.get_u8() << 8;
@@ -36,45 +33,45 @@ struct MacBinaryHeader {
   /* 00 */ uint8_t legacy_version; // Should be zero for file versions 2 and 3
   /* 01 */ uint8_t filename_length;
   /* 02 */ char filename[0x3F];
-  /* 41 */ be_uint32_t file_type;
-  /* 45 */ be_uint32_t creator;
+  /* 41 */ phosg::be_uint32_t file_type;
+  /* 45 */ phosg::be_uint32_t creator;
   /* 49 */ uint8_t finder_flags_high;
   /* 4A */ uint8_t unused1;
-  /* 4B */ be_uint16_t pos_in_window_v;
-  /* 4D */ be_uint16_t pos_in_window_h;
-  /* 4F */ be_uint16_t folder_id;
+  /* 4B */ phosg::be_uint16_t pos_in_window_v;
+  /* 4D */ phosg::be_uint16_t pos_in_window_h;
+  /* 4F */ phosg::be_uint16_t folder_id;
   /* 51 */ uint8_t is_protected;
   /* 52 */ uint8_t zero_flag; // All versions of MacBinary expect this to be 0
-  /* 53 */ be_uint32_t data_fork_bytes;
-  /* 57 */ be_uint32_t resource_fork_bytes;
-  /* 5B */ be_uint32_t creation_date;
-  /* 5F */ be_uint32_t modified_date;
-  /* 63 */ be_uint16_t get_info_comment_length;
+  /* 53 */ phosg::be_uint32_t data_fork_bytes;
+  /* 57 */ phosg::be_uint32_t resource_fork_bytes;
+  /* 5B */ phosg::be_uint32_t creation_date;
+  /* 5F */ phosg::be_uint32_t modified_date;
+  /* 63 */ phosg::be_uint16_t get_info_comment_length;
   /* 65 */ uint8_t finder_flags_low;
-  /* 66 */ be_uint32_t macbinary3_signature; // == MACBINARY3_SIGNATURE ('mBin')
+  /* 66 */ phosg::be_uint32_t macbinary3_signature; // == MACBINARY3_SIGNATURE ('mBin')
   /* 6A */ uint8_t filename_script;
   /* 6B */ uint8_t extended_finder_flags;
   /* 6C */ uint8_t unused2[8];
-  /* 74 */ be_uint32_t total_files_length; // Actually unused
-  /* 78 */ be_uint16_t extra_header_bytes;
+  /* 74 */ phosg::be_uint32_t total_files_length; // Actually unused
+  /* 78 */ phosg::be_uint16_t extra_header_bytes;
   /* 7A */ uint8_t upload_program_version;
   /* 7B */ uint8_t min_macbinary_version;
-  /* 7C */ be_uint16_t checksum;
+  /* 7C */ phosg::be_uint16_t checksum;
   /* 7E */ uint8_t unused3[2];
   /* 80 (end) */
 
   void assert_valid() const {
     if (this->zero_flag != 0) {
-      throw runtime_error("input is not a MacBinary file (zero flag is nonzero)");
+      throw std::runtime_error("input is not a MacBinary file (zero flag is nonzero)");
     }
     if (this->filename_length > 0x3F) {
-      throw runtime_error("input is not a MacBinary file (file name is too long)");
+      throw std::runtime_error("input is not a MacBinary file (file name is too long)");
     }
     if (this->data_fork_bytes >= 0x00800000) {
-      throw runtime_error("input is not a MacBinary file (data fork is too long)");
+      throw std::runtime_error("input is not a MacBinary file (data fork is too long)");
     }
     if (this->resource_fork_bytes >= 0x00800000) {
-      throw runtime_error("input is not a MacBinary file (resource fork is too long)");
+      throw std::runtime_error("input is not a MacBinary file (resource fork is too long)");
     }
   }
 
@@ -93,34 +90,34 @@ struct MacBinaryHeader {
 
   void assert_v1_unused_fields_valid() const {
     if (this->finder_flags_low != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (low Finder flags are nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (low Finder flags are nonzero)");
     }
     if (this->macbinary3_signature != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (v3 signature is nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (v3 signature is nonzero)");
     }
     if (this->filename_script != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (file name script is nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (file name script is nonzero)");
     }
     if (this->extended_finder_flags != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (extended Finder flags are nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (extended Finder flags are nonzero)");
     }
     if (memcmp(this->unused2, "\0\0\0\0\0\0\0\0", 8)) {
-      throw runtime_error("input is not a MacBinary v1 file (unused field is nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (unused field is nonzero)");
     }
     if (this->total_files_length != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (total files length field is nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (total files length field is nonzero)");
     }
     if (this->extra_header_bytes != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (secondary header length is nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (secondary header length is nonzero)");
     }
     if (this->upload_program_version != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (upload program version is nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (upload program version is nonzero)");
     }
     if (this->min_macbinary_version != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (minimum MacBinary version is nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (minimum MacBinary version is nonzero)");
     }
     if (this->checksum != 0) {
-      throw runtime_error("input is not a MacBinary v1 file (header checksum is nonzero)");
+      throw std::runtime_error("input is not a MacBinary v1 file (header checksum is nonzero)");
     }
   }
 
@@ -129,8 +126,8 @@ struct MacBinaryHeader {
   }
 } __attribute__((packed));
 
-pair<StringReader, StringReader> parse_macbinary(const string& data) {
-  StringReader r(data);
+std::pair<phosg::StringReader, phosg::StringReader> parse_macbinary(const std::string& data) {
+  phosg::StringReader r(data);
 
   const auto& header = r.get<MacBinaryHeader>();
 
@@ -142,7 +139,7 @@ pair<StringReader, StringReader> parse_macbinary(const string& data) {
     if (header.is_v1_or_later()) {
       header.assert_v1_unused_fields_valid();
     } else {
-      throw runtime_error("input is not a MacBinary file");
+      throw std::runtime_error("input is not a MacBinary file");
     }
   }
 
@@ -150,12 +147,12 @@ pair<StringReader, StringReader> parse_macbinary(const string& data) {
   size_t data_fork_offset = ((sizeof(header) + header.extra_header_bytes) + 0x7F) & (~0x7F);
   size_t resource_fork_offset = ((data_fork_offset + header.data_fork_bytes) + 0x7F) & (~0x7F);
 
-  StringReader data_r = r.subx(data_fork_offset, header.data_fork_bytes);
-  StringReader resource_r = r.subx(resource_fork_offset, header.resource_fork_bytes);
-  return make_pair(data_r, resource_r);
+  phosg::StringReader data_r = r.subx(data_fork_offset, header.data_fork_bytes);
+  phosg::StringReader resource_r = r.subx(resource_fork_offset, header.resource_fork_bytes);
+  return std::make_pair(data_r, resource_r);
 }
 
-ResourceFile parse_macbinary_resource_fork(const string& data) {
+ResourceFile parse_macbinary_resource_fork(const std::string& data) {
   auto r = parse_macbinary(data).second;
   return parse_resource_fork(r);
 }

@@ -3,12 +3,9 @@
 #include <map>
 #include <stdexcept>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-static const map<uint32_t, const char*> addr_to_global_name({
+static const std::map<uint32_t, const char*> addr_to_global_name({
     {0x0000, "__m68k_reset_stack__"}, // stack ptr for reset vector
     {0x0004, "__m68k_vec_reset__"}, // reset vector
     {0x0008, "BusErrVct"}, // bus error vector
@@ -585,7 +582,7 @@ static const map<uint32_t, const char*> addr_to_global_name({
 const char* name_for_lowmem_global(uint32_t addr) {
   try {
     return addr_to_global_name.at(addr);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return nullptr;
   }
 }

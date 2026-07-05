@@ -16,30 +16,27 @@
 
 #include "../ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 struct MohawkFileHeader {
-  be_uint32_t signature; // 'MHWK'
-  be_uint32_t remaining_file_size; // == file_size - 8
-  be_uint32_t resource_signature; // 'RSRC'
-  be_uint16_t version;
-  be_uint16_t compation_type;
-  be_uint32_t file_size;
-  be_uint32_t resource_dir_offset;
-  be_uint16_t file_table_offset; // relative to resource dir base
-  be_uint16_t file_table_size;
+  phosg::be_uint32_t signature; // 'MHWK'
+  phosg::be_uint32_t remaining_file_size; // == file_size - 8
+  phosg::be_uint32_t resource_signature; // 'RSRC'
+  phosg::be_uint16_t version;
+  phosg::be_uint16_t compation_type;
+  phosg::be_uint32_t file_size;
+  phosg::be_uint32_t resource_dir_offset;
+  phosg::be_uint16_t file_table_offset; // relative to resource dir base
+  phosg::be_uint16_t file_table_size;
 } __attribute__((packed));
 
 struct ResourceTypeTable {
-  be_uint16_t name_list_offset;
-  be_uint16_t count;
+  phosg::be_uint16_t name_list_offset;
+  phosg::be_uint16_t count;
   struct TypeEntry {
-    be_uint32_t type;
-    be_uint16_t resource_table_offset;
-    be_uint16_t name_table_offset;
+    phosg::be_uint32_t type;
+    phosg::be_uint16_t resource_table_offset;
+    phosg::be_uint16_t name_table_offset;
   } __attribute__((packed));
   TypeEntry entries[0];
 
@@ -49,10 +46,10 @@ struct ResourceTypeTable {
 } __attribute__((packed));
 
 struct ResourceTable {
-  be_uint16_t count;
+  phosg::be_uint16_t count;
   struct ResourceEntry {
-    be_uint16_t resource_id;
-    be_uint16_t file_table_index;
+    phosg::be_int16_t resource_id;
+    phosg::be_uint16_t file_table_index;
   } __attribute__((packed));
   ResourceEntry entries[0];
 
@@ -62,22 +59,22 @@ struct ResourceTable {
 } __attribute__((packed));
 
 struct ResourceNameTable {
-  be_uint16_t count;
+  phosg::be_uint16_t count;
   struct NameEntry {
-    be_uint16_t name_offset;
-    be_uint16_t resource_index;
+    phosg::be_uint16_t name_offset;
+    phosg::be_uint16_t resource_index;
   } __attribute__((packed));
   NameEntry entries[0];
 } __attribute__((packed));
 
 struct ResourceFileTable {
-  be_uint32_t count;
+  phosg::be_uint32_t count;
   struct FileEntry {
-    be_uint32_t data_offset;
-    be_uint16_t size_low;
+    phosg::be_uint32_t data_offset;
+    phosg::be_uint16_t size_low;
     uint8_t size_high;
     uint8_t flags;
-    be_uint16_t unknown;
+    phosg::be_uint16_t unknown;
 
     uint32_t size() const {
       return this->size_low | (static_cast<uint32_t>(this->size_high) << 16);
@@ -92,18 +89,18 @@ struct ResourceFileTable {
 
 struct ResourceEntry {
   uint32_t type;
-  uint16_t id;
+  int16_t id;
   uint32_t offset;
   uint32_t size;
 };
 
-static vector<ResourceEntry> load_index(StringReader& r) {
+static std::vector<ResourceEntry> load_index(phosg::StringReader& r) {
   MohawkFileHeader h = r.get<MohawkFileHeader>();
   if (h.signature != 0x4D48574B) {
-    throw runtime_error("file is not a mohawk archive");
+    throw std::runtime_error("file is not a mohawk archive");
   }
   if (h.resource_signature != 0x52535243) {
-    throw runtime_error("file is not a mohawk resource archive");
+    throw std::runtime_error("file is not a mohawk resource archive");
   }
 
   uint16_t type_table_count = r.pget_u16b(h.resource_dir_offset + 2);
@@ -112,10 +109,10 @@ static vector<ResourceEntry> load_index(StringReader& r) {
 
   uint32_t file_table_offset = h.resource_dir_offset + h.file_table_offset;
   uint32_t file_table_count = r.pget_u32b(file_table_offset);
-  string file_table_data = r.pread(file_table_offset, ResourceFileTable::size_for_count(file_table_count));
+  std::string file_table_data = r.pread(file_table_offset, ResourceFileTable::size_for_count(file_table_count));
   const ResourceFileTable* file_table = reinterpret_cast<ResourceFileTable*>(file_table_data.data());
 
-  vector<ResourceEntry> ret;
+  std::vector<ResourceEntry> ret;
   for (size_t type_index = 0; type_index < type_table.count; type_index++) {
     const auto& type_table_entry = type_table.entries[type_index];
 
@@ -126,7 +123,7 @@ static vector<ResourceEntry> load_index(StringReader& r) {
     for (size_t res_index = 0; res_index < res_table.count; res_index++) {
       const auto& res_entry = res_table.entries[res_index];
       if ((res_entry.file_table_index < 1) || (res_entry.file_table_index > file_table_count)) {
-        throw runtime_error("file entry reference out of range");
+        throw std::runtime_error("file entry reference out of range");
       }
       const auto& file_entry = file_table->entries[res_entry.file_table_index - 1];
       ret.emplace_back(ResourceEntry{type_table_entry.type, res_entry.resource_id, file_entry.data_offset, file_entry.size()});
@@ -136,15 +133,13 @@ static vector<ResourceEntry> load_index(StringReader& r) {
   return ret;
 }
 
-ResourceFile parse_mohawk(const string& data) {
-  StringReader r(data.data(), data.size());
+ResourceFile parse_mohawk(const std::string& data) {
+  phosg::StringReader r(data.data(), data.size());
 
   ResourceFile ret(IndexFormat::MOHAWK);
-  vector<ResourceEntry> resource_entries = load_index(r);
+  std::vector<ResourceEntry> resource_entries = load_index(r);
   for (const auto& e : resource_entries) {
-    string data = r.pread(e.offset, e.size);
-    ResourceFile::Resource res(e.type, e.id, std::move(data));
-    ret.add(std::move(res));
+    ret.add(ResourceFile::Resource{e.type, e.id, r.pread(e.offset, e.size)});
   }
 
   return ret;

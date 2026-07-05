@@ -42,12 +42,8 @@
 #include "SystemTemplates.hh"
 #include "TextCodecs.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
-static const string RESOURCE_FORK_FILENAME_SUFFIX = "/..namedfork/rsrc";
-static const string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";
+static const std::string RESOURCE_FORK_FILENAME_SUFFIX = "/..namedfork/rsrc";
+static const std::string RESOURCE_FORK_FILENAME_SHORT_SUFFIX = "/rsrc";
 
 static constexpr char FILENAME_FORMAT_STANDARD[] = "%f_%t_%i%n";
 static constexpr char FILENAME_FORMAT_STANDARD_HEX[] = "%f_%T_%i%n";
@@ -57,9 +53,8 @@ static constexpr char FILENAME_FORMAT_STANDARD_TYPE_XDIRS[] = "%f/%t/%i%N";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST[] = "%t/%f_%i%n";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
 
-static string disassembly_for_dcmp(
-    const ResourceFile::DecodedDecompressorResource& dcmp) {
-  multimap<uint32_t, string> labels;
+static std::string disassembly_for_dcmp(const ResourceDASM::ResourceFile::DecodedDecompressorResource& dcmp) {
+  std::multimap<uint32_t, std::string> labels;
   if (dcmp.init_label >= 0) {
     labels.emplace(dcmp.init_label, "init");
   }
@@ -69,14 +64,13 @@ static string disassembly_for_dcmp(
   if (dcmp.exit_label >= 0) {
     labels.emplace(dcmp.exit_label, "exit");
   }
-  return M68KEmulator::disassemble(
-      dcmp.code.data(), dcmp.code.size(), dcmp.pc_offset, &labels);
+  return ResourceDASM::M68KEmulator::disassemble(dcmp.code.data(), dcmp.code.size(), dcmp.pc_offset, &labels);
 }
 
 class ResourceExporter {
 private:
-  void ensure_directories_exist(const string& filename) {
-    vector<string> tokens = split(filename, '/');
+  void ensure_directories_exist(const std::string& filename) {
+    std::vector<std::string> tokens = phosg::split(filename, '/');
     if (tokens.empty()) {
       return;
     }
@@ -86,9 +80,9 @@ private:
       return;
     }
 
-    string dir;
+    std::string dir;
     bool first_token = true;
-    for (const string& token : tokens) {
+    for (const std::string& token : tokens) {
       if (!first_token) {
         dir.push_back('/');
       } else {
@@ -102,30 +96,30 @@ private:
     }
   }
 
-  string output_filename(
-      const string& base_filename,
+  std::string output_filename(
+      const std::string& base_filename,
       const uint32_t* res_type,
       const int16_t* res_id,
-      const string& res_type_str,
-      const string& res_name,
+      const std::string& res_type_str,
+      const std::string& res_name,
       uint16_t res_flags,
-      const string& after) {
+      const std::string& after) {
     if (base_filename.empty()) {
       return out_dir;
     }
 
-    string base_out_dir_str = this->base_out_dir;
+    std::string base_out_dir_str = this->base_out_dir;
     if (!base_out_dir_str.empty()) {
       base_out_dir_str += '/';
     }
-    string filename_str;
+    std::string filename_str;
     if (!this->out_dir.empty()) {
       filename_str += this->out_dir;
       filename_str += '/';
     }
     filename_str += base_filename;
 
-    string result = base_out_dir_str;
+    std::string result = base_out_dir_str;
     bool saw_percent = false;
     for (char ch : this->filename_format) {
       if (ch == '%' && !saw_percent) {
@@ -138,12 +132,12 @@ private:
             break;
 
           case 'a':
-            result += res_flags & FLAG_COMPRESSED ? 'c' : '-';
-            result += res_flags & FLAG_PRELOAD ? 'p' : '-';
-            result += res_flags & FLAG_PROTECTED ? 'r' : '-';
-            result += res_flags & FLAG_LOCKED ? 'l' : '-';
-            result += res_flags & FLAG_PURGEABLE ? 'u' : '-';
-            result += res_flags & FLAG_LOAD_IN_SYSTEM_HEAP ? 's' : '-';
+            result += res_flags & ResourceDASM::FLAG_COMPRESSED ? 'c' : '-';
+            result += res_flags & ResourceDASM::FLAG_PRELOAD ? 'p' : '-';
+            result += res_flags & ResourceDASM::FLAG_PROTECTED ? 'r' : '-';
+            result += res_flags & ResourceDASM::FLAG_LOCKED ? 'l' : '-';
+            result += res_flags & ResourceDASM::FLAG_PURGEABLE ? 'u' : '-';
+            result += res_flags & ResourceDASM::FLAG_LOAD_IN_SYSTEM_HEAP ? 's' : '-';
             break;
 
           case 'f':
@@ -159,14 +153,14 @@ private:
           case 'n':
             if (!res_name.empty()) {
               result += '_';
-              result += decode_mac_roman(res_name, true);
+              result += ResourceDASM::decode_mac_roman(res_name, true);
             }
             break;
 
           case 'N':
             if (!res_name.empty()) {
               result += '_';
-              result += escape_hex_bytes_for_filename(res_name);
+              result += ResourceDASM::escape_hex_bytes_for_filename(res_name);
             }
             break;
 
@@ -181,7 +175,7 @@ private:
             break;
 
           default:
-            throw runtime_error(std::format("unimplemented escape '{}' in filename format", ch));
+            throw std::runtime_error(std::format("unimplemented escape '{}' in filename format", ch));
         }
       } else {
         result += ch;
@@ -192,23 +186,23 @@ private:
     return result;
   }
 
-  string output_filename(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res,
-      const string& after) {
+  std::string output_filename(
+      const std::string& base_filename,
+      std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res,
+      const std::string& after) {
     if (base_filename.empty()) {
       return out_dir;
     }
-    string type_str = string_for_resource_type(res->type, /*for_filename=*/true);
+    std::string type_str = ResourceDASM::string_for_resource_type(res->type, /*for_filename=*/true);
     // If the type ends with spaces (e.g. 'snd '), trim them off
-    strip_trailing_whitespace(type_str);
+    phosg::strip_trailing_whitespace(type_str);
     return output_filename(base_filename, &res->type, &res->id, type_str, res->name, res->flags, after);
   }
 
-  template <PixelFormat Format>
-  static Image<Format> tile_image(const Image<Format>& i, size_t tile_x, size_t tile_y) {
+  template <phosg::PixelFormat Format>
+  static phosg::Image<Format> tile_image(const phosg::Image<Format>& i, size_t tile_x, size_t tile_y) {
     size_t w = i.get_width(), h = i.get_height();
-    Image<Format> ret(w * tile_x, h * tile_y);
+    phosg::Image<Format> ret(w * tile_x, h * tile_y);
     for (size_t y = 0; y < tile_y; y++) {
       for (size_t x = 0; x < tile_x; x++) {
         ret.copy_from(i, w * x, h * y, w, h, 0, 0);
@@ -218,49 +212,53 @@ private:
   }
 
   void write_decoded_data(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res,
-      const string& after,
-      const string& data) {
-    string filename = this->output_filename(base_filename, res, after);
+      const std::string& base_filename,
+      std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res,
+      const std::string& after,
+      const std::string& data) {
+    std::string filename = this->output_filename(base_filename, res, after);
     this->ensure_directories_exist(filename);
-    save_file(filename, data);
-    fwrite_fmt(stderr, "... {}\n", filename);
+    phosg::save_file(filename, data);
+    phosg::fwrite_fmt(stderr, "... {}\n", filename);
   }
 
-  template <PixelFormat Format>
+  template <phosg::PixelFormat Format>
   void write_decoded_image(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res,
-      const string& after,
-      const Image<Format>& img) {
-    string filename = this->output_filename(base_filename, res, after);
+      const std::string& base_filename,
+      std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res,
+      const std::string& after,
+      const phosg::Image<Format>& img) {
+    std::string filename = this->output_filename(base_filename, res, after);
     this->ensure_directories_exist(filename);
     filename = this->image_saver.save_image(img, filename);
-    fwrite_fmt(stderr, "... {}\n", filename);
+    phosg::fwrite_fmt(stderr, "... {}\n", filename);
   }
 
-  void write_decoded_TMPL(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_TMPL(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_TMPL(res);
-    string data = ResourceFile::describe_template(decoded);
+    std::string data = ResourceDASM::ResourceFile::describe_template(decoded);
     this->write_decoded_data(base_filename, res, ".txt", data);
   }
 
-  void write_decoded_CURS(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_CURS(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_CURS(res);
-    string after = std::format("_{}_{}", decoded.hotspot_x, decoded.hotspot_y);
+    std::string after = std::format("_{}_{}", decoded.hotspot_x, decoded.hotspot_y);
     this->write_decoded_image(base_filename, res, after, decoded.bitmap);
   }
 
-  void write_decoded_crsr(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_crsr(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_crsr(res);
-    string bitmap_after = std::format("_{}_{}_bitmap", decoded.hotspot_x, decoded.hotspot_y);
-    string after = std::format("_{}_{}", decoded.hotspot_x, decoded.hotspot_y);
+    std::string bitmap_after = std::format("_{}_{}_bitmap", decoded.hotspot_x, decoded.hotspot_y);
+    std::string after = std::format("_{}_{}", decoded.hotspot_x, decoded.hotspot_y);
     this->write_decoded_image(base_filename, res, bitmap_after, decoded.bitmap);
     this->write_decoded_image(base_filename, res, after, decoded.image);
   }
 
-  void write_decoded_ppat(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_ppat(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ppat(res);
 
     auto color_tiled = tile_image(decoded.pattern, 8, 8);
@@ -272,11 +270,12 @@ private:
     this->write_decoded_image(base_filename, res, "_bitmap_tiled", mono_tiled);
   }
 
-  void write_decoded_pptN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_pptN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_pptN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = std::format("_{}", x);
+      std::string after = std::format("_{}", x);
       this->write_decoded_image(base_filename, res, after, decoded[x].pattern);
 
       auto color_tiled = tile_image(decoded[x].pattern, 8, 8);
@@ -293,12 +292,12 @@ private:
   }
 
   void write_decoded_data(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res,
-      const vector<ColorTableEntry>& decoded,
-      const unordered_map<uint16_t, string>* index_names = nullptr) {
+      const std::string& base_filename,
+      std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res,
+      const std::vector<ResourceDASM::ColorTableEntry>& decoded,
+      const std::unordered_map<uint16_t, std::string>* index_names = nullptr) {
     if (decoded.size() == 0) {
-      ImageRGB888 img(122, 16);
+      phosg::ImageRGB888 img(122, 16);
       img.clear(0x00000000);
       img.draw_text(4, 4, 0xFFFFFFFF, 0x00000000, "No colors in table");
       this->write_decoded_image(base_filename, res, "", img);
@@ -313,12 +312,12 @@ private:
             if (name_length > max_name_length) {
               max_name_length = name_length;
             }
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
           }
         }
       }
 
-      ImageRGB888 img(122 + 6 * max_name_length, 16 * decoded.size());
+      phosg::ImageRGB888 img(122 + 6 * max_name_length, 16 * decoded.size());
       img.clear(0x00000000);
       for (size_t z = 0; z < decoded.size(); z++) {
         img.write_rect(0, 16 * z, 16, 16, decoded[z].c.rgba8888());
@@ -340,7 +339,7 @@ private:
         if (index_names) {
           try {
             name = index_names->at(decoded[z].color_num).c_str();
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
           }
         }
 
@@ -366,12 +365,12 @@ private:
       //    with the transparency color to use. If loaded into the Colors palette,
       //    the colors will be installed in the color swatch list as RGB colors.
       //
-      StringWriter data;
+      phosg::StringWriter data;
       for (size_t z = 0; z < decoded.size(); z++) {
         uint32_t color = decoded[z].c.rgba8888();
-        data.put_u8(get_r(color));
-        data.put_u8(get_g(color));
-        data.put_u8(get_b(color));
+        data.put_u8(phosg::get_r(color));
+        data.put_u8(phosg::get_g(color));
+        data.put_u8(phosg::get_b(color));
       }
       data.extend_to(768, '\0');
       data.put_u16b(decoded.size());
@@ -382,15 +381,13 @@ private:
     }
   }
 
-  void write_decoded_pltt(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    // Always write the raw for this resource type because the decoded version
-    // loses precision
+  void write_decoded_pltt(const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    // Always write the raw for this resource type because the decoded version loses precision
     this->write_decoded_data(base_filename, res, ".bin", res->data);
 
     auto decoded = this->current_rf->decode_pltt(res);
-    // Add appropriate color IDs to ths pltt so we can render it as if it were a
-    // clut
-    vector<ColorTableEntry> entries;
+    // Add appropriate color IDs to ths pltt so we can render it as if it were a clut
+    std::vector<ResourceDASM::ColorTableEntry> entries;
     entries.reserve(decoded.size());
     for (const auto& c : decoded) {
       auto& entry = entries.emplace_back();
@@ -401,13 +398,11 @@ private:
   }
 
   void write_decoded_clut_actb_cctb_dctb_fctb_wctb(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res) {
-    // Always write the raw for this resource type because the decoded version
-    // loses precision
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    // Always write the raw for this resource type because the decoded version loses precision
     this->write_decoded_data(base_filename, res, ".bin", res->data);
 
-    static const unordered_map<uint16_t, string> wctb_index_names({
+    static const std::unordered_map<uint16_t, std::string> wctb_index_names({
         {0, "0: wContentColor"},
         {1, "1: wFrameColor"},
         {2, "2: wTextColor"},
@@ -422,7 +417,7 @@ private:
         {11, "11: wTingeLight"},
         {12, "12: wTingeDark"},
     });
-    static const unordered_map<uint16_t, string> cctb_index_names({
+    static const std::unordered_map<uint16_t, std::string> cctb_index_names({
         {0, "0: cFrameColor"},
         {1, "1: cBodyColor"},
         {2, "2: cTextColor"},
@@ -438,65 +433,67 @@ private:
         {14, "14: cTingeDark"},
     });
 
-    static const unordered_map<uint32_t, const unordered_map<uint16_t, string>&> index_names_for_type({
-        {RESOURCE_TYPE_cctb, cctb_index_names},
-        {RESOURCE_TYPE_actb, wctb_index_names},
-        {RESOURCE_TYPE_dctb, wctb_index_names},
-        {RESOURCE_TYPE_wctb, wctb_index_names},
+    static const std::unordered_map<uint32_t, const std::unordered_map<uint16_t, std::string>&> index_names_for_type({
+        {ResourceDASM::RESOURCE_TYPE_cctb, cctb_index_names},
+        {ResourceDASM::RESOURCE_TYPE_actb, wctb_index_names},
+        {ResourceDASM::RESOURCE_TYPE_dctb, wctb_index_names},
+        {ResourceDASM::RESOURCE_TYPE_wctb, wctb_index_names},
     });
 
-    const unordered_map<uint16_t, string>* index_names = nullptr;
+    const std::unordered_map<uint16_t, std::string>* index_names = nullptr;
     try {
       index_names = &index_names_for_type.at(res->type);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
 
-    // These resources are all the same format, so it's ok to call decode_clut
-    // here instead of the type-specific functions
-    this->write_decoded_data(base_filename, res, this->current_rf->decode_clut(res),
-        index_names);
+    // These resources are all the same format, so it's ok to call decode_clut here instead of the type-specific
+    // functions
+    this->write_decoded_data(base_filename, res, this->current_rf->decode_clut(res), index_names);
   }
 
-  void write_decoded_CTBL(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_CTBL(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     // Always write the raw for this resource type because some tools demand it
     this->write_decoded_data(base_filename, res, ".bin", res->data);
     this->write_decoded_data(base_filename, res, this->current_rf->decode_CTBL(res));
   }
 
-  void write_decoded_PAT(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    Image decoded = this->current_rf->decode_PAT(res);
+  void write_decoded_PAT(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_PAT(res);
 
-    Image tiled = tile_image(decoded, 8, 8);
+    auto tiled = tile_image(decoded, 8, 8);
     this->write_decoded_image(base_filename, res, "", decoded);
     this->write_decoded_image(base_filename, res, "_tiled", tiled);
   }
 
-  void write_decoded_PATN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_PATN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_PATN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = std::format("_{}", x);
+      std::string after = std::format("_{}", x);
       this->write_decoded_image(base_filename, res, after, decoded[x]);
-
-      Image tiled = tile_image(decoded[x], 8, 8);
+      auto tiled = tile_image(decoded[x], 8, 8);
       after = std::format("_{}_tiled", x);
       this->write_decoded_image(base_filename, res, after, tiled);
     }
   }
 
-  void write_decoded_SICN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_SICN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_SICN(res);
 
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = std::format("_{}", x);
+      std::string after = std::format("_{}", x);
       this->write_decoded_image(base_filename, res, after, decoded[x]);
     }
   }
 
   void write_decoded_data(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res,
-      const ResourceFile::DecodedIconListResource& decoded) {
+      const std::string& base_filename,
+      std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res,
+      const ResourceDASM::ResourceFile::DecodedIconListResource& decoded) {
     if (!decoded.composite.empty()) {
       this->write_decoded_image(base_filename, res, "", decoded.composite);
     } else if (!decoded.images.empty()) {
@@ -504,11 +501,12 @@ private:
         this->write_decoded_image(base_filename, res, std::format("_{}", x), decoded.images[x]);
       }
     } else {
-      throw logic_error("decoded icon list contains neither composite nor images");
+      throw std::logic_error("decoded icon list contains neither composite nor images");
     }
   }
 
-  shared_ptr<const ResourceFile::Resource> load_family_icon(const shared_ptr<const ResourceFile::Resource>& icon, uint32_t type) {
+  std::shared_ptr<const ResourceDASM::ResourceFile::Resource> load_family_icon(
+      const std::shared_ptr<const ResourceDASM::ResourceFile::Resource>& icon, uint32_t type) {
     if (icon->type == type) {
       return icon;
     }
@@ -521,8 +519,8 @@ private:
   }
 
   static void put_icns_data(
-      StringWriter& data,
-      const shared_ptr<const ResourceFile::Resource>& icon,
+      phosg::StringWriter& data,
+      const std::shared_ptr<const ResourceDASM::ResourceFile::Resource>& icon,
       uint32_t type,
       uint32_t num_pixels,
       uint8_t bit_depth) {
@@ -538,7 +536,7 @@ private:
   }
 
   static void put_dummy_icns_data(
-      StringWriter& data,
+      phosg::StringWriter& data,
       uint32_t type,
       uint32_t num_pixels) {
 
@@ -548,50 +546,57 @@ private:
     data.extend_by(num_pixels / 8, 0xFFu);
   }
 
-  void write_icns(const string& base_filename, const shared_ptr<const ResourceFile::Resource>& icon) {
+  void write_icns(
+      const std::string& base_filename, const std::shared_ptr<const ResourceDASM::ResourceFile::Resource>& icon) {
     // Already exported? Save time and don't export it again
     if (exported_family_icns.find(icon->id) != exported_family_icns.end()) {
       return;
     }
 
     // Load all of the family's icons
-    shared_ptr<const ResourceFile::Resource> icsN = load_family_icon(icon, RESOURCE_TYPE_icsN);
-    shared_ptr<const ResourceFile::Resource> ics4 = load_family_icon(icon, RESOURCE_TYPE_ics4);
-    shared_ptr<const ResourceFile::Resource> ics8 = load_family_icon(icon, RESOURCE_TYPE_ics8);
-    shared_ptr<const ResourceFile::Resource> icnN = load_family_icon(icon, RESOURCE_TYPE_ICNN);
-    shared_ptr<const ResourceFile::Resource> icl4 = load_family_icon(icon, RESOURCE_TYPE_icl4);
-    shared_ptr<const ResourceFile::Resource> icl8 = load_family_icon(icon, RESOURCE_TYPE_icl8);
+    std::shared_ptr<const ResourceDASM::ResourceFile::Resource> icsN = load_family_icon(
+        icon, ResourceDASM::RESOURCE_TYPE_icsN);
+    std::shared_ptr<const ResourceDASM::ResourceFile::Resource> ics4 = load_family_icon(
+        icon, ResourceDASM::RESOURCE_TYPE_ics4);
+    std::shared_ptr<const ResourceDASM::ResourceFile::Resource> ics8 = load_family_icon(
+        icon, ResourceDASM::RESOURCE_TYPE_ics8);
+    std::shared_ptr<const ResourceDASM::ResourceFile::Resource> icnN = load_family_icon(
+        icon, ResourceDASM::RESOURCE_TYPE_ICNN);
+    std::shared_ptr<const ResourceDASM::ResourceFile::Resource> icl4 = load_family_icon(
+        icon, ResourceDASM::RESOURCE_TYPE_icl4);
+    std::shared_ptr<const ResourceDASM::ResourceFile::Resource> icl8 = load_family_icon(
+        icon, ResourceDASM::RESOURCE_TYPE_icl8);
 
     // Start .icns file
-    StringWriter data;
+    phosg::StringWriter data;
     data.put_u32b(0x69636E73);
     data.put_u32b(0);
 
     // Write color icons (first, or they won't show in Finder)
     if (ics4) {
-      this->put_icns_data(data, ics4, RESOURCE_TYPE_ics4, 16 * 16, 4);
+      this->put_icns_data(data, ics4, ResourceDASM::RESOURCE_TYPE_ics4, 16 * 16, 4);
     }
     if (ics8) {
-      this->put_icns_data(data, ics8, RESOURCE_TYPE_ics8, 16 * 16, 8);
+      this->put_icns_data(data, ics8, ResourceDASM::RESOURCE_TYPE_ics8, 16 * 16, 8);
     }
     if (icl4) {
-      this->put_icns_data(data, icl4, RESOURCE_TYPE_icl4, 32 * 32, 4);
+      this->put_icns_data(data, icl4, ResourceDASM::RESOURCE_TYPE_icl4, 32 * 32, 4);
     }
     if (icl8) {
-      this->put_icns_data(data, icl8, RESOURCE_TYPE_icl8, 32 * 32, 8);
+      this->put_icns_data(data, icl8, ResourceDASM::RESOURCE_TYPE_icl8, 32 * 32, 8);
     }
 
     // Write b/w icons. If they're missing, write a black square as icon, and all pixels set as mask: color icons don't
     // display correctly without b/w icon+mask
     if (icsN) {
-      this->put_icns_data(data, icsN, RESOURCE_TYPE_icsN, 16 * 16, 2);
+      this->put_icns_data(data, icsN, ResourceDASM::RESOURCE_TYPE_icsN, 16 * 16, 2);
     } else if (ics4 || ics8) {
-      this->put_dummy_icns_data(data, RESOURCE_TYPE_icsN, 16 * 16);
+      this->put_dummy_icns_data(data, ResourceDASM::RESOURCE_TYPE_icsN, 16 * 16);
     }
     if (icnN) {
-      this->put_icns_data(data, icnN, RESOURCE_TYPE_ICNN, 32 * 32, 2);
+      this->put_icns_data(data, icnN, ResourceDASM::RESOURCE_TYPE_ICNN, 32 * 32, 2);
     } else if (icl4 || icl8) {
-      this->put_dummy_icns_data(data, RESOURCE_TYPE_ICNN, 32 * 32);
+      this->put_dummy_icns_data(data, ResourceDASM::RESOURCE_TYPE_ICNN, 32 * 32);
     }
 
     // Adjust .icns size
@@ -602,7 +607,8 @@ private:
     exported_family_icns.insert(icon->id);
   }
 
-  void write_decoded_ICNN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_ICNN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_ICNN(res);
       this->write_decoded_data(base_filename, res, decoded);
@@ -612,12 +618,14 @@ private:
     }
   }
 
-  void write_decoded_icmN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_icmN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icmN(res);
     this->write_decoded_data(base_filename, res, decoded);
   }
 
-  void write_decoded_icsN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_icsN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_icsN(res);
       this->write_decoded_data(base_filename, res, decoded);
@@ -627,12 +635,14 @@ private:
     }
   }
 
-  void write_decoded_kcsN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_kcsN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_kcsN(res);
     this->write_decoded_data(base_filename, res, decoded);
   }
 
-  void write_decoded_cicn(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_cicn(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_cicn(res);
 
     this->write_decoded_image(base_filename, res, "", decoded.image);
@@ -642,7 +652,8 @@ private:
     }
   }
 
-  void write_decoded_icl8(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_icl8(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_icl8(res);
       this->write_decoded_image(base_filename, res, "", decoded);
@@ -652,12 +663,14 @@ private:
     }
   }
 
-  void write_decoded_icm8(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_icm8(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icm8(res);
     this->write_decoded_image(base_filename, res, "", decoded);
   }
 
-  void write_decoded_ics8(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_ics8(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_ics8(res);
       this->write_decoded_image(base_filename, res, "", decoded);
@@ -667,12 +680,14 @@ private:
     }
   }
 
-  void write_decoded_kcs8(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_kcs8(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_kcs8(res);
     this->write_decoded_image(base_filename, res, "", decoded);
   }
 
-  void write_decoded_icl4(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_icl4(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_icl4(res);
       this->write_decoded_image(base_filename, res, "", decoded);
@@ -682,12 +697,14 @@ private:
     }
   }
 
-  void write_decoded_icm4(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_icm4(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icm4(res);
     this->write_decoded_image(base_filename, res, "", decoded);
   }
 
-  void write_decoded_ics4(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_ics4(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     if (export_icon_family_as_image) {
       auto decoded = this->current_rf->decode_ics4(res);
       this->write_decoded_image(base_filename, res, "", decoded);
@@ -697,77 +714,77 @@ private:
     }
   }
 
-  void write_decoded_kcs4(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_kcs4(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_kcs4(res);
     this->write_decoded_image(base_filename, res, "", decoded);
   }
 
-  void write_decoded_ICON(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_ICON(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ICON(res);
     this->write_decoded_image(base_filename, res, "", decoded);
   }
 
-  // Note: This function is used for decoding an icns resource, not for creating
-  // an icns file from the ICN#, icl4, icl8, etc. resources from the source file
-  // (for that, see write_icns).
+  // Note: This function is used for decoding an icns resource, not for creating an icns file from the ICN#, icl4,
+  // icl8, etc. resources from the source file (for that, see write_icns).
   void write_decoded_icns(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res,
-      const ResourceFile::DecodedIconImagesResource& decoded,
-      const string& filename_suffix = "") {
+      const std::string& base_filename,
+      std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res,
+      const ResourceDASM::ResourceFile::DecodedIconImagesResource& decoded,
+      const std::string& filename_suffix = "") {
     size_t file_index = 0;
     for (const auto& it : decoded.type_to_image) {
-      string type_str = string_for_resource_type(it.first);
-      string after = std::format("{}_{}.{}", filename_suffix, type_str, file_index++);
+      std::string type_str = ResourceDASM::string_for_resource_type(it.first);
+      std::string after = std::format("{}_{}.{}", filename_suffix, type_str, file_index++);
       this->write_decoded_image(base_filename, res, after, it.second);
     }
     for (const auto& it : decoded.type_to_composite_image) {
-      string type_str = string_for_resource_type(it.first);
-      string after = std::format("{}_{}_composite.{}", filename_suffix, type_str, file_index++);
+      std::string type_str = ResourceDASM::string_for_resource_type(it.first);
+      std::string after = std::format("{}_{}_composite.{}", filename_suffix, type_str, file_index++);
       this->write_decoded_image(base_filename, res, after, it.second);
     }
     for (const auto& it : decoded.type_to_jpeg2000_data) {
-      string type_str = string_for_resource_type(it.first);
-      string after = std::format("{}_{}.{}.jp2", filename_suffix, type_str, file_index++);
+      std::string type_str = ResourceDASM::string_for_resource_type(it.first);
+      std::string after = std::format("{}_{}.{}.jp2", filename_suffix, type_str, file_index++);
       this->write_decoded_data(base_filename, res, after, it.second);
     }
     for (const auto& it : decoded.type_to_png_data) {
-      string type_str = string_for_resource_type(it.first);
-      string after = std::format("{}_{}.{}.png", filename_suffix, type_str, file_index++);
+      std::string type_str = ResourceDASM::string_for_resource_type(it.first);
+      std::string after = std::format("{}_{}.{}.png", filename_suffix, type_str, file_index++);
       this->write_decoded_data(base_filename, res, after, it.second);
     }
     if (!decoded.toc_data.empty()) {
-      string after = std::format("{}.toc.bin", filename_suffix);
+      std::string after = std::format("{}.toc.bin", filename_suffix);
       this->write_decoded_data(base_filename, res, after, decoded.toc_data);
     }
     if (!decoded.name.empty()) {
-      string after = std::format("{}.name.txt", filename_suffix);
+      std::string after = std::format("{}.name.txt", filename_suffix);
       this->write_decoded_data(base_filename, res, after, decoded.name);
     }
     if (!decoded.info_plist.empty()) {
-      string after = std::format("{}.info.plist", filename_suffix);
+      std::string after = std::format("{}.info.plist", filename_suffix);
       this->write_decoded_data(base_filename, res, after, decoded.info_plist);
     }
     if (decoded.template_icns) {
-      this->write_decoded_icns(base_filename, res, *decoded.template_icns,
-          filename_suffix + "_template");
+      this->write_decoded_icns(base_filename, res, *decoded.template_icns, filename_suffix + "_template");
     }
     if (decoded.selected_icns) {
-      this->write_decoded_icns(base_filename, res, *decoded.selected_icns,
-          filename_suffix + "_selected");
+      this->write_decoded_icns(base_filename, res, *decoded.selected_icns, filename_suffix + "_selected");
     }
     if (decoded.dark_icns) {
-      this->write_decoded_icns(base_filename, res, *decoded.dark_icns,
-          filename_suffix + "_dark");
+      this->write_decoded_icns(base_filename, res, *decoded.dark_icns, filename_suffix + "_dark");
     }
   }
 
-  void write_decoded_icns(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_icns(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_icns(res);
     this->write_decoded_icns(base_filename, res, decoded);
   }
 
-  void write_decoded_PICT_internal(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_PICT_internal(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_PICT(res, false);
     if (!decoded.embedded_image_data.empty()) {
       this->write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
@@ -776,7 +793,8 @@ private:
     }
   }
 
-  void write_decoded_PICT(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_PICT(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_PICT(res);
     if (!decoded.embedded_image_data.empty()) {
       this->write_decoded_data(base_filename, res, "." + decoded.embedded_image_format, decoded.embedded_image_data);
@@ -785,69 +803,75 @@ private:
     }
   }
 
-  void write_decoded_snd(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_snd(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_snd(res);
-    this->write_decoded_data(base_filename, res,
-        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
-  void write_decoded_csnd(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_csnd(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_csnd(res);
-    this->write_decoded_data(base_filename, res,
-        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
-  void write_decoded_esnd(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_esnd(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_esnd(res);
-    this->write_decoded_data(base_filename, res,
-        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
-  void write_decoded_ESnd(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_ESnd(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ESnd(res);
-    this->write_decoded_data(base_filename, res,
-        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
-  void write_decoded_Ysnd(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_Ysnd(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_Ysnd(res);
-    this->write_decoded_data(base_filename, res,
-        decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
   }
 
-  void write_decoded_SMSD(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    string decoded = this->current_rf->decode_SMSD(res);
+  void write_decoded_SMSD(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string decoded = this->current_rf->decode_SMSD(res);
     this->write_decoded_data(base_filename, res, ".wav", decoded);
   }
 
-  void write_decoded_SOUN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    string decoded = this->current_rf->decode_SOUN(res);
+  void write_decoded_SOUN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string decoded = this->current_rf->decode_SOUN(res);
     this->write_decoded_data(base_filename, res, ".wav", decoded);
   }
 
-  void write_decoded_cmid(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    string decoded = this->current_rf->decode_cmid(res);
+  void write_decoded_cmid(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string decoded = this->current_rf->decode_cmid(res);
     this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
-  void write_decoded_emid(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    string decoded = this->current_rf->decode_emid(res);
+  void write_decoded_emid(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string decoded = this->current_rf->decode_emid(res);
     this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
-  void write_decoded_ecmi(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    string decoded = this->current_rf->decode_ecmi(res);
+  void write_decoded_ecmi(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string decoded = this->current_rf->decode_ecmi(res);
     this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
-  void write_decoded_FONT_NFNT(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_FONT_NFNT(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_FONT(res);
 
     {
-      string description_filename = this->output_filename(base_filename, res, "_description.txt");
+      std::string description_filename = this->output_filename(base_filename, res, "_description.txt");
       this->ensure_directories_exist(description_filename);
-      auto f = fopen_unique(description_filename, "wt");
-      fwrite_fmt(f.get(), "\
+      auto f = phosg::fopen_unique(description_filename, "wt");
+      phosg::fwrite_fmt(f.get(), "\
 # source_bit_depth = {} ({} color table)\n\
 # dynamic: {}\n\
 # has non-black colors: {}\n\
@@ -876,19 +900,19 @@ private:
 
       for (const auto& glyph : decoded.glyphs) {
         if (isprint(glyph.ch)) {
-          fwrite_fmt(f.get(), "\n# glyph {:02X} ({})\n", glyph.ch, glyph.ch);
+          phosg::fwrite_fmt(f.get(), "\n# glyph {:02X} ({})\n", glyph.ch, glyph.ch);
         } else {
-          fwrite_fmt(f.get(), "\n# glyph {:02X}\n", glyph.ch);
+          phosg::fwrite_fmt(f.get(), "\n# glyph {:02X}\n", glyph.ch);
         }
-        fwrite_fmt(f.get(), "#   bitmap offset: {}; width: {}\n", glyph.bitmap_offset, glyph.bitmap_width);
-        fwrite_fmt(f.get(), "#   character offset: {}; width: {}\n", glyph.offset, glyph.width);
+        phosg::fwrite_fmt(f.get(), "#   bitmap offset: {}; width: {}\n", glyph.bitmap_offset, glyph.bitmap_width);
+        phosg::fwrite_fmt(f.get(), "#   character offset: {}; width: {}\n", glyph.offset, glyph.width);
       }
 
-      fwrite_fmt(f.get(), "\n# missing glyph\n");
-      fwrite_fmt(f.get(), "#   bitmap offset: {}; width: {}\n", decoded.missing_glyph.bitmap_offset, decoded.missing_glyph.bitmap_width);
-      fwrite_fmt(f.get(), "#   character offset: {}; width: {}\n", decoded.missing_glyph.offset, decoded.missing_glyph.width);
+      phosg::fwrite_fmt(f.get(), "\n# missing glyph\n");
+      phosg::fwrite_fmt(f.get(), "#   bitmap offset: {}; width: {}\n", decoded.missing_glyph.bitmap_offset, decoded.missing_glyph.bitmap_width);
+      phosg::fwrite_fmt(f.get(), "#   character offset: {}; width: {}\n", decoded.missing_glyph.offset, decoded.missing_glyph.width);
 
-      fwrite_fmt(stderr, "... {}\n", description_filename);
+      phosg::fwrite_fmt(stderr, "... {}\n", description_filename);
     }
 
     this->write_decoded_image(
@@ -901,18 +925,18 @@ private:
       if (!decoded.glyphs[x].img.get_width()) {
         continue;
       }
-      string after = std::format("_glyph_{:02X}", decoded.first_char + x);
+      std::string after = std::format("_glyph_{:02X}", decoded.first_char + x);
       this->write_decoded_image(base_filename, res, after, decoded.glyphs[x].img);
     }
   }
 
-  string generate_text_for_cfrg(const vector<ResourceFile::DecodedCodeFragmentEntry>& entries) {
-    string ret;
+  std::string generate_text_for_cfrg(const std::vector<ResourceDASM::ResourceFile::DecodedCodeFragmentEntry>& entries) {
+    std::string ret;
     for (size_t x = 0; x < entries.size(); x++) {
       const auto& entry = entries[x];
 
-      string arch_str = string_for_resource_type(entry.architecture);
-      string this_entry_ret;
+      std::string arch_str = ResourceDASM::string_for_resource_type(entry.architecture);
+      std::string this_entry_ret;
       if (!entry.name.empty()) {
         this_entry_ret += std::format("fragment {}: \"{}\"\n", x, entry.name);
       } else {
@@ -953,8 +977,8 @@ private:
         this_entry_ret += std::format("  where: 0x{:02X} (invalid)\n", where);
       }
 
-      if (entry.where == ResourceFile::DecodedCodeFragmentEntry::Where::RESOURCE) {
-        string type_str = string_for_resource_type(entry.offset);
+      if (entry.where == ResourceDASM::ResourceFile::DecodedCodeFragmentEntry::Where::RESOURCE) {
+        std::string type_str = ResourceDASM::string_for_resource_type(entry.offset);
         this_entry_ret += std::format("  resource: 0x{:08X} ({}) #{}\n",
             entry.offset, type_str, static_cast<int32_t>(entry.length));
       } else {
@@ -969,7 +993,7 @@ private:
       this_entry_ret += std::format("  fork_instance: 0x{:04X}\n", entry.fork_instance);
       if (!entry.extension_data.empty()) {
         this_entry_ret += std::format("  extension_data ({}): ", entry.extension_count);
-        this_entry_ret += format_data_string(entry.extension_data);
+        this_entry_ret += phosg::format_data_string(entry.extension_data);
         this_entry_ret += '\n';
       }
 
@@ -979,14 +1003,16 @@ private:
     return ret;
   }
 
-  void write_decoded_cfrg(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    string description = generate_text_for_cfrg(this->current_rf->decode_cfrg(res));
+  void write_decoded_cfrg(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string description = generate_text_for_cfrg(this->current_rf->decode_cfrg(res));
     this->write_decoded_data(base_filename, res, ".txt", description);
   }
 
-  void write_decoded_SIZE(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_SIZE(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_SIZE(res);
-    string disassembly = std::format("\
+    std::string disassembly = std::format("\
   # save_screen = {}\n\
   # accept_suspend_events = {}\n\
   # disable_option = {}\n\
@@ -1020,10 +1046,11 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_vers(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_vers(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_vers(res);
 
-    string dev_stage_str = std::format("0x{:02X}", decoded.development_stage);
+    std::string dev_stage_str = std::format("0x{:02X}", decoded.development_stage);
     if (decoded.development_stage == 0x20) {
       dev_stage_str += " (development)";
     } else if (decoded.development_stage == 0x40) {
@@ -1034,15 +1061,15 @@ private:
       dev_stage_str += " (release)";
     }
 
-    string region_code_str = std::format("0x{:04X}", decoded.region_code);
-    const char* region_name = name_for_region_code(decoded.region_code);
+    std::string region_code_str = std::format("0x{:04X}", decoded.region_code);
+    const char* region_name = ResourceDASM::name_for_region_code(decoded.region_code);
     if (region_name) {
       region_code_str += " (";
       region_code_str += region_name;
       region_code_str += ")";
     }
 
-    string version_str = std::format("{:c}{:c}.{:c}.{:c}",
+    std::string version_str = std::format("{:c}{:c}.{:c}.{:c}",
         '0' + ((decoded.major_version >> 4) & 0x0F),
         '0' + (decoded.major_version & 0x0F),
         '0' + ((decoded.minor_version >> 4) & 0x0F),
@@ -1054,7 +1081,7 @@ private:
       version_str.resize(version_str.size() - 2);
     }
 
-    string disassembly = std::format("\
+    std::string disassembly = std::format("\
 # major_version = {} (major=0x{:02X}, minor=0x{:02X})\n\
 # development_stage = {}\n\
 # prerelease_version_level = {}\n\
@@ -1072,49 +1099,50 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_finf(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_finf(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_finf(res);
 
-    string disassembly;
+    std::string disassembly;
     for (size_t x = 0; x < decoded.size(); x++) {
       const auto& finf = decoded[x];
 
-      string font_id_str = std::format("{}", finf.font_id);
-      const char* font_name = name_for_font_id(finf.font_id);
+      std::string font_id_str = std::format("{}", finf.font_id);
+      const char* font_name = ResourceDASM::name_for_font_id(finf.font_id);
       if (font_name) {
         font_id_str += " (";
         font_id_str += font_name;
         font_id_str += ")";
       }
 
-      vector<const char*> style_tokens;
-      if (finf.style_flags & ResourceFile::TextStyleFlag::BOLD) {
+      std::vector<const char*> style_tokens;
+      if (finf.style_flags & ResourceDASM::ResourceFile::TextStyleFlag::BOLD) {
         style_tokens.emplace_back("bold");
       }
-      if (finf.style_flags & ResourceFile::TextStyleFlag::ITALIC) {
+      if (finf.style_flags & ResourceDASM::ResourceFile::TextStyleFlag::ITALIC) {
         style_tokens.emplace_back("italic");
       }
-      if (finf.style_flags & ResourceFile::TextStyleFlag::UNDERLINE) {
+      if (finf.style_flags & ResourceDASM::ResourceFile::TextStyleFlag::UNDERLINE) {
         style_tokens.emplace_back("underline");
       }
-      if (finf.style_flags & ResourceFile::TextStyleFlag::OUTLINE) {
+      if (finf.style_flags & ResourceDASM::ResourceFile::TextStyleFlag::OUTLINE) {
         style_tokens.emplace_back("outline");
       }
-      if (finf.style_flags & ResourceFile::TextStyleFlag::SHADOW) {
+      if (finf.style_flags & ResourceDASM::ResourceFile::TextStyleFlag::SHADOW) {
         style_tokens.emplace_back("shadow");
       }
-      if (finf.style_flags & ResourceFile::TextStyleFlag::CONDENSED) {
+      if (finf.style_flags & ResourceDASM::ResourceFile::TextStyleFlag::CONDENSED) {
         style_tokens.emplace_back("condensed");
       }
-      if (finf.style_flags & ResourceFile::TextStyleFlag::EXTENDED) {
+      if (finf.style_flags & ResourceDASM::ResourceFile::TextStyleFlag::EXTENDED) {
         style_tokens.emplace_back("extended");
       }
 
-      string style_str;
+      std::string style_str;
       if (style_tokens.empty()) {
         style_str = "normal";
       } else {
-        style_str = join(style_tokens, ", ");
+        style_str = phosg::join(style_tokens, ", ");
       }
 
       disassembly += std::format("\
@@ -1132,13 +1160,14 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_ROvN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_ROvN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_ROvN(res);
 
-    string disassembly = std::format("# ROM version: 0x{:04X}\n", decoded.rom_version);
+    std::string disassembly = std::format("# ROM version: 0x{:04X}\n", decoded.rom_version);
     for (size_t x = 0; x < decoded.overrides.size(); x++) {
       const auto& override = decoded.overrides[x];
-      string type_name = string_for_resource_type(override.type);
+      std::string type_name = ResourceDASM::string_for_resource_type(override.type);
       disassembly += std::format("# override {}: {:08X} ({}) #{}\n",
           x, override.type, type_name, override.id);
     }
@@ -1146,8 +1175,9 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_CODE(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    string disassembly;
+  void write_decoded_CODE(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string disassembly;
     if (res->id == 0) {
       auto decoded = this->current_rf->decode_CODE_0(res);
       disassembly += std::format("# above A5 size: 0x{:08X}\n", decoded.above_a5_size);
@@ -1164,8 +1194,8 @@ private:
       auto decoded = this->current_rf->decode_CODE(res);
 
       // Attempt to decode CODE 0 to get the jump table
-      multimap<uint32_t, string> labels;
-      vector<JumpTableEntry> jump_table;
+      std::multimap<uint32_t, std::string> labels;
+      std::vector<ResourceDASM::JumpTableEntry> jump_table;
       try {
         auto code0_data = this->current_rf->decode_CODE_0(static_cast<int16_t>(0), res->type);
         for (size_t x = 0; x < code0_data.jump_table.size(); x++) {
@@ -1175,7 +1205,7 @@ private:
           }
         }
         jump_table = std::move(code0_data.jump_table);
-      } catch (const exception&) {
+      } catch (const std::exception&) {
       }
 
       if (decoded.first_jump_table_entry < 0) {
@@ -1206,41 +1236,42 @@ private:
         }
       }
 
-      disassembly += M68KEmulator::disassemble(
+      disassembly += ResourceDASM::M68KEmulator::disassemble(
           decoded.code.data(), decoded.code.size(), 0, &labels, true, &jump_table);
     }
 
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_DRVR(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_DRVR(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_DRVR(res);
 
-    string disassembly;
+    std::string disassembly;
 
-    vector<const char*> flags_strs;
-    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_READ) {
+    std::vector<const char*> flags_strs;
+    if (decoded.flags & ResourceDASM::ResourceFile::DecodedDriverResource::Flag::ENABLE_READ) {
       flags_strs.emplace_back("ENABLE_READ");
     }
-    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_WRITE) {
+    if (decoded.flags & ResourceDASM::ResourceFile::DecodedDriverResource::Flag::ENABLE_WRITE) {
       flags_strs.emplace_back("ENABLE_WRITE");
     }
-    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_CONTROL) {
+    if (decoded.flags & ResourceDASM::ResourceFile::DecodedDriverResource::Flag::ENABLE_CONTROL) {
       flags_strs.emplace_back("ENABLE_CONTROL");
     }
-    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::ENABLE_STATUS) {
+    if (decoded.flags & ResourceDASM::ResourceFile::DecodedDriverResource::Flag::ENABLE_STATUS) {
       flags_strs.emplace_back("ENABLE_STATUS");
     }
-    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_GOODBYE) {
+    if (decoded.flags & ResourceDASM::ResourceFile::DecodedDriverResource::Flag::NEED_GOODBYE) {
       flags_strs.emplace_back("NEED_GOODBYE");
     }
-    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_TIME) {
+    if (decoded.flags & ResourceDASM::ResourceFile::DecodedDriverResource::Flag::NEED_TIME) {
       flags_strs.emplace_back("NEED_TIME");
     }
-    if (decoded.flags & ResourceFile::DecodedDriverResource::Flag::NEED_LOCK) {
+    if (decoded.flags & ResourceDASM::ResourceFile::DecodedDriverResource::Flag::NEED_LOCK) {
       flags_strs.emplace_back("NEED_LOCK");
     }
-    string flags_str = join(flags_strs, ", ");
+    std::string flags_str = phosg::join(flags_strs, ", ");
 
     if (decoded.name.empty()) {
       disassembly += "# no name present\n";
@@ -1258,7 +1289,7 @@ private:
     disassembly += std::format("# event mask: 0x{:04X}\n", decoded.event_mask);
     disassembly += std::format("# menu id: {}\n", decoded.menu_id);
 
-    multimap<uint32_t, string> labels;
+    std::multimap<uint32_t, std::string> labels;
 
     auto add_label = [&](uint16_t label, const char* name) {
       if (label == 0) {
@@ -1274,17 +1305,18 @@ private:
     add_label(decoded.status_label, "status");
     add_label(decoded.close_label, "close");
 
-    disassembly += M68KEmulator::disassemble(
+    disassembly += ResourceDASM::M68KEmulator::disassemble(
         decoded.code.data(), decoded.code.size(), decoded.code_start_offset, &labels);
 
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_RSSC(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_RSSC(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_RSSC(res);
 
-    multimap<uint32_t, string> labels;
-    string disassembly;
+    std::multimap<uint32_t, std::string> labels;
+    std::string disassembly;
     size_t function_count = sizeof(decoded.function_offsets) / sizeof(decoded.function_offsets[0]);
     for (size_t z = 0; z < function_count; z++) {
       if (decoded.function_offsets[z] == 0) {
@@ -1294,79 +1326,86 @@ private:
       }
       labels.emplace(decoded.function_offsets[z], std::format("export_{}", z));
     }
-    disassembly += M68KEmulator::disassemble(
-        decoded.code.data(), decoded.code.size(), 0x16, &labels);
+    disassembly += ResourceDASM::M68KEmulator::disassemble(decoded.code.data(), decoded.code.size(), 0x16, &labels);
 
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_dcmp(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_dcmp(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_dcmp(res);
-    string disassembly = disassembly_for_dcmp(decoded);
+    std::string disassembly = disassembly_for_dcmp(decoded);
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_inline_68k(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    multimap<uint32_t, string> labels;
+  void write_decoded_inline_68k(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::multimap<uint32_t, std::string> labels;
     labels.emplace(0, "start");
-    string result = M68KEmulator::disassemble(res->data.data(), res->data.size(), 0,
-        &labels);
+    std::string result = ResourceDASM::M68KEmulator::disassemble(res->data.data(), res->data.size(), 0, &labels);
     this->write_decoded_data(base_filename, res, ".txt", result);
   }
 
-  void write_decoded_inline_ppc32(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    multimap<uint32_t, string> labels;
+  void write_decoded_inline_ppc32(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::multimap<uint32_t, std::string> labels;
     labels.emplace(0, "start");
-    string result = PPC32Emulator::disassemble(res->data.data(), res->data.size(),
-        0, &labels);
+    std::string result = ResourceDASM::PPC32Emulator::disassemble(res->data.data(), res->data.size(), 0, &labels);
     this->write_decoded_data(base_filename, res, ".txt", result);
   }
 
-  void write_decoded_pef(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_pef(const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto pef = this->current_rf->decode_pef(res);
-    string filename = this->output_filename(base_filename, res, ".txt");
+    std::string filename = this->output_filename(base_filename, res, ".txt");
     this->ensure_directories_exist(filename);
-    auto f = fopen_unique(filename, "wt");
+    auto f = phosg::fopen_unique(filename, "wt");
     pef.print(f.get());
-    fwrite_fmt(stderr, "... {}\n", filename);
+    phosg::fwrite_fmt(stderr, "... {}\n", filename);
   }
 
-  void write_decoded_expt_nsrd(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    auto decoded = (res->type == RESOURCE_TYPE_expt) ? this->current_rf->decode_expt(res) : this->current_rf->decode_nsrd(res);
-    string filename = this->output_filename(base_filename, res, ".txt");
+  void write_decoded_expt_nsrd(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    auto decoded = (res->type == ResourceDASM::RESOURCE_TYPE_expt)
+        ? this->current_rf->decode_expt(res)
+        : this->current_rf->decode_nsrd(res);
+    std::string filename = this->output_filename(base_filename, res, ".txt");
     this->ensure_directories_exist(filename);
-    auto f = fopen_unique(filename, "wt");
+    auto f = phosg::fopen_unique(filename, "wt");
     fputs("Mixed-mode manager header:\n", f.get());
-    print_data(f.get(), decoded.header);
+    phosg::print_data(f.get(), decoded.header);
     fputc('\n', f.get());
     decoded.pef.print(f.get());
-    fwrite_fmt(stderr, "... {}\n", filename);
+    phosg::fwrite_fmt(stderr, "... {}\n", filename);
   }
 
-  void write_decoded_inline_68k_or_pef(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_inline_68k_or_pef(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     if (res->data.size() < 4) {
-      throw runtime_error("can\'t determine code type");
+      throw std::runtime_error("can\'t determine code type");
     }
-    if (*reinterpret_cast<const be_uint32_t*>(res->data.data()) == 0x4A6F7921) { // Joy!
+    if (*reinterpret_cast<const phosg::be_uint32_t*>(res->data.data()) == 0x4A6F7921) { // Joy!
       write_decoded_pef(base_filename, res);
     } else {
       write_decoded_inline_68k(base_filename, res);
     }
   }
 
-  void write_decoded_TEXT(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_TEXT(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     this->write_decoded_data(base_filename, res, ".txt", this->current_rf->decode_TEXT(res));
   }
 
-  void write_decoded_card(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_card(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     this->write_decoded_data(base_filename, res, ".txt", this->current_rf->decode_card(res));
   }
 
-  void write_decoded_styl(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_styl(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     this->write_decoded_data(base_filename, res, ".rtf", this->current_rf->decode_styl(res));
   }
 
-  void write_decoded_STR(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_STR(const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_STR(res);
 
     this->write_decoded_data(base_filename, res, ".txt", decoded.str);
@@ -1375,11 +1414,12 @@ private:
     }
   }
 
-  void write_decoded_STRN(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_STRN(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_STRN(res);
 
     for (size_t x = 0; x < decoded.strs.size(); x++) {
-      string after = std::format("_{}.txt", x);
+      std::string after = std::format("_{}.txt", x);
       this->write_decoded_data(base_filename, res, after, decoded.strs[x]);
     }
     if (!decoded.after_data.empty()) {
@@ -1387,24 +1427,27 @@ private:
     }
   }
 
-  void write_decoded_TwCS(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_TwCS(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_TwCS(res);
     for (size_t x = 0; x < decoded.size(); x++) {
-      string after = std::format("_{}.txt", x);
+      std::string after = std::format("_{}.txt", x);
       this->write_decoded_data(base_filename, res, after, decoded[x]);
     }
   }
 
-  void write_decoded_KCHR(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_KCHR(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_KCHR(res);
 
-    string disassembly = "# Modifiers table:\n";
-    disassembly += format_data(decoded.table_index_for_modifiers.data(), decoded.table_index_for_modifiers.size());
+    std::string disassembly = "# Modifiers table:\n";
+    disassembly += phosg::format_data(
+        decoded.table_index_for_modifiers.data(), decoded.table_index_for_modifiers.size());
 
     for (size_t z = 0; z < decoded.tables.size(); z++) {
       const auto& table = decoded.tables[z];
       disassembly += std::format("# Character table {}:\n", z);
-      disassembly += format_data(table.data(), table.size());
+      disassembly += phosg::format_data(table.data(), table.size());
     }
 
     for (size_t z = 0; z < decoded.dead_keys.size(); z++) {
@@ -1422,15 +1465,15 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  void write_decoded_DITL(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    using T = ResourceFile::DecodedDialogItem::Type;
+  void write_decoded_DITL(const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    using T = ResourceDASM::ResourceFile::DecodedDialogItem::Type;
 
     auto decoded = this->current_rf->decode_DITL(res);
 
-    string filename = this->output_filename(base_filename, res, ".txt");
+    std::string filename = this->output_filename(base_filename, res, ".txt");
     this->ensure_directories_exist(filename);
-    auto f = fopen_unique(filename, "wt");
-    fwrite_fmt(f.get(), "# {} entries\n", decoded.size());
+    auto f = phosg::fopen_unique(filename, "wt");
+    phosg::fwrite_fmt(f.get(), "# {} entries\n", decoded.size());
 
     for (size_t z = 0; z < decoded.size(); z++) {
       const auto& item = decoded[z];
@@ -1450,7 +1493,7 @@ private:
           break;
         case T::RESOURCE_CONTROL:
           type_name = "RESOURCE_CONTROL";
-          external_res_type = RESOURCE_TYPE_CNTL;
+          external_res_type = ResourceDASM::RESOURCE_TYPE_CNTL;
           break;
         case T::HELP_BALLOON:
           type_name = "HELP_BALLOON";
@@ -1464,11 +1507,11 @@ private:
           break;
         case T::ICON: // resource_id valid
           type_name = "ICON";
-          external_res_type = RESOURCE_TYPE_ICON;
+          external_res_type = ResourceDASM::RESOURCE_TYPE_ICON;
           break;
         case T::PICTURE: // resource_id valid
           type_name = "PICTURE";
-          external_res_type = RESOURCE_TYPE_PICT;
+          external_res_type = ResourceDASM::RESOURCE_TYPE_PICT;
           break;
         case T::CUSTOM: // neither resource_id nor text valid
           type_name = "CUSTOM";
@@ -1480,40 +1523,39 @@ private:
           break;
       };
 
-      fwrite_fmt(f.get(), "# item {}: {} (0x{:02X}) {}\n", z, type_name, item.raw_type, item.enabled ? "enabled" : "disabled");
-      fwrite_fmt(f.get(), "#   bounds: x1={} y1={} x2={} y2={}\n", item.bounds.x1, item.bounds.y1, item.bounds.x2, item.bounds.y2);
+      phosg::fwrite_fmt(f.get(), "# item {}: {} (0x{:02X}) {}\n", z, type_name, item.raw_type, item.enabled ? "enabled" : "disabled");
+      phosg::fwrite_fmt(f.get(), "#   bounds: x1={} y1={} x2={} y2={}\n", item.bounds.x1, item.bounds.y1, item.bounds.x2, item.bounds.y2);
       if (external_res_type) {
-        string res_type_name = string_for_resource_type(external_res_type);
-        fwrite_fmt(f.get(), "#   {} resource ID: {}\n", res_type_name, item.resource_id);
+        std::string res_type_name = ResourceDASM::string_for_resource_type(external_res_type);
+        phosg::fwrite_fmt(f.get(), "#   {} resource ID: {}\n", res_type_name, item.resource_id);
       } else if (text_is_data) {
-        string text = format_data_string(item.text);
-        fwrite_fmt(f.get(), "#   data: {}\n", text);
+        std::string text = phosg::format_data_string(item.text);
+        phosg::fwrite_fmt(f.get(), "#   data: {}\n", text);
       } else {
-        string text = escape_controls_utf8(decode_mac_roman(item.text));
-        fwrite_fmt(f.get(), "#   text: \"{}\"\n", text);
+        std::string text = phosg::escape_controls_utf8(ResourceDASM::decode_mac_roman(item.text));
+        phosg::fwrite_fmt(f.get(), "#   text: \"{}\"\n", text);
       }
     }
   }
 
-  JSON generate_json_for_INST(
-      const string& base_filename,
+  phosg::JSON generate_json_for_INST(
+      const std::string& base_filename,
       int32_t id,
-      const ResourceFile::DecodedInstrumentResource& inst,
+      const ResourceDASM::ResourceFile::DecodedInstrumentResource& inst,
       int8_t song_semitone_shift) {
-    // SoundMusicSys has a (bug? feature?) where the instrument's base note
-    // affects which key region is used, but then the key region's base note
-    // determines the played note pitch and the instrument's base note is ignored.
-    // To correct for this, we have to shift all the key regions up/down by an
-    // appropriate amount, but also use freq_mult to adjust their pitches.
+    // SoundMusicSys has a (bug? feature?) where the instrument's base note affects which key region is used, but then
+    // the key region's base note determines the played note pitch and the instrument's base note is ignored. To
+    // correct for this, we have to shift all the key regions up/down by an appropriate amount, but also use freq_mult
+    // to adjust their pitches.
     int8_t key_region_boundary_shift = 0;
     if ((inst.key_regions.size() > 1) && inst.base_note) {
       key_region_boundary_shift += inst.base_note - 0x3C;
     }
 
-    auto key_regions_list = JSON::list();
+    auto key_regions_list = phosg::JSON::list();
     for (const auto& rgn : inst.key_regions) {
       const auto& snd_res = this->current_rf->get_resource(rgn.snd_type, rgn.snd_id);
-      auto key_region_dict = JSON::dict();
+      auto key_region_dict = phosg::JSON::dict();
       key_region_dict.emplace("key_low", rgn.key_low + key_region_boundary_shift);
       key_region_dict.emplace("key_high", rgn.key_high + key_region_boundary_shift);
 
@@ -1521,28 +1563,29 @@ private:
       uint32_t snd_sample_rate = 22050;
       bool snd_is_mp3 = false;
       try {
-        // TODO: This is dumb; we only need the sample rate and base note; find
-        // a way to not have to re-decode the sound.
-        ResourceFile::DecodedSoundResource decoded_snd;
-        if (rgn.snd_type == RESOURCE_TYPE_esnd) {
+        // TODO: This is dumb; we only need the sample rate and base note; find a way to not re-decode the sound
+        ResourceDASM::ResourceFile::DecodedSoundResource decoded_snd;
+        if (rgn.snd_type == ResourceDASM::RESOURCE_TYPE_esnd) {
           decoded_snd = this->current_rf->decode_esnd(rgn.snd_id, rgn.snd_type, true);
-        } else if (rgn.snd_type == RESOURCE_TYPE_csnd) {
+        } else if (rgn.snd_type == ResourceDASM::RESOURCE_TYPE_csnd) {
           decoded_snd = this->current_rf->decode_csnd(rgn.snd_id, rgn.snd_type, true);
-        } else if (rgn.snd_type == RESOURCE_TYPE_snd) {
+        } else if (rgn.snd_type == ResourceDASM::RESOURCE_TYPE_snd) {
           decoded_snd = this->current_rf->decode_snd(rgn.snd_id, rgn.snd_type, true);
         } else {
-          throw logic_error("invalid snd type");
+          throw std::logic_error("invalid snd type");
         }
         snd_sample_rate = decoded_snd.sample_rate;
         snd_base_note = decoded_snd.base_note;
         snd_is_mp3 = decoded_snd.is_mp3;
 
-      } catch (const exception& e) {
-        fwrite_fmt(stderr, "warning: failed to get sound metadata for instrument {} region {:X}-{:X} from snd/csnd/esnd {}: {}\n",
+      } catch (const std::exception& e) {
+        phosg::fwrite_fmt(stderr,
+            "warning: failed to get sound metadata for instrument {} region {:X}-{:X} from snd/csnd/esnd {}: {}\n",
             id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
       }
 
-      key_region_dict.emplace("filename", basename(this->output_filename(base_filename, snd_res, snd_is_mp3 ? ".mp3" : ".wav")));
+      key_region_dict.emplace("filename",
+          phosg::basename(this->output_filename(base_filename, snd_res, snd_is_mp3 ? ".mp3" : ".wav")));
 
       uint8_t base_note;
       if (rgn.base_note && snd_base_note) {
@@ -1557,16 +1600,15 @@ private:
       }
       key_region_dict.emplace("base_note", base_note);
 
-      // if use_sample_rate is NOT set, set a freq_mult to correct for this
-      // because smssynth always accounts for different sample rates
+      // If use_sample_rate is NOT set, set a freq_mult to correct for this because smssynth always accounts for
+      // different sample rates
       double freq_mult = 1.0f;
       if (!inst.use_sample_rate) {
         freq_mult *= 22050.0 / static_cast<double>(snd_sample_rate);
       }
       if (song_semitone_shift) {
-        // TODO: Does this implementation suffice? Should we be shifting
-        // base_notes and key_lows/key_highs instead, to account for region choice
-        // when playing notes?
+        // TODO: Does this implementation suffice? Should we be shifting base_notes and key_lows/key_highs instead, to
+        // account for region choice when playing notes?
         freq_mult *= pow(2, static_cast<double>(song_semitone_shift) / 12.0);
       }
       if (freq_mult != 1.0f) {
@@ -1580,11 +1622,11 @@ private:
       key_regions_list.emplace_back(std::move(key_region_dict));
     }
 
-    auto inst_dict = JSON::dict();
+    auto inst_dict = phosg::JSON::dict();
     inst_dict.emplace("id", id);
     inst_dict.emplace("regions", std::move(key_regions_list));
     if (!inst.tremolo_data.empty()) {
-      auto tremolo_json = JSON::list();
+      auto tremolo_json = phosg::JSON::list();
       for (uint16_t x : inst.tremolo_data) {
         tremolo_json.emplace_back(x);
       }
@@ -1599,54 +1641,58 @@ private:
     return inst_dict;
   }
 
-  JSON generate_json_for_SONG(
-      const string& base_filename,
-      const ResourceFile::DecodedSongResource* s) {
-    string midi_filename;
+  phosg::JSON generate_json_for_SONG(
+      const std::string& base_filename, const ResourceDASM::ResourceFile::DecodedSongResource* s) {
+    std::string midi_filename;
     if (s) {
-      static const vector<uint32_t> midi_types({RESOURCE_TYPE_MIDI, RESOURCE_TYPE_Midi, RESOURCE_TYPE_midi,
-          RESOURCE_TYPE_cmid, RESOURCE_TYPE_emid, RESOURCE_TYPE_ecmi});
+      static const std::vector<uint32_t> midi_types{
+          ResourceDASM::RESOURCE_TYPE_MIDI,
+          ResourceDASM::RESOURCE_TYPE_Midi,
+          ResourceDASM::RESOURCE_TYPE_midi,
+          ResourceDASM::RESOURCE_TYPE_cmid,
+          ResourceDASM::RESOURCE_TYPE_emid,
+          ResourceDASM::RESOURCE_TYPE_ecmi};
       for (uint32_t midi_type : midi_types) {
         try {
           const auto& res = this->current_rf->get_resource(midi_type, s->midi_id);
-          midi_filename = basename(this->output_filename(base_filename, res, ".midi"));
+          midi_filename = phosg::basename(this->output_filename(base_filename, res, ".midi"));
           break;
-        } catch (const exception&) {
+        } catch (const std::exception&) {
         }
       }
       if (midi_filename.empty()) {
-        throw runtime_error("SONG refers to missing MIDI");
+        throw std::runtime_error("SONG refers to missing MIDI");
       }
     }
 
     // First add the overrides, then add all the other instruments
-    auto instruments = JSON::list();
+    auto instruments = phosg::JSON::list();
     if (s) {
       for (const auto& it : s->instrument_overrides) {
         try {
           instruments.emplace_back(generate_json_for_INST(
               base_filename, it.first, this->current_rf->decode_INST(it.second), s->semitone_shift));
-        } catch (const exception& e) {
-          fwrite_fmt(stderr, "warning: failed to add instrument {} from INST {}: {}\n",
+        } catch (const std::exception& e) {
+          phosg::fwrite_fmt(stderr, "warning: failed to add instrument {} from INST {}: {}\n",
               it.first, it.second, e.what());
         }
       }
     }
-    for (int16_t id : this->current_rf->all_resources_of_type(RESOURCE_TYPE_INST)) {
+    for (int16_t id : this->current_rf->all_resources_of_type(ResourceDASM::RESOURCE_TYPE_INST)) {
       if (s && s->instrument_overrides.count(id)) {
         continue; // already added this one as a different instrument
       }
       try {
         instruments.emplace_back(generate_json_for_INST(
             base_filename, id, this->current_rf->decode_INST(id), s ? s->semitone_shift : 0));
-      } catch (const exception& e) {
-        fwrite_fmt(stderr, "warning: failed to add instrument {}: {}\n", id, e.what());
+      } catch (const std::exception& e) {
+        phosg::fwrite_fmt(stderr, "warning: failed to add instrument {}: {}\n", id, e.what());
       }
     }
 
-    auto base_dict = JSON::dict({{"sequence_type", "MIDI"}, {"sequence_filename", midi_filename}, {"instruments", instruments}});
+    auto base_dict = phosg::JSON::dict({{"sequence_type", "MIDI"}, {"sequence_filename", midi_filename}, {"instruments", instruments}});
     if (s && !s->velocity_override_map.empty()) {
-      auto velocity_override_list = JSON::list();
+      auto velocity_override_list = phosg::JSON::list();
       for (uint16_t override : s->velocity_override_map) {
         velocity_override_list.emplace_back(override);
       }
@@ -1707,153 +1753,133 @@ private:
     return base_dict;
   }
 
-  void write_decoded_INST(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_INST(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto json = generate_json_for_INST(base_filename, res->id, this->current_rf->decode_INST(res), 0);
-    this->write_decoded_data(base_filename, res, ".json", json.serialize(JSON::SerializeOption::FORMAT));
+    this->write_decoded_data(base_filename, res, ".json", json.serialize(phosg::JSON::SerializeOption::FORMAT));
   }
 
-  void write_decoded_SONG(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  void write_decoded_SONG(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto song = this->current_rf->decode_SONG(res);
     auto json = generate_json_for_SONG(base_filename, &song);
-    this->write_decoded_data(base_filename, res, "_smssynth_env.json", json.serialize(JSON::SerializeOption::FORMAT));
+    this->write_decoded_data(base_filename, res, "_smssynth_env.json", json.serialize(phosg::JSON::SerializeOption::FORMAT));
   }
 
-  void write_decoded_Tune(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
-    string decoded = this->current_rf->decode_Tune(res);
+  void write_decoded_Tune(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string decoded = this->current_rf->decode_Tune(res);
     this->write_decoded_data(base_filename, res, ".midi", decoded);
   }
 
   typedef void (ResourceExporter::*resource_decode_fn)(
-      const string& base_filename,
-      shared_ptr<const ResourceFile::Resource> res);
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res);
 
-  static const unordered_map<uint32_t, resource_decode_fn> default_type_to_decode_fn;
+  static const std::unordered_map<uint32_t, resource_decode_fn> default_type_to_decode_fn;
 
-  unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn;
+  std::unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn;
 
-  // Maps (type, ID) pairs to a type to remap special resources
-  // (e.g. INTL 0 which is remapped to itl0)
-  //
-  // not `unordered_map` because `pair` doesn't support hashing
-  static const map<pair<uint32_t, int16_t>, uint32_t> remap_resource_type_id;
+  // Maps (type, ID) pairs to a type to remap special resources (e.g. INTL 0 which is remapped to itl0)
+  static const std::map<std::pair<uint32_t, int16_t>, uint32_t> remap_resource_type_id;
 
   // Maps resource type aliases to the original type
-  static const unordered_map<uint32_t, uint32_t> remap_resource_type;
+  static const std::unordered_map<uint32_t, uint32_t> remap_resource_type;
 
   bool is_included(uint32_t type, int16_t id) const {
-    // Included because all types, IDs and names are implicitly included?
     if (this->target_types_ids.empty() && !this->target_ids && this->target_names.empty()) {
       return true;
     }
-
-    // Included by ID regardless of type?
     if (this->target_ids && (*this->target_ids)[id]) {
       return true;
     }
-
-    // Included by type and ID?
     if (auto it = this->target_types_ids.find(type); it != this->target_types_ids.end() && it->second[id]) {
       return true;
     }
-
-    // Included by name?
-    if (!this->target_names.empty()) {
-      if (auto it = this->target_names.find(this->current_rf->get_resource_name(type, id));
-          it != this->target_names.end()) {
-        return true;
-      }
+    if (this->target_names.contains(this->current_rf->get_resource_name(type, id))) {
+      return true;
     }
-
-    // Not included
     return false;
   }
 
   bool is_excluded(uint32_t type, int16_t id) const {
-    // Excluded by ID?
     if (this->skip_ids && (*this->skip_ids)[id]) {
       return true;
     }
-
-    // Excluded by type and ID?
     if (auto it = this->skip_types_ids.find(type); it != this->skip_types_ids.end() && !it->second[id]) {
       return true;
     }
-
-    // Excluded by name?
-    if (!this->skip_names.empty()) {
-      if (auto it = this->skip_names.find(this->current_rf->get_resource_name(type, id));
-          it != this->skip_names.end()) {
-        return true;
-      }
+    if (!this->skip_names.empty() && !this->skip_names.contains(this->current_rf->get_resource_name(type, id))) {
+      return true;
     }
-
-    // Not explicitly included
     return false;
   }
 
-  bool disassemble_file(const string& filename) {
-    string resource_fork_filename = filename;
+  bool disassemble_file(const std::string& filename) {
+    std::string resource_fork_filename = filename;
     if (!this->use_data_fork) {
       resource_fork_filename += RESOURCE_FORK_FILENAME_SUFFIX;
     }
 
-    // On HFS+, the resource fork always exists, but might be empty. On APFS,
-    // the resource fork is optional.
-    if ((this->index_format == IndexFormat::DIRECTORY) && !std::filesystem::is_directory(resource_fork_filename)) {
-      fwrite_fmt(stderr, ">>> {} ({})\n", filename, "directory is missing");
+    // On HFS+, the resource fork always exists, but might be empty. On APFS, the resource fork is optional.
+    if ((this->index_format == ResourceDASM::IndexFormat::DIRECTORY) &&
+        !std::filesystem::is_directory(resource_fork_filename)) {
+      phosg::fwrite_fmt(stderr, ">>> {} ({})\n", filename, "directory is missing");
       return false;
-    } else if ((this->index_format != IndexFormat::DIRECTORY) && (!std::filesystem::is_regular_file(resource_fork_filename) || (std::filesystem::file_size(resource_fork_filename) == 0))) {
-      fwrite_fmt(stderr, ">>> {} ({})\n", filename, this->use_data_fork ? "file is empty" : "resource fork missing or empty");
+    } else if ((this->index_format != ResourceDASM::IndexFormat::DIRECTORY) &&
+        (!std::filesystem::is_regular_file(resource_fork_filename) || (std::filesystem::file_size(resource_fork_filename) == 0))) {
+      phosg::fwrite_fmt(stderr, ">>> {} ({})\n", filename, this->use_data_fork ? "file is empty" : "resource fork missing or empty");
       return false;
     } else {
-      fwrite_fmt(stderr, ">>> {}\n", filename);
+      phosg::fwrite_fmt(stderr, ">>> {}\n", filename);
     }
 
     // Compute the base filename
     size_t last_slash_pos = filename.rfind('/');
-    string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
+    std::string base_filename = (last_slash_pos == std::string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
     // Get the resources from the file
     try {
       switch (this->index_format) {
-        case IndexFormat::RESOURCE_FORK:
-          this->open_resource_file(parse_resource_fork(load_file(resource_fork_filename)));
+        case ResourceDASM::IndexFormat::RESOURCE_FORK:
+          this->open_resource_file(ResourceDASM::parse_resource_fork(phosg::load_file(resource_fork_filename)));
           break;
-        case IndexFormat::DIRECTORY:
-          this->open_resource_file(load_resource_file_from_directory(resource_fork_filename));
+        case ResourceDASM::IndexFormat::DIRECTORY:
+          this->open_resource_file(ResourceDASM::load_resource_file_from_directory(resource_fork_filename));
           break;
-        case IndexFormat::MACBINARY:
-          this->open_resource_file(parse_macbinary_resource_fork(load_file(resource_fork_filename)));
+        case ResourceDASM::IndexFormat::MACBINARY:
+          this->open_resource_file(ResourceDASM::parse_macbinary_resource_fork(
+              phosg::load_file(resource_fork_filename)));
           break;
-        case IndexFormat::APPLESINGLE_APPLEDOUBLE:
-          this->open_resource_file(parse_applesingle_appledouble_resource_fork(load_file(resource_fork_filename)));
+        case ResourceDASM::IndexFormat::APPLESINGLE_APPLEDOUBLE:
+          this->open_resource_file(ResourceDASM::parse_applesingle_appledouble_resource_fork(
+              phosg::load_file(resource_fork_filename)));
           break;
-        case IndexFormat::MOHAWK:
-          this->open_resource_file(parse_mohawk(load_file(resource_fork_filename)));
+        case ResourceDASM::IndexFormat::MOHAWK:
+          this->open_resource_file(ResourceDASM::parse_mohawk(phosg::load_file(resource_fork_filename)));
           break;
-        case IndexFormat::HIRF:
-          this->open_resource_file(parse_hirf(load_file(resource_fork_filename)));
+        case ResourceDASM::IndexFormat::HIRF:
+          this->open_resource_file(ResourceDASM::parse_hirf(phosg::load_file(resource_fork_filename)));
           break;
-        case IndexFormat::DC_DATA:
-          this->open_resource_file(parse_dc_data(load_file(resource_fork_filename)));
+        case ResourceDASM::IndexFormat::DC_DATA:
+          this->open_resource_file(ResourceDASM::parse_dc_data(phosg::load_file(resource_fork_filename)));
           break;
-        case IndexFormat::CBAG:
-          this->open_resource_file(parse_cbag(load_file(resource_fork_filename)));
+        case ResourceDASM::IndexFormat::CBAG:
+          this->open_resource_file(ResourceDASM::parse_cbag(phosg::load_file(resource_fork_filename)));
           break;
         default:
-          throw logic_error("invalid index format");
+          throw std::logic_error("invalid index format");
       }
-    } catch (const cannot_open_file&) {
-      fwrite_fmt(stderr, "failed on {}: cannot open file\n", filename);
+    } catch (const phosg::cannot_open_file&) {
+      phosg::fwrite_fmt(stderr, "failed on {}: cannot open file\n", filename);
       return false;
-    } catch (const io_error& e) {
-      fwrite_fmt(stderr, "failed on {}: cannot read data\n", filename);
+    } catch (const phosg::io_error& e) {
+      phosg::fwrite_fmt(stderr, "failed on {}: cannot read data\n", filename);
       return false;
-    } catch (const runtime_error& e) {
-      fwrite_fmt(stderr, "failed on {}: corrupt resource index ({})\n", filename, e.what());
+    } catch (const std::runtime_error& e) {
+      phosg::fwrite_fmt(stderr, "failed on {}: corrupt resource index ({})\n", filename, e.what());
       return false;
-    } catch (const out_of_range& e) {
-      fwrite_fmt(stderr, "failed on {}: corrupt resource index\n", filename);
+    } catch (const std::out_of_range& e) {
+      phosg::fwrite_fmt(stderr, "failed on {}: corrupt resource index\n", filename);
       return false;
     }
 
@@ -1869,62 +1895,60 @@ private:
 
         const auto& res = this->current_rf->get_resource(it.first, it.second, this->decompress_flags);
 
-        if (it.first == RESOURCE_TYPE_INST) {
+        if (it.first == ResourceDASM::RESOURCE_TYPE_INST) {
           has_INST = true;
         }
         ret |= this->export_resource(base_filename, res);
       }
 
-      // Special case: if we disassembled any INSTs and the save-raw behavior is
-      // not Never, generate an smssynth template file from all the INSTs
+      // Special case: if we disassembled any INSTs and the save-raw behavior is not Never, generate an smssynth
+      // template file from all the INSTs
       if (has_INST && (this->save_raw != SaveRawBehavior::NEVER)) {
-        string json_filename = output_filename(base_filename, nullptr, nullptr, "generated", "", 0, "smssynth_env_template.json");
+        std::string json_filename = output_filename(
+            base_filename, nullptr, nullptr, "generated", "", 0, "smssynth_env_template.json");
 
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
-          save_file(json_filename, json.serialize(JSON::SerializeOption::FORMAT));
-          fwrite_fmt(stderr, "... {}\n", json_filename);
+          phosg::save_file(json_filename, json.serialize(phosg::JSON::SerializeOption::FORMAT));
+          phosg::fwrite_fmt(stderr, "... {}\n", json_filename);
 
-        } catch (const exception& e) {
-          fwrite_fmt(stderr, "failed to write smssynth env template {}: {}\n",
-              json_filename, e.what());
+        } catch (const std::exception& e) {
+          phosg::fwrite_fmt(stderr, "failed to write smssynth env template {}: {}\n", json_filename, e.what());
         }
       }
 
-    } catch (const exception& e) {
-      fwrite_fmt(stderr, "failed on {}: {}\n", filename, e.what());
+    } catch (const std::exception& e) {
+      phosg::fwrite_fmt(stderr, "failed on {}: {}\n", filename, e.what());
     }
 
     this->current_rf.reset();
     return ret;
   }
 
-  bool disassemble_path(const string& filename) {
-    if ((this->index_format != IndexFormat::DIRECTORY) && std::filesystem::is_directory(filename)) {
-      fwrite_fmt(stderr, ">>> {} (directory)\n", filename);
+  bool disassemble_path(const std::string& filename) {
+    if ((this->index_format != ResourceDASM::IndexFormat::DIRECTORY) && std::filesystem::is_directory(filename)) {
+      phosg::fwrite_fmt(stderr, ">>> {} (directory)\n", filename);
 
-      unordered_set<string> items;
+      std::unordered_set<std::string> items;
       try {
         for (const auto& item : std::filesystem::directory_iterator(filename)) {
           items.emplace(item.path().filename().string());
         }
-      } catch (const runtime_error& e) {
-        fwrite_fmt(stderr, "warning: can\'t list directory: {}\n", e.what());
+      } catch (const std::runtime_error& e) {
+        phosg::fwrite_fmt(stderr, "warning: can\'t list directory: {}\n", e.what());
         return false;
       }
 
-      vector<string> sorted_items;
+      std::vector<std::string> sorted_items;
       sorted_items.insert(sorted_items.end(), items.begin(), items.end());
       sort(sorted_items.begin(), sorted_items.end());
 
       size_t last_slash_pos = filename.rfind('/');
-      string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
+      std::string base_filename = (last_slash_pos == std::string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
-      string sub_out_dir = this->out_dir.empty()
-          ? base_filename
-          : (this->out_dir + "/" + base_filename);
+      std::string sub_out_dir = this->out_dir.empty() ? base_filename : (this->out_dir + "/" + base_filename);
       bool ret = false;
-      for (const string& item : sorted_items) {
+      for (const std::string& item : sorted_items) {
         sub_out_dir.swap(this->out_dir);
         ret |= this->disassemble_path(filename + "/" + item);
         sub_out_dir.swap(this->out_dir);
@@ -1950,7 +1974,7 @@ public:
 
   ResourceExporter()
       : type_to_decode_fn(default_type_to_decode_fn),
-        index_format(IndexFormat::RESOURCE_FORK),
+        index_format(ResourceDASM::IndexFormat::RESOURCE_FORK),
         use_data_fork(false),
         filename_format(FILENAME_FORMAT_STANDARD),
         save_raw(SaveRawBehavior::IF_DECODE_FAILS),
@@ -1962,61 +1986,61 @@ public:
         image_saver() {}
   ~ResourceExporter() = default;
 
-  IndexFormat index_format;
+  ResourceDASM::IndexFormat index_format;
   bool use_data_fork;
-  string filename_format;
+  std::string filename_format;
   SaveRawBehavior save_raw;
   uint64_t decompress_flags;
-  unordered_map<uint32_t, ResourceIDs> target_types_ids;
-  unordered_map<uint32_t, ResourceIDs> skip_types_ids;
-  optional<ResourceIDs> target_ids;
-  unordered_set<string> target_names;
-  optional<ResourceIDs> skip_ids;
-  unordered_set<string> skip_names;
-  vector<string> external_preprocessor_command;
+  std::unordered_map<uint32_t, ResourceDASM::ResourceIDs> target_types_ids;
+  std::unordered_map<uint32_t, ResourceDASM::ResourceIDs> skip_types_ids;
+  std::optional<ResourceDASM::ResourceIDs> target_ids;
+  std::unordered_set<std::string> target_names;
+  std::optional<ResourceDASM::ResourceIDs> skip_ids;
+  std::unordered_set<std::string> skip_names;
+  std::vector<std::string> external_preprocessor_command;
   TargetCompressedBehavior target_compressed_behavior;
   bool skip_templates;
   bool export_icon_family_as_image;
   bool export_icon_family_as_icns;
-  ImageSaver image_saver;
+  ResourceDASM::ImageSaver image_saver;
 
 private:
-  string base_out_dir; // Fixed part of filename (e.g. <file>.out)
-  string out_dir; // Recursive part of filename (dirs after <file>.out)
-  unique_ptr<ResourceFile> current_rf;
-  unordered_set<int32_t> exported_family_icns;
+  std::string base_out_dir; // Fixed part of filename (e.g. <file>.out)
+  std::string out_dir; // Recursive part of filename (dirs after <file>.out)
+  std::unique_ptr<ResourceDASM::ResourceFile> current_rf;
+  std::unordered_set<int32_t> exported_family_icns;
 
 public:
-  void open_resource_file(ResourceFile&& rf) {
-    this->current_rf = make_unique<ResourceFile>(std::move(rf));
+  void open_resource_file(ResourceDASM::ResourceFile&& rf) {
+    this->current_rf = std::make_unique<ResourceDASM::ResourceFile>(std::move(rf));
   }
 
   void set_decoder_alias(uint32_t from_type, uint32_t to_type) {
     try {
       this->type_to_decode_fn[to_type] = this->type_to_decode_fn.at(from_type);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
   }
 
   void disable_external_decoders() {
-    this->type_to_decode_fn[RESOURCE_TYPE_PICT] = &ResourceExporter::write_decoded_PICT_internal;
+    this->type_to_decode_fn[ResourceDASM::RESOURCE_TYPE_PICT] = &ResourceExporter::write_decoded_PICT_internal;
   }
 
   void disable_all_decoders() {
     this->type_to_decode_fn.clear();
   }
 
-  bool export_resource(const string& base_filename, shared_ptr<const ResourceFile::Resource> res) {
+  bool export_resource(const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
 
-    bool decompression_failed = res->flags & ResourceFlag::FLAG_DECOMPRESSION_FAILED;
-    bool is_compressed = res->flags & ResourceFlag::FLAG_COMPRESSED;
-    bool was_compressed = res->flags & ResourceFlag::FLAG_DECOMPRESSED;
+    bool decompression_failed = res->flags & ResourceDASM::ResourceFlag::FLAG_DECOMPRESSION_FAILED;
+    bool is_compressed = res->flags & ResourceDASM::ResourceFlag::FLAG_COMPRESSED;
+    bool was_compressed = res->flags & ResourceDASM::ResourceFlag::FLAG_DECOMPRESSED;
     if (decompression_failed || is_compressed) {
-      auto type_str = string_for_resource_type(res->type);
+      auto type_str = ResourceDASM::string_for_resource_type(res->type);
       if (decompression_failed) {
-        fwrite_fmt(stderr, "warning: failed to decompress resource {}:{}; saving raw compressed data\n", type_str, res->id);
+        phosg::fwrite_fmt(stderr, "warning: failed to decompress resource {}:{}; saving raw compressed data\n", type_str, res->id);
       } else {
-        fwrite_fmt(stderr, "note: resource {}:{} is compressed; saving raw compressed data\n", type_str, res->id);
+        phosg::fwrite_fmt(stderr, "note: resource {}:{} is compressed; saving raw compressed data\n", type_str, res->id);
       }
     }
     if ((this->target_compressed_behavior == TargetCompressedBehavior::TARGET) &&
@@ -2028,17 +2052,16 @@ public:
     }
 
     bool write_raw = (this->save_raw == SaveRawBehavior::ALWAYS);
-    ResourceFile::Resource preprocessed_res;
-    shared_ptr<const ResourceFile::Resource> res_to_decode = res;
+    ResourceDASM::ResourceFile::Resource preprocessed_res;
+    std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res_to_decode = res;
 
 #ifndef PHOSG_WINDOWS
-    // Run external preprocessor if possible. The resource could still be
-    // compressed if --skip-decompression was used or if decompression failed;
-    // in these cases it doesn't make sense to run the external preprocessor.
+    // Run external preprocessor if possible. The resource could still be compressed if --skip-decompression was used
+    // or if decompression failed; in these cases it doesn't make sense to run the external preprocessor.
     if (!is_compressed && !this->external_preprocessor_command.empty()) {
-      auto result = run_process(this->external_preprocessor_command, &res->data, false);
+      auto result = phosg::run_process(this->external_preprocessor_command, &res->data, false);
       if (result.exit_status != 0) {
-        fwrite_fmt(stderr, "\
+        phosg::fwrite_fmt(stderr, "\
 warning: external preprocessor failed with exit status {}\n\
 \n\
 stdout ({} bytes):\n\
@@ -2049,8 +2072,8 @@ stderr ({} bytes):\n\
 \n",
             result.exit_status, result.stdout_contents.size(), result.stdout_contents, result.stderr_contents.size(), result.stderr_contents);
       } else {
-        fwrite_fmt(stderr, "note: external preprocessor succeeded and returned {} bytes\n", result.stdout_contents.size());
-        res_to_decode = make_shared<ResourceFile::Resource>(
+        phosg::fwrite_fmt(stderr, "note: external preprocessor succeeded and returned {} bytes\n", result.stdout_contents.size());
+        res_to_decode = std::make_shared<ResourceDASM::ResourceFile::Resource>(
             res->type, res->id, res->flags, res->name, std::move(result.stdout_contents));
       }
     }
@@ -2065,17 +2088,17 @@ stderr ({} bytes):\n\
     uint32_t remapped_type = res->type;
     try {
       remapped_type = remap_resource_type_id.at({res_to_decode->type, res_to_decode->id});
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
     try {
       remapped_type = remap_resource_type.at(remapped_type);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
 
     resource_decode_fn decode_fn = nullptr;
     try {
       decode_fn = type_to_decode_fn.at(remapped_type);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
     }
 
     bool decoded = false;
@@ -2083,65 +2106,63 @@ stderr ({} bytes):\n\
       try {
         (this->*decode_fn)(base_filename, res_to_decode);
         decoded = true;
-      } catch (const exception& e) {
-        auto type_str = string_for_resource_type(res->type);
+      } catch (const std::exception& e) {
+        auto type_str = ResourceDASM::string_for_resource_type(res->type);
         if (remapped_type != res->type) {
-          auto remapped_type_str = string_for_resource_type(remapped_type);
-          fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}): {}\n", type_str, res->id, remapped_type_str, e.what());
+          auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
+          phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}): {}\n", type_str, res->id, remapped_type_str, e.what());
         } else {
-          fwrite_fmt(stderr, "warning: failed to decode resource {}:{}: {}\n", type_str, res->id, e.what());
+          phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{}: {}\n", type_str, res->id, e.what());
         }
       }
     }
-    // If there's no built-in decoder and there's a context ResourceFile, try to
-    // use a TMPL resource to decode it
+    // If there's no built-in decoder and there's a context ResourceFile, try to use a TMPL resource to decode it
     if (!is_compressed && !decoded && !this->skip_templates && this->current_rf.get()) {
       // It appears ResEdit looks these up by name
-      string tmpl_name = raw_string_for_resource_type(remapped_type);
+      std::string tmpl_name = ResourceDASM::raw_string_for_resource_type(remapped_type);
 
-      // If there's no TMPL, just silently fail this step. If there's a TMPL but
-      // it's corrupt or doesn't decode the data correctly, fail with a warning.
-      shared_ptr<const ResourceFile::Resource> tmpl_res;
+      // If there's no TMPL, just silently fail this step. If there's a TMPL but it's corrupt or doesn't decode the
+      // data correctly, fail with a warning.
+      std::shared_ptr<const ResourceDASM::ResourceFile::Resource> tmpl_res;
       try {
-        tmpl_res = this->current_rf->get_resource(RESOURCE_TYPE_TMPL, tmpl_name.c_str());
-      } catch (const out_of_range& e) {
+        tmpl_res = this->current_rf->get_resource(ResourceDASM::RESOURCE_TYPE_TMPL, tmpl_name.c_str());
+      } catch (const std::out_of_range& e) {
       }
 
       if (tmpl_res.get()) {
         try {
-          string result = std::format("# (decoded with TMPL {})\n", tmpl_res->id);
+          std::string result = std::format("# (decoded with TMPL {})\n", tmpl_res->id);
           result += this->current_rf->disassemble_from_template(
               res->data.data(), res->data.size(), this->current_rf->decode_TMPL(tmpl_res));
           this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
           decoded = true;
-        } catch (const exception& e) {
-          auto type_str = string_for_resource_type(res->type);
+        } catch (const std::exception& e) {
+          auto type_str = ResourceDASM::string_for_resource_type(res->type);
           if (remapped_type != res->type) {
-            auto remapped_type_str = string_for_resource_type(remapped_type);
-            fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with template {}: {}\n", type_str, res->id, remapped_type_str, tmpl_res->id, e.what());
+            auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
+            phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with template {}: {}\n", type_str, res->id, remapped_type_str, tmpl_res->id, e.what());
           } else {
-            fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with template {}: {}\n", type_str, res->id, tmpl_res->id, e.what());
+            phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with template {}: {}\n", type_str, res->id, tmpl_res->id, e.what());
           }
         }
       }
     }
-    // If there's no built-in decoder and no TMPL in the file, try using a
-    // system template
+    // If there's no built-in decoder and no TMPL in the file, try using a system template
     if (!is_compressed && !decoded && !this->skip_templates) {
-      const ResourceFile::TemplateEntryList& tmpl = get_system_template(remapped_type);
+      const auto& tmpl = ResourceDASM::get_system_template(remapped_type);
       if (!tmpl.empty()) {
         try {
-          string result = ResourceFile::disassemble_from_template(
+          std::string result = ResourceDASM::ResourceFile::disassemble_from_template(
               res->data.data(), res->data.size(), tmpl);
           this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
           decoded = true;
-        } catch (const exception& e) {
-          auto type_str = string_for_resource_type(res->type);
+        } catch (const std::exception& e) {
+          auto type_str = ResourceDASM::string_for_resource_type(res->type);
           if (remapped_type != res->type) {
-            auto remapped_type_str = string_for_resource_type(remapped_type);
-            fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with system template: {}\n", type_str, res->id, remapped_type_str, e.what());
+            auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
+            phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with system template: {}\n", type_str, res->id, remapped_type_str, e.what());
           } else {
-            fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with system template: {}\n", type_str, res->id, e.what());
+            phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with system template: {}\n", type_str, res->id, e.what());
           }
         }
       }
@@ -2154,202 +2175,202 @@ stderr ({} bytes):\n\
     if (write_raw) {
       const char* out_ext = "bin";
       try {
-        out_ext = ResourceFile::raw_filename_extension_for_type.at(res_to_decode->type);
-      } catch (const out_of_range&) {
+        out_ext = ResourceDASM::ResourceFile::raw_filename_extension_for_type.at(res_to_decode->type);
+      } catch (const std::out_of_range&) {
       }
 
-      string out_filename_after = std::format(".{}", out_ext);
-      string out_filename = this->output_filename(base_filename, res_to_decode, out_filename_after);
+      std::string out_filename_after = std::format(".{}", out_ext);
+      std::string out_filename = this->output_filename(base_filename, res_to_decode, out_filename_after);
       this->ensure_directories_exist(out_filename);
 
       try {
         // Hack: PICT resources, when saved to disk, should be prepended with a
         // 512-byte unused header
-        if (res_to_decode->type == RESOURCE_TYPE_PICT) {
-          static const string pict_header(0x200, 0);
-          auto f = fopen_unique(out_filename, "wb");
-          fwritex(f.get(), pict_header);
-          fwritex(f.get(), res_to_decode->data);
+        if (res_to_decode->type == ResourceDASM::RESOURCE_TYPE_PICT) {
+          static const std::string pict_header(0x200, 0);
+          auto f = phosg::fopen_unique(out_filename, "wb");
+          phosg::fwritex(f.get(), pict_header);
+          phosg::fwritex(f.get(), res_to_decode->data);
         } else {
-          save_file(out_filename, res_to_decode->data);
+          phosg::save_file(out_filename, res_to_decode->data);
         }
-        fwrite_fmt(stderr, "... {}\n", out_filename);
-      } catch (const exception& e) {
-        fwrite_fmt(stderr, "warning: failed to save raw data: {}\n", e.what());
+        phosg::fwrite_fmt(stderr, "... {}\n", out_filename);
+      } catch (const std::exception& e) {
+        phosg::fwrite_fmt(stderr, "warning: failed to save raw data: {}\n", e.what());
       }
     }
     return decoded || write_raw;
   }
 
-  bool disassemble(const string& filename, const string& base_out_dir) {
+  bool disassemble(const std::string& filename, const std::string& base_out_dir) {
     this->base_out_dir = base_out_dir;
     return this->disassemble_path(filename);
   }
 };
 
 // Annoyingly, these have to be initialized out of line
-const unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExporter::default_type_to_decode_fn({
-    {RESOURCE_TYPE_actb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-    {RESOURCE_TYPE_ADBS, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_card, &ResourceExporter::write_decoded_card},
-    {RESOURCE_TYPE_cctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-    {RESOURCE_TYPE_CDEF, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_cdek, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_CDRV, &ResourceExporter::write_decoded_DRVR},
-    {RESOURCE_TYPE_cfrg, &ResourceExporter::write_decoded_cfrg},
-    {RESOURCE_TYPE_cicn, &ResourceExporter::write_decoded_cicn},
-    {RESOURCE_TYPE_clok, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_clut, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-    {RESOURCE_TYPE_cmid, &ResourceExporter::write_decoded_cmid},
-    {RESOURCE_TYPE_CODE, &ResourceExporter::write_decoded_CODE},
-    {RESOURCE_TYPE_crsr, &ResourceExporter::write_decoded_crsr},
-    {RESOURCE_TYPE_csnd, &ResourceExporter::write_decoded_csnd},
-    {RESOURCE_TYPE_CTBL, &ResourceExporter::write_decoded_CTBL},
-    {RESOURCE_TYPE_CURS, &ResourceExporter::write_decoded_CURS},
-    {RESOURCE_TYPE_dcmp, &ResourceExporter::write_decoded_dcmp},
-    {RESOURCE_TYPE_dcod, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_dctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-    {RESOURCE_TYPE_DITL, &ResourceExporter::write_decoded_DITL},
-    {RESOURCE_TYPE_DRVR, &ResourceExporter::write_decoded_DRVR},
-    {RESOURCE_TYPE_ecmi, &ResourceExporter::write_decoded_ecmi},
-    {RESOURCE_TYPE_emid, &ResourceExporter::write_decoded_emid},
-    {RESOURCE_TYPE_esnd, &ResourceExporter::write_decoded_esnd},
-    {RESOURCE_TYPE_ESnd, &ResourceExporter::write_decoded_ESnd},
-    {RESOURCE_TYPE_expt, &ResourceExporter::write_decoded_expt_nsrd},
-    {RESOURCE_TYPE_FCMT, &ResourceExporter::write_decoded_STR},
-    {RESOURCE_TYPE_fctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-    {RESOURCE_TYPE_finf, &ResourceExporter::write_decoded_finf},
-    {RESOURCE_TYPE_FONT, &ResourceExporter::write_decoded_FONT_NFNT},
-    {RESOURCE_TYPE_fovr, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_icl4, &ResourceExporter::write_decoded_icl4},
-    {RESOURCE_TYPE_icl8, &ResourceExporter::write_decoded_icl8},
-    {RESOURCE_TYPE_icm4, &ResourceExporter::write_decoded_icm4},
-    {RESOURCE_TYPE_icm8, &ResourceExporter::write_decoded_icm8},
-    {RESOURCE_TYPE_icmN, &ResourceExporter::write_decoded_icmN},
-    {RESOURCE_TYPE_ICNN, &ResourceExporter::write_decoded_ICNN},
-    {RESOURCE_TYPE_icns, &ResourceExporter::write_decoded_icns},
-    {RESOURCE_TYPE_ICON, &ResourceExporter::write_decoded_ICON},
-    {RESOURCE_TYPE_ics4, &ResourceExporter::write_decoded_ics4},
-    {RESOURCE_TYPE_ics8, &ResourceExporter::write_decoded_ics8},
-    {RESOURCE_TYPE_icsN, &ResourceExporter::write_decoded_icsN},
-    {RESOURCE_TYPE_INIT, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_INST, &ResourceExporter::write_decoded_INST},
-    {RESOURCE_TYPE_kcs4, &ResourceExporter::write_decoded_kcs4},
-    {RESOURCE_TYPE_kcs8, &ResourceExporter::write_decoded_kcs8},
-    {RESOURCE_TYPE_kcsN, &ResourceExporter::write_decoded_kcsN},
-    {RESOURCE_TYPE_KCHR, &ResourceExporter::write_decoded_KCHR},
-    {RESOURCE_TYPE_LDEF, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_MACS, &ResourceExporter::write_decoded_STR},
-    {RESOURCE_TYPE_MBDF, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_MDEF, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_minf, &ResourceExporter::write_decoded_TEXT},
-    {RESOURCE_TYPE_ncmp, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_ndmc, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_ndrv, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_NFNT, &ResourceExporter::write_decoded_FONT_NFNT},
-    {RESOURCE_TYPE_nift, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_nitt, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_nlib, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_nsnd, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_nsrd, &ResourceExporter::write_decoded_expt_nsrd},
-    {RESOURCE_TYPE_ntrb, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_PACK, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_PAT, &ResourceExporter::write_decoded_PAT},
-    {RESOURCE_TYPE_PATN, &ResourceExporter::write_decoded_PATN},
-    {RESOURCE_TYPE_PICT, &ResourceExporter::write_decoded_PICT},
-    {RESOURCE_TYPE_pltt, &ResourceExporter::write_decoded_pltt},
-    {RESOURCE_TYPE_ppat, &ResourceExporter::write_decoded_ppat},
-    {RESOURCE_TYPE_ppct, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_pptN, &ResourceExporter::write_decoded_pptN},
-    {RESOURCE_TYPE_proc, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_res1, &ResourceExporter::write_decoded_STRN},
-    {RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},
-    {RESOURCE_TYPE_ROvr, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_RSSC, &ResourceExporter::write_decoded_RSSC},
-    {RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_seg1, &ResourceExporter::write_decoded_STRN},
-    {RESOURCE_TYPE_SERD, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_sfvr, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_SICN, &ResourceExporter::write_decoded_SICN},
-    {RESOURCE_TYPE_SIZE, &ResourceExporter::write_decoded_SIZE},
-    {RESOURCE_TYPE_SMOD, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_SMSD, &ResourceExporter::write_decoded_SMSD},
-    {RESOURCE_TYPE_snd, &ResourceExporter::write_decoded_snd},
-    {RESOURCE_TYPE_snth, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_SONG, &ResourceExporter::write_decoded_SONG},
-    {RESOURCE_TYPE_SOUN, &ResourceExporter::write_decoded_SOUN},
-    {RESOURCE_TYPE_STR, &ResourceExporter::write_decoded_STR},
-    {RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
-    {RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},
-    {RESOURCE_TYPE_TEXT, &ResourceExporter::write_decoded_TEXT},
-    {RESOURCE_TYPE_TMPL, &ResourceExporter::write_decoded_TMPL},
-    {RESOURCE_TYPE_Tune, &ResourceExporter::write_decoded_Tune},
-    {RESOURCE_TYPE_TwCS, &ResourceExporter::write_decoded_TwCS},
-    {RESOURCE_TYPE_vers, &ResourceExporter::write_decoded_vers},
-    {RESOURCE_TYPE_wctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
-    {RESOURCE_TYPE_WDEF, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_XCMD, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_XFCN, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_Ysnd, &ResourceExporter::write_decoded_Ysnd},
+const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExporter::default_type_to_decode_fn({
+    {ResourceDASM::RESOURCE_TYPE_actb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {ResourceDASM::RESOURCE_TYPE_ADBS, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_card, &ResourceExporter::write_decoded_card},
+    {ResourceDASM::RESOURCE_TYPE_cctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {ResourceDASM::RESOURCE_TYPE_CDEF, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_cdek, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_CDRV, &ResourceExporter::write_decoded_DRVR},
+    {ResourceDASM::RESOURCE_TYPE_cfrg, &ResourceExporter::write_decoded_cfrg},
+    {ResourceDASM::RESOURCE_TYPE_cicn, &ResourceExporter::write_decoded_cicn},
+    {ResourceDASM::RESOURCE_TYPE_clok, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_clut, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {ResourceDASM::RESOURCE_TYPE_cmid, &ResourceExporter::write_decoded_cmid},
+    {ResourceDASM::RESOURCE_TYPE_CODE, &ResourceExporter::write_decoded_CODE},
+    {ResourceDASM::RESOURCE_TYPE_crsr, &ResourceExporter::write_decoded_crsr},
+    {ResourceDASM::RESOURCE_TYPE_csnd, &ResourceExporter::write_decoded_csnd},
+    {ResourceDASM::RESOURCE_TYPE_CTBL, &ResourceExporter::write_decoded_CTBL},
+    {ResourceDASM::RESOURCE_TYPE_CURS, &ResourceExporter::write_decoded_CURS},
+    {ResourceDASM::RESOURCE_TYPE_dcmp, &ResourceExporter::write_decoded_dcmp},
+    {ResourceDASM::RESOURCE_TYPE_dcod, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_dctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {ResourceDASM::RESOURCE_TYPE_DITL, &ResourceExporter::write_decoded_DITL},
+    {ResourceDASM::RESOURCE_TYPE_DRVR, &ResourceExporter::write_decoded_DRVR},
+    {ResourceDASM::RESOURCE_TYPE_ecmi, &ResourceExporter::write_decoded_ecmi},
+    {ResourceDASM::RESOURCE_TYPE_emid, &ResourceExporter::write_decoded_emid},
+    {ResourceDASM::RESOURCE_TYPE_esnd, &ResourceExporter::write_decoded_esnd},
+    {ResourceDASM::RESOURCE_TYPE_ESnd, &ResourceExporter::write_decoded_ESnd},
+    {ResourceDASM::RESOURCE_TYPE_expt, &ResourceExporter::write_decoded_expt_nsrd},
+    {ResourceDASM::RESOURCE_TYPE_FCMT, &ResourceExporter::write_decoded_STR},
+    {ResourceDASM::RESOURCE_TYPE_fctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {ResourceDASM::RESOURCE_TYPE_finf, &ResourceExporter::write_decoded_finf},
+    {ResourceDASM::RESOURCE_TYPE_FONT, &ResourceExporter::write_decoded_FONT_NFNT},
+    {ResourceDASM::RESOURCE_TYPE_fovr, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_icl4, &ResourceExporter::write_decoded_icl4},
+    {ResourceDASM::RESOURCE_TYPE_icl8, &ResourceExporter::write_decoded_icl8},
+    {ResourceDASM::RESOURCE_TYPE_icm4, &ResourceExporter::write_decoded_icm4},
+    {ResourceDASM::RESOURCE_TYPE_icm8, &ResourceExporter::write_decoded_icm8},
+    {ResourceDASM::RESOURCE_TYPE_icmN, &ResourceExporter::write_decoded_icmN},
+    {ResourceDASM::RESOURCE_TYPE_ICNN, &ResourceExporter::write_decoded_ICNN},
+    {ResourceDASM::RESOURCE_TYPE_icns, &ResourceExporter::write_decoded_icns},
+    {ResourceDASM::RESOURCE_TYPE_ICON, &ResourceExporter::write_decoded_ICON},
+    {ResourceDASM::RESOURCE_TYPE_ics4, &ResourceExporter::write_decoded_ics4},
+    {ResourceDASM::RESOURCE_TYPE_ics8, &ResourceExporter::write_decoded_ics8},
+    {ResourceDASM::RESOURCE_TYPE_icsN, &ResourceExporter::write_decoded_icsN},
+    {ResourceDASM::RESOURCE_TYPE_INIT, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_INST, &ResourceExporter::write_decoded_INST},
+    {ResourceDASM::RESOURCE_TYPE_kcs4, &ResourceExporter::write_decoded_kcs4},
+    {ResourceDASM::RESOURCE_TYPE_kcs8, &ResourceExporter::write_decoded_kcs8},
+    {ResourceDASM::RESOURCE_TYPE_kcsN, &ResourceExporter::write_decoded_kcsN},
+    {ResourceDASM::RESOURCE_TYPE_KCHR, &ResourceExporter::write_decoded_KCHR},
+    {ResourceDASM::RESOURCE_TYPE_LDEF, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_MACS, &ResourceExporter::write_decoded_STR},
+    {ResourceDASM::RESOURCE_TYPE_MBDF, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_MDEF, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_minf, &ResourceExporter::write_decoded_TEXT},
+    {ResourceDASM::RESOURCE_TYPE_ncmp, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_ndmc, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_ndrv, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_NFNT, &ResourceExporter::write_decoded_FONT_NFNT},
+    {ResourceDASM::RESOURCE_TYPE_nift, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_nitt, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_nlib, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_nsnd, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_nsrd, &ResourceExporter::write_decoded_expt_nsrd},
+    {ResourceDASM::RESOURCE_TYPE_ntrb, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_PACK, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_PAT, &ResourceExporter::write_decoded_PAT},
+    {ResourceDASM::RESOURCE_TYPE_PATN, &ResourceExporter::write_decoded_PATN},
+    {ResourceDASM::RESOURCE_TYPE_PICT, &ResourceExporter::write_decoded_PICT},
+    {ResourceDASM::RESOURCE_TYPE_pltt, &ResourceExporter::write_decoded_pltt},
+    {ResourceDASM::RESOURCE_TYPE_ppat, &ResourceExporter::write_decoded_ppat},
+    {ResourceDASM::RESOURCE_TYPE_ppct, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_pptN, &ResourceExporter::write_decoded_pptN},
+    {ResourceDASM::RESOURCE_TYPE_proc, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_ptch, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_PTCH, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_qtcm, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_res1, &ResourceExporter::write_decoded_STRN},
+    {ResourceDASM::RESOURCE_TYPE_ROvN, &ResourceExporter::write_decoded_ROvN},
+    {ResourceDASM::RESOURCE_TYPE_ROvr, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_RSSC, &ResourceExporter::write_decoded_RSSC},
+    {ResourceDASM::RESOURCE_TYPE_scal, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_seg1, &ResourceExporter::write_decoded_STRN},
+    {ResourceDASM::RESOURCE_TYPE_SERD, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_sfvr, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_SICN, &ResourceExporter::write_decoded_SICN},
+    {ResourceDASM::RESOURCE_TYPE_SIZE, &ResourceExporter::write_decoded_SIZE},
+    {ResourceDASM::RESOURCE_TYPE_SMOD, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_SMSD, &ResourceExporter::write_decoded_SMSD},
+    {ResourceDASM::RESOURCE_TYPE_snd, &ResourceExporter::write_decoded_snd},
+    {ResourceDASM::RESOURCE_TYPE_snth, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_SONG, &ResourceExporter::write_decoded_SONG},
+    {ResourceDASM::RESOURCE_TYPE_SOUN, &ResourceExporter::write_decoded_SOUN},
+    {ResourceDASM::RESOURCE_TYPE_STR, &ResourceExporter::write_decoded_STR},
+    {ResourceDASM::RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
+    {ResourceDASM::RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},
+    {ResourceDASM::RESOURCE_TYPE_TEXT, &ResourceExporter::write_decoded_TEXT},
+    {ResourceDASM::RESOURCE_TYPE_TMPL, &ResourceExporter::write_decoded_TMPL},
+    {ResourceDASM::RESOURCE_TYPE_Tune, &ResourceExporter::write_decoded_Tune},
+    {ResourceDASM::RESOURCE_TYPE_TwCS, &ResourceExporter::write_decoded_TwCS},
+    {ResourceDASM::RESOURCE_TYPE_vers, &ResourceExporter::write_decoded_vers},
+    {ResourceDASM::RESOURCE_TYPE_wctb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
+    {ResourceDASM::RESOURCE_TYPE_WDEF, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_XCMD, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_XFCN, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_Ysnd, &ResourceExporter::write_decoded_Ysnd},
 
     // Type aliases (unverified)
-    {RESOURCE_TYPE_adio, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_AINI, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_atlk, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_boot, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_bstr, &ResourceExporter::write_decoded_STRN},
-    {RESOURCE_TYPE_citt, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_cdev, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_cmtb, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_cmuN, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_code, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_dem, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_dimg, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_drvr, &ResourceExporter::write_decoded_DRVR},
-    {RESOURCE_TYPE_enet, &ResourceExporter::write_decoded_DRVR},
-    {RESOURCE_TYPE_epch, &ResourceExporter::write_decoded_inline_ppc32},
-    {RESOURCE_TYPE_FKEY, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_gcko, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_gdef, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_GDEF, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_gnld, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_krnl, &ResourceExporter::write_decoded_inline_ppc32},
-    {RESOURCE_TYPE_lmgr, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_lodr, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_ltlk, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_mntr, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_mstr, &ResourceExporter::write_decoded_STR},
-    {RESOURCE_TYPE_mstN, &ResourceExporter::write_decoded_STRN},
-    {RESOURCE_TYPE_ndlc, &ResourceExporter::write_decoded_pef},
-    {RESOURCE_TYPE_osl, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_otdr, &ResourceExporter::write_decoded_DRVR},
-    {RESOURCE_TYPE_otlm, &ResourceExporter::write_decoded_DRVR},
-    {RESOURCE_TYPE_pnll, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_scod, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_shal, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_sift, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_tdig, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_tokn, &ResourceExporter::write_decoded_DRVR},
-    {RESOURCE_TYPE_wart, &ResourceExporter::write_decoded_inline_68k},
-    {RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_pef},
-    {RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_pef},
+    {ResourceDASM::RESOURCE_TYPE_adio, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_AINI, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_atlk, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_boot, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_bstr, &ResourceExporter::write_decoded_STRN},
+    {ResourceDASM::RESOURCE_TYPE_citt, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_cdev, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_cmtb, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_cmuN, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_code, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_dem, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_dimg, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_drvr, &ResourceExporter::write_decoded_DRVR},
+    {ResourceDASM::RESOURCE_TYPE_enet, &ResourceExporter::write_decoded_DRVR},
+    {ResourceDASM::RESOURCE_TYPE_epch, &ResourceExporter::write_decoded_inline_ppc32},
+    {ResourceDASM::RESOURCE_TYPE_FKEY, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_gcko, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_gdef, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_GDEF, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_gnld, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_krnl, &ResourceExporter::write_decoded_inline_ppc32},
+    {ResourceDASM::RESOURCE_TYPE_lmgr, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_lodr, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_ltlk, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_mntr, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_mstr, &ResourceExporter::write_decoded_STR},
+    {ResourceDASM::RESOURCE_TYPE_mstN, &ResourceExporter::write_decoded_STRN},
+    {ResourceDASM::RESOURCE_TYPE_ndlc, &ResourceExporter::write_decoded_pef},
+    {ResourceDASM::RESOURCE_TYPE_osl, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_otdr, &ResourceExporter::write_decoded_DRVR},
+    {ResourceDASM::RESOURCE_TYPE_otlm, &ResourceExporter::write_decoded_DRVR},
+    {ResourceDASM::RESOURCE_TYPE_pnll, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_scod, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_shal, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_sift, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_tdig, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_tokn, &ResourceExporter::write_decoded_DRVR},
+    {ResourceDASM::RESOURCE_TYPE_wart, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_pef},
+    {ResourceDASM::RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_pef},
 });
 
-const map<pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type_id = {
-    {{RESOURCE_TYPE_PREC, 0}, RESOURCE_TYPE_PRC0},
-    {{RESOURCE_TYPE_PREC, 1}, RESOURCE_TYPE_PRC0},
-    {{RESOURCE_TYPE_PREC, 3}, RESOURCE_TYPE_PRC3},
-    {{RESOURCE_TYPE_PREC, 4}, RESOURCE_TYPE_PRC3},
-    {{RESOURCE_TYPE_INTL, 0}, RESOURCE_TYPE_itl0},
-    {{RESOURCE_TYPE_INTL, 1}, RESOURCE_TYPE_itl1},
+const std::map<std::pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type_id = {
+    {{ResourceDASM::RESOURCE_TYPE_PREC, 0}, ResourceDASM::RESOURCE_TYPE_PRC0},
+    {{ResourceDASM::RESOURCE_TYPE_PREC, 1}, ResourceDASM::RESOURCE_TYPE_PRC0},
+    {{ResourceDASM::RESOURCE_TYPE_PREC, 3}, ResourceDASM::RESOURCE_TYPE_PRC3},
+    {{ResourceDASM::RESOURCE_TYPE_PREC, 4}, ResourceDASM::RESOURCE_TYPE_PRC3},
+    {{ResourceDASM::RESOURCE_TYPE_INTL, 0}, ResourceDASM::RESOURCE_TYPE_itl0},
+    {{ResourceDASM::RESOURCE_TYPE_INTL, 1}, ResourceDASM::RESOURCE_TYPE_itl1},
 };
 
-const unordered_map<uint32_t, uint32_t> ResourceExporter::remap_resource_type = {
-    {RESOURCE_TYPE_68k1, RESOURCE_TYPE_mem1},
-    {RESOURCE_TYPE_ppc1, RESOURCE_TYPE_mem1},
+const std::unordered_map<uint32_t, uint32_t> ResourceExporter::remap_resource_type = {
+    {ResourceDASM::RESOURCE_TYPE_68k1, ResourceDASM::RESOURCE_TYPE_mem1},
+    {ResourceDASM::RESOURCE_TYPE_ppc1, ResourceDASM::RESOURCE_TYPE_mem1},
 };
 
 void print_usage() {
@@ -2513,7 +2534,7 @@ Resource disassembly output options:\n\
       Save raw files even for resources that are successfully decoded.\n\
   --filename-format=FORMAT\n\
       Specify the directory structure of the output. FORMAT is a printf-like\n\
-      string with the following format specifications:\n\
+      std::string with the following format specifications:\n\
         %a: the resource's attributes as a string of six characters, where\n\
             each character represents one of the attributes:\n\
               'c-----': Compressed?\n\
@@ -2576,7 +2597,6 @@ int main(int argc, char** argv) {
   signal(SIGPIPE, SIG_IGN);
 #endif
 
-  // try {
   struct ModificationOperation {
     enum class Type {
       ADD = 0,
@@ -2589,8 +2609,8 @@ int main(int argc, char** argv) {
     int16_t res_id;
     int16_t new_res_id; // Only used for CHANGE_ID
     uint8_t res_flags; // Only used for ADD
-    string res_name; // Only used for ADD and RENAME
-    string filename; // Only used for ADD
+    std::string res_name; // Only used for ADD and RENAME
+    std::string filename; // Only used for ADD
 
     ModificationOperation()
         : op_type(Type::ADD),
@@ -2601,10 +2621,10 @@ int main(int argc, char** argv) {
   };
 
   ResourceExporter exporter;
-  string filename;
-  string out_dir;
-  vector<ModificationOperation> modifications;
-  ResourceFile::Resource single_resource;
+  std::string filename;
+  std::string out_dir;
+  std::vector<ModificationOperation> modifications;
+  ResourceDASM::ResourceFile::Resource single_resource;
   bool decode_pict_file = false;
   bool modify_resource_map = false;
   bool parse_data = false;
@@ -2620,45 +2640,45 @@ int main(int argc, char** argv) {
       } else if (!strncmp(argv[x], "--disassemble-system-ncmp=", 26)) {
         disassemble_system_ncmp_id = strtol(&argv[x][26], nullptr, 0);
       } else if (!strncmp(argv[x], "--describe-system-template=", 27)) {
-        describe_system_template_type = parse_cli_type(&argv[x][27]);
+        describe_system_template_type = ResourceDASM::parse_cli_type(&argv[x][27]);
 
       } else if (!strcmp(argv[x], "--index-format=resource-fork")) {
-        exporter.index_format = IndexFormat::RESOURCE_FORK;
+        exporter.index_format = ResourceDASM::IndexFormat::RESOURCE_FORK;
       } else if (!strcmp(argv[x], "--index-format=directory")) {
-        exporter.index_format = IndexFormat::DIRECTORY;
+        exporter.index_format = ResourceDASM::IndexFormat::DIRECTORY;
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=as/ad")) {
-        exporter.index_format = IndexFormat::APPLESINGLE_APPLEDOUBLE;
+        exporter.index_format = ResourceDASM::IndexFormat::APPLESINGLE_APPLEDOUBLE;
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=macbinary")) {
-        exporter.index_format = IndexFormat::MACBINARY;
+        exporter.index_format = ResourceDASM::IndexFormat::MACBINARY;
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=mohawk")) {
-        exporter.index_format = IndexFormat::MOHAWK;
+        exporter.index_format = ResourceDASM::IndexFormat::MOHAWK;
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=hirf")) {
-        exporter.index_format = IndexFormat::HIRF;
+        exporter.index_format = ResourceDASM::IndexFormat::HIRF;
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=dc-data")) {
-        exporter.index_format = IndexFormat::DC_DATA;
+        exporter.index_format = ResourceDASM::IndexFormat::DC_DATA;
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=cbag")) {
-        exporter.index_format = IndexFormat::CBAG;
+        exporter.index_format = ResourceDASM::IndexFormat::CBAG;
         exporter.use_data_fork = true;
 
       } else if (!strcmp(argv[x], "--decode-pict-file")) {
         decode_pict_file = true;
-        single_resource.type = RESOURCE_TYPE_PICT;
+        single_resource.type = ResourceDASM::RESOURCE_TYPE_PICT;
         single_resource.id = 1;
         single_resource.flags = 0;
         single_resource.name = "";
 
       } else if (!strncmp(argv[x], "--decode-single-resource=", 25)) {
-        auto tokens = split(&argv[x][25], ':');
+        auto tokens = phosg::split(&argv[x][25], ':');
         if (tokens.size() == 0) {
-          throw invalid_argument("--decode-single-resource needs a value");
+          throw std::invalid_argument("--decode-single-resource needs a value");
         }
-        single_resource.type = parse_cli_type(tokens[0].c_str());
+        single_resource.type = ResourceDASM::parse_cli_type(tokens[0].c_str());
         single_resource.id = 1;
         single_resource.flags = 0;
         single_resource.name = "";
@@ -2669,8 +2689,8 @@ int main(int argc, char** argv) {
           single_resource.flags = stoul(tokens[2], nullptr, 0);
         }
         if (tokens.size() > 3) {
-          vector<string> name_tokens(make_move_iterator(tokens.begin() + 3), make_move_iterator(tokens.end()));
-          single_resource.name = join(name_tokens, ":");
+          std::vector<std::string> name_tokens(make_move_iterator(tokens.begin() + 3), make_move_iterator(tokens.end()));
+          single_resource.name = phosg::join(name_tokens, ":");
         }
 
       } else if (!strcmp(argv[x], "--create")) {
@@ -2683,9 +2703,9 @@ int main(int argc, char** argv) {
         size_t type_chars;
         ModificationOperation op;
         op.op_type = ModificationOperation::Type::ADD;
-        op.res_type = parse_cli_type(input, ':', &type_chars);
+        op.res_type = ResourceDASM::parse_cli_type(input, ':', &type_chars);
         if (input[type_chars] != ':') {
-          throw invalid_argument("invalid argument to --add-resource");
+          throw std::invalid_argument("invalid argument to --add-resource");
         }
         input += (type_chars + 1);
         op.res_id = strtol(input, &input, 0);
@@ -2707,19 +2727,19 @@ int main(int argc, char** argv) {
           input += op.filename.size() + 1;
         }
         if (*input) {
-          throw invalid_argument("unparsed data in --add-resource command");
+          throw std::invalid_argument("unparsed data in --add-resource command");
         }
         modifications.emplace_back(std::move(op));
 
       } else if (!strncmp(argv[x], "--delete-resource=", 18)) {
         modify_resource_map = true;
-        auto tokens = split(&argv[x][18], ':');
+        auto tokens = phosg::split(&argv[x][18], ':');
         if (tokens.size() != 2) {
-          throw invalid_argument("--delete-resource argument must be TYPE:ID");
+          throw std::invalid_argument("--delete-resource argument must be TYPE:ID");
         }
         ModificationOperation op;
         op.op_type = ModificationOperation::Type::DELETE;
-        op.res_type = parse_cli_type(tokens[0].c_str());
+        op.res_type = ResourceDASM::parse_cli_type(tokens[0].c_str());
         op.res_id = stol(tokens[1]);
         modifications.emplace_back(std::move(op));
 
@@ -2727,8 +2747,7 @@ int main(int argc, char** argv) {
         // --change-resource-id=TYPE:OLDID:NEWID
         // --rename-resource=TYPE:ID:NAME
         // --rename-resource=TYPE:ID
-        // The implementations should already be correct; we just need the CLI
-        // option parsers here.
+        // The implementations should already be correct; we just need the CLI option parsers here.
 
       } else if (!strcmp(argv[x], "--parse-data")) {
         parse_data = true;
@@ -2736,37 +2755,37 @@ int main(int argc, char** argv) {
       } else if (!strncmp(argv[x], "--copy-handler=", 15)) {
         const char* input = &argv[x][15];
         size_t type_chars;
-        uint32_t from_type = parse_cli_type(input, ':', &type_chars);
+        uint32_t from_type = ResourceDASM::parse_cli_type(input, ':', &type_chars);
         if (input[type_chars] != ':') {
-          throw invalid_argument("invalid argument to --copy-handler");
+          throw std::invalid_argument("invalid argument to --copy-handler");
         }
-        uint32_t to_type = parse_cli_type(&input[type_chars + 1]);
+        uint32_t to_type = ResourceDASM::parse_cli_type(&input[type_chars + 1]);
         exporter.set_decoder_alias(from_type, to_type);
 
       } else if (!strcmp(argv[x], "--skip-external-decoders")) {
         exporter.disable_external_decoders();
 
       } else if (!strncmp(argv[x], "--external-preprocessor=", 24)) {
-        exporter.external_preprocessor_command = split(&argv[x][24], ' ');
+        exporter.external_preprocessor_command = phosg::split(&argv[x][24], ' ');
 
       } else if (!strncmp(argv[x], "--target-type=", 14)) {
-        exporter.target_types_ids.emplace(parse_cli_type(&argv[x][14]), ResourceIDs(ResourceIDs::Init::ALL));
+        exporter.target_types_ids.emplace(ResourceDASM::parse_cli_type(&argv[x][14]), ResourceDASM::ResourceIDs(ResourceDASM::ResourceIDs::Init::ALL));
       } else if (!strncmp(argv[x], "--skip-type=", 12)) {
-        exporter.skip_types_ids.emplace(parse_cli_type(&argv[x][12]), ResourceIDs(ResourceIDs::Init::ALL));
+        exporter.skip_types_ids.emplace(ResourceDASM::parse_cli_type(&argv[x][12]), ResourceDASM::ResourceIDs(ResourceDASM::ResourceIDs::Init::ALL));
 
       } else if (!strncmp(argv[x], "--target-id=", 12)) {
         if (!exporter.target_ids) {
-          exporter.target_ids = ResourceIDs(ResourceIDs::Init::NONE);
+          exporter.target_ids = ResourceDASM::ResourceIDs(ResourceDASM::ResourceIDs::Init::NONE);
         }
         parse_cli_ids(&argv[x][12], *exporter.target_ids);
       } else if (!strncmp(argv[x], "--skip-id=", 10)) {
         if (!exporter.skip_ids) {
-          exporter.skip_ids = ResourceIDs(ResourceIDs::Init::NONE);
+          exporter.skip_ids = ResourceDASM::ResourceIDs(ResourceDASM::ResourceIDs::Init::NONE);
         }
         parse_cli_ids(&argv[x][10], *exporter.skip_ids);
 
       } else if (!strncmp(argv[x], "--target=", 9)) {
-        ResourceIDs ids(ResourceIDs::Init::NONE);
+        ResourceDASM::ResourceIDs ids(ResourceDASM::ResourceIDs::Init::NONE);
         exporter.target_types_ids.emplace(parse_cli_type_ids(&argv[x][9], &ids), ids);
 
       } else if (!strncmp(argv[x], "--target-name=", 14)) {
@@ -2803,9 +2822,9 @@ int main(int argc, char** argv) {
         exporter.filename_format = &argv[x][18];
 
       } else if (!strncmp(argv[x], "--icon-family-format=", 21)) {
-        auto formats = split(&argv[x][21], ',');
+        auto formats = phosg::split(&argv[x][21], ',');
         if (formats.size() == 0) {
-          throw invalid_argument("--icon-family-format needs a value");
+          throw std::invalid_argument("--icon-family-format needs a value");
         }
         exporter.export_icon_family_as_image = false;
         exporter.export_icon_family_as_icns = false;
@@ -2815,7 +2834,7 @@ int main(int argc, char** argv) {
           } else if (format == "icns") {
             exporter.export_icon_family_as_icns = true;
           } else {
-            throw invalid_argument("invalid value for --icon-family-format");
+            throw std::invalid_argument("invalid value for --icon-family-format");
           }
         }
 
@@ -2833,28 +2852,28 @@ int main(int argc, char** argv) {
         exporter.skip_templates = true;
 
       } else if (!strcmp(argv[x], "--skip-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::DISABLED;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::DISABLED;
 
       } else if (!strcmp(argv[x], "--verbose-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::VERBOSE;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::VERBOSE;
       } else if (!strcmp(argv[x], "--trace-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::TRACE_EXECUTION;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::TRACE_EXECUTION;
       } else if (!strcmp(argv[x], "--debug-decompression")) {
-        exporter.decompress_flags |= DecompressionFlag::DEBUG_EXECUTION;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::DEBUG_EXECUTION;
 
       } else if (!strcmp(argv[x], "--skip-file-dcmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_DCMP;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::SKIP_FILE_DCMP;
       } else if (!strcmp(argv[x], "--skip-file-ncmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_FILE_NCMP;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::SKIP_FILE_NCMP;
       } else if (!strcmp(argv[x], "--skip-native-dcmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_NATIVE;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::SKIP_NATIVE;
       } else if (!strcmp(argv[x], "--skip-system-dcmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_DCMP;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::SKIP_SYSTEM_DCMP;
       } else if (!strcmp(argv[x], "--skip-system-ncmp")) {
-        exporter.decompress_flags |= DecompressionFlag::SKIP_SYSTEM_NCMP;
+        exporter.decompress_flags |= ResourceDASM::DecompressionFlag::SKIP_SYSTEM_NCMP;
 
       } else if (!exporter.image_saver.process_cli_arg(argv[x])) {
-        fwrite_fmt(stderr, "invalid option: {}\n", argv[x]);
+        phosg::fwrite_fmt(stderr, "invalid option: {}\n", argv[x]);
         print_usage();
         return 2;
       }
@@ -2871,30 +2890,30 @@ int main(int argc, char** argv) {
   }
 
   if (disassemble_system_dcmp_id != 0x7FFFFFFF) {
-    auto data = get_system_decompressor(false, disassemble_system_dcmp_id);
-    auto decoded = ResourceFile::decode_dcmp(data.first, data.second);
-    string disassembly = disassembly_for_dcmp(decoded);
-    fwritex(stdout, disassembly);
+    auto data = ResourceDASM::get_system_decompressor(false, disassemble_system_dcmp_id);
+    auto decoded = ResourceDASM::ResourceFile::decode_dcmp(data.first, data.second);
+    std::string disassembly = disassembly_for_dcmp(decoded);
+    phosg::fwritex(stdout, disassembly);
     return 0;
   } else if (disassemble_system_ncmp_id != 0x7FFFFFFF) {
-    auto data = get_system_decompressor(true, disassemble_system_ncmp_id);
-    auto pef = ResourceFile::decode_pef(data.first, data.second);
+    auto data = ResourceDASM::get_system_decompressor(true, disassemble_system_ncmp_id);
+    auto pef = ResourceDASM::ResourceFile::decode_pef(data.first, data.second);
     pef.print(stdout);
     return 0;
   } else if (describe_system_template_type != 0) {
-    const auto& tmpl = get_system_template(describe_system_template_type);
+    const auto& tmpl = ResourceDASM::get_system_template(describe_system_template_type);
     if (tmpl.empty()) {
-      fwrite_fmt(stderr, "No system template exists for the given type\n");
+      phosg::fwrite_fmt(stderr, "No system template exists for the given type\n");
       return 1;
     } else {
-      string description = ResourceFile::describe_template(tmpl);
-      fwrite_fmt(stdout, "{}\n", description);
+      std::string description = ResourceDASM::ResourceFile::describe_template(tmpl);
+      phosg::fwrite_fmt(stdout, "{}\n", description);
       return 0;
     }
   }
 
   if (modify_resource_map && modifications.empty() && !create_resource_map) {
-    throw runtime_error("multiple incompatible modes were specified");
+    throw std::runtime_error("multiple incompatible modes were specified");
   }
 
   if (!modify_resource_map) {
@@ -2914,9 +2933,9 @@ int main(int argc, char** argv) {
       exporter.target_compressed_behavior = ResourceExporter::TargetCompressedBehavior::DEFAULT;
       exporter.use_data_fork = false;
 
-      single_resource.data = load_file(filename);
+      single_resource.data = phosg::load_file(filename);
       if (parse_data) {
-        single_resource.data = parse_data_string(single_resource.data);
+        single_resource.data = phosg::parse_data_string(single_resource.data);
       }
       if (decode_pict_file) {
         single_resource.data = single_resource.data.substr(0x200);
@@ -2924,11 +2943,11 @@ int main(int argc, char** argv) {
 
       uint32_t type = single_resource.type;
       int16_t id = single_resource.id;
-      ResourceFile rf;
+      ResourceDASM::ResourceFile rf;
       rf.add(std::move(single_resource));
 
       size_t last_slash_pos = filename.rfind('/');
-      string base_filename = (last_slash_pos == string::npos) ? filename : filename.substr(last_slash_pos + 1);
+      std::string base_filename = (last_slash_pos == std::string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
       const auto& res = rf.get_resource(type, id, exporter.decompress_flags);
       exporter.open_resource_file(std::move(rf));
@@ -2952,9 +2971,9 @@ int main(int argc, char** argv) {
       return 2;
     }
 
-    string input_data;
+    std::string input_data;
     if (!create_resource_map) {
-      string input_filename;
+      std::string input_filename;
       if (exporter.use_data_fork) {
         input_filename = filename;
       } else if (std::filesystem::is_regular_file(filename + RESOURCE_FORK_FILENAME_SUFFIX)) {
@@ -2962,7 +2981,7 @@ int main(int argc, char** argv) {
       } else if (std::filesystem::is_regular_file(filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
         input_filename = filename + RESOURCE_FORK_FILENAME_SHORT_SUFFIX;
       }
-      input_data = load_file(input_filename);
+      input_data = phosg::load_file(input_filename);
 
       if (out_dir.empty()) {
         out_dir = filename + ".out";
@@ -2970,54 +2989,52 @@ int main(int argc, char** argv) {
 
     } else {
       if (!out_dir.empty()) {
-        throw invalid_argument("only an output filename should be given if creating a resource map");
+        throw std::invalid_argument("only an output filename should be given if creating a resource map");
       }
       out_dir = filename;
     }
 
-    fwrite_fmt(stderr, "... (load input) {} bytes\n", input_data.size());
+    phosg::fwrite_fmt(stderr, "... (load input) {} bytes\n", input_data.size());
 
-    ResourceFile rf = parse_resource_fork(input_data);
+    auto rf = ResourceDASM::parse_resource_fork(input_data);
     for (const auto& op : modifications) {
-      string type_str = string_for_resource_type(op.res_type);
+      std::string type_str = ResourceDASM::string_for_resource_type(op.res_type);
       switch (op.op_type) {
         case ModificationOperation::Type::ADD: {
-          ResourceFile::Resource res;
+          ResourceDASM::ResourceFile::Resource res;
           res.type = op.res_type;
           res.id = op.res_id;
           res.flags = op.res_flags;
           res.name = op.res_name;
-          res.data = load_file(op.filename);
+          res.data = phosg::load_file(op.filename);
           size_t data_bytes = res.data.size();
           if (!rf.add(std::move(res))) {
-            throw runtime_error("cannot add resource");
+            throw std::runtime_error("cannot add resource");
           }
-          fwrite_fmt(stderr, "... (add) {}:{} flags={:02X} name=\"{}\" data=\"{}\" ({} bytes) OK\n",
+          phosg::fwrite_fmt(stderr, "... (add) {}:{} flags={:02X} name=\"{}\" data=\"{}\" ({} bytes) OK\n",
               type_str, op.res_id, op.res_flags, op.res_name, op.filename, data_bytes);
           break;
         }
         case ModificationOperation::Type::DELETE:
           if (!rf.remove(op.res_type, op.res_id)) {
-            throw runtime_error("cannot delete resource");
+            throw std::runtime_error("cannot delete resource");
           }
-          fwrite_fmt(stderr, "... (delete) {}:{} OK\n", type_str, op.res_id);
+          phosg::fwrite_fmt(stderr, "... (delete) {}:{} OK\n", type_str, op.res_id);
           break;
         case ModificationOperation::Type::CHANGE_ID:
           if (!rf.change_id(op.res_type, op.res_id, op.new_res_id)) {
-            throw runtime_error("cannot change resource id");
+            throw std::runtime_error("cannot change resource id");
           }
-          fwrite_fmt(stderr, "... (change id) {}:{}=>{} OK\n", type_str,
-              op.res_id, op.new_res_id);
+          phosg::fwrite_fmt(stderr, "... (change id) {}:{}=>{} OK\n", type_str, op.res_id, op.new_res_id);
           break;
         case ModificationOperation::Type::RENAME:
           if (!rf.rename(op.res_type, op.res_id, op.res_name)) {
-            throw runtime_error("cannot rename resource");
+            throw std::runtime_error("cannot rename resource");
           }
-          fwrite_fmt(stderr, "... (rename) {}:{}=>\"{}\" OK\n", type_str,
-              op.res_id, op.res_name);
+          phosg::fwrite_fmt(stderr, "... (rename) {}:{}=>\"{}\" OK\n", type_str, op.res_id, op.res_name);
           break;
         default:
-          throw logic_error("invalid modification operation");
+          throw std::logic_error("invalid modification operation");
       }
     }
 
@@ -3025,23 +3042,18 @@ int main(int argc, char** argv) {
       out_dir += RESOURCE_FORK_FILENAME_SUFFIX;
     }
 
-    string output_data = serialize_resource_fork(rf);
-    fwrite_fmt(stderr, "... (serialize output) {} bytes\n", output_data.size());
+    std::string output_data = serialize_resource_fork(rf);
+    phosg::fwrite_fmt(stderr, "... (serialize output) {} bytes\n", output_data.size());
 
-    // Attempting to open the resource fork of a nonexistent file will fail
-    // without creating the file, so if we're writing to a resource fork, we
-    // touch the file first to make sure it will exist when we write the output.
+    // Attempting to open the resource fork of a nonexistent file will fail without creating the file, so if we're
+    // writing to a resource fork, we touch the file first to make sure it will exist when we write the output.
     if (out_dir.ends_with(RESOURCE_FORK_FILENAME_SUFFIX)) {
-      fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SUFFIX.size()), "a+");
+      phosg::fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SUFFIX.size()), "a+");
     } else if (out_dir.ends_with(RESOURCE_FORK_FILENAME_SHORT_SUFFIX)) {
-      fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SHORT_SUFFIX.size()), "a+");
+      phosg::fopen_unique(out_dir.substr(0, out_dir.size() - RESOURCE_FORK_FILENAME_SHORT_SUFFIX.size()), "a+");
     }
-    save_file(out_dir, output_data);
+    phosg::save_file(out_dir, output_data);
 
     return 0;
   }
-  // } catch (const exception& e) {
-  //   fwrite_fmt(stderr, "Error: {}\n", e.what());
-  //   return 1;
-  // }
 }

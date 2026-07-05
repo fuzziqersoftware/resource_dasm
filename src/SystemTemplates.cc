@@ -10,9 +10,6 @@
 #include "Lookups.hh"
 #include "ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 using Entry = ResourceFile::TemplateEntry;
@@ -20,7 +17,7 @@ using EntryList = ResourceFile::TemplateEntryList;
 using Type = Entry::Type;
 using Format = Entry::Format;
 
-static const map<int64_t, string> AUTO_POSITION_NAMES = {
+static const std::map<int64_t, std::string> AUTO_POSITION_NAMES = {
     {0x0000, "no auto-center"},
     {0x280A, "center on main screen"},
     {0x300A, "use alert position on main screen"},
@@ -32,7 +29,7 @@ static const map<int64_t, string> AUTO_POSITION_NAMES = {
     {0x700A, "use alert position on parent window's screen"},
     {0x780A, "stagger on parent window's screen"}};
 
-static const map<int64_t, string> MACAPP_MENU_CMDS = {
+static const std::map<int64_t, std::string> MACAPP_MENU_CMDS = {
     {0, "No command"},
     {1, "About App"},
     {10, "New"},
@@ -95,150 +92,150 @@ static const map<int64_t, string> MACAPP_MENU_CMDS = {
     {921, "Switch System Justification"},
 };
 
-static const map<int64_t, string> MACAPP_MENU_KEYS = {
+static const std::map<int64_t, std::string> MACAPP_MENU_KEYS = {
     {0x00, "No key"},
     {0x1B, "Hierachical menu"},
 };
 
-static const map<int64_t, string> MACAPP_MENU_MARKS = {
+static const std::map<int64_t, std::string> MACAPP_MENU_MARKS = {
     {0x00, "No mark"},
     {0x12, "Checkmark"},
 };
 
 template <size_t N>
-static EntryList t_entry_list(unique_ptr<Entry> (&&entries)[N]) {
-  return vector(move_iterator(entries), move_iterator(entries + N));
+static EntryList t_entry_list(std::unique_ptr<Entry> (&&entries)[N]) {
+  return std::vector(std::move_iterator(entries), std::move_iterator(entries + N));
 }
 
-static unique_ptr<Entry> t_bool(const char* name, map<int64_t, string> case_names = {}) {
-  return make_unique<Entry>(name, Type::BOOL, Format::FLAG, /*width*/ 2,
+static std::unique_ptr<Entry> t_bool(const char* name, std::map<int64_t, std::string> case_names = {}) {
+  return std::make_unique<Entry>(name, Type::BOOL, Format::FLAG, /*width*/ 2,
       /*end_alignment*/ 0, /*align_offset*/ 0, /*is_signed*/ false, std::move(case_names));
 }
 
-static unique_ptr<Entry> t_byte(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 1, 0, 0, is_signed, std::move(case_names));
+static std::unique_ptr<Entry> t_byte(const char* name, bool is_signed = true, std::map<int64_t, std::string> case_names = {}) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 1, 0, 0, is_signed, std::move(case_names));
 }
 
-static unique_ptr<Entry> t_byte_hex(const char* name, bool is_signed = false, map<int64_t, string> case_names = {}) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::HEX, 1, 0, 0, is_signed, std::move(case_names));
+static std::unique_ptr<Entry> t_byte_hex(const char* name, bool is_signed = false, std::map<int64_t, std::string> case_names = {}) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::HEX, 1, 0, 0, is_signed, std::move(case_names));
 }
 
-static unique_ptr<Entry> t_char(const char* name, map<int64_t, string> case_names = {}) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::TEXT, 1, 0, 0, false, std::move(case_names));
+static std::unique_ptr<Entry> t_char(const char* name, std::map<int64_t, std::string> case_names = {}) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::TEXT, 1, 0, 0, false, std::move(case_names));
 }
 
-static unique_ptr<Entry> t_word(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 2, 0, 0, is_signed, std::move(case_names));
+static std::unique_ptr<Entry> t_word(const char* name, bool is_signed = true, std::map<int64_t, std::string> case_names = {}) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 2, 0, 0, is_signed, std::move(case_names));
 }
 
-static unique_ptr<Entry> t_word_hex(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::HEX, 2, 0, 0, is_signed, std::move(case_names));
+static std::unique_ptr<Entry> t_word_hex(const char* name, bool is_signed = true, std::map<int64_t, std::string> case_names = {}) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::HEX, 2, 0, 0, is_signed, std::move(case_names));
 }
 
-static unique_ptr<Entry> t_long(const char* name, bool is_signed = true, map<int64_t, string> case_names = {}) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 4, 0, 0, is_signed, std::move(case_names));
+static std::unique_ptr<Entry> t_long(const char* name, bool is_signed = true, std::map<int64_t, std::string> case_names = {}) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::DECIMAL, 4, 0, 0, is_signed, std::move(case_names));
 }
 
-static unique_ptr<Entry> t_long_hex(const char* name, bool is_signed = false, map<int64_t, string> case_names = {}) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::HEX, 4, 0, 0, is_signed, std::move(case_names));
+static std::unique_ptr<Entry> t_long_hex(const char* name, bool is_signed = false, std::map<int64_t, std::string> case_names = {}) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::HEX, 4, 0, 0, is_signed, std::move(case_names));
 }
 
-static unique_ptr<Entry> t_date(const char* name) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::DATE, 4, 0, 0, false);
+static std::unique_ptr<Entry> t_date(const char* name) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::DATE, 4, 0, 0, false);
 }
 
-static unique_ptr<Entry> t_ostype(const char* name) {
-  return make_unique<Entry>(name, Type::INTEGER, Format::TEXT, 4, 0, 0, false);
+static std::unique_ptr<Entry> t_ostype(const char* name) {
+  return std::make_unique<Entry>(name, Type::INTEGER, Format::TEXT, 4, 0, 0, false);
 }
 
-static unique_ptr<Entry> t_zero(const char* name, uint8_t width) {
-  return make_unique<Entry>(name, Type::ZERO_FILL, Format::HEX, width, 0, 0, false);
+static std::unique_ptr<Entry> t_zero(const char* name, uint8_t width) {
+  return std::make_unique<Entry>(name, Type::ZERO_FILL, Format::HEX, width, 0, 0, false);
 }
 
-static unique_ptr<Entry> t_align(uint8_t end_alignment) {
-  return make_unique<Entry>("", Type::ALIGNMENT, Format::FLAG, 0, end_alignment, 0);
+static std::unique_ptr<Entry> t_align(uint8_t end_alignment) {
+  return std::make_unique<Entry>("", Type::ALIGNMENT, Format::FLAG, 0, end_alignment, 0);
 }
 
-static unique_ptr<Entry> t_string(const char* name, uint8_t width, bool word_align = false, bool odd_offset = false) {
-  return make_unique<Entry>(name, Type::STRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0);
+static std::unique_ptr<Entry> t_string(const char* name, uint8_t width, bool word_align = false, bool odd_offset = false) {
+  return std::make_unique<Entry>(name, Type::STRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0);
 }
 
-static unique_ptr<Entry> t_pstring(const char* name, bool word_align = false, bool odd_offset = false) {
-  return make_unique<Entry>(name, Type::PSTRING, Format::TEXT, 1, word_align ? 2 : 0, odd_offset ? 1 : 0);
+static std::unique_ptr<Entry> t_pstring(const char* name, bool word_align = false, bool odd_offset = false) {
+  return std::make_unique<Entry>(name, Type::PSTRING, Format::TEXT, 1, word_align ? 2 : 0, odd_offset ? 1 : 0);
 }
 
-static unique_ptr<Entry> t_pstring_2(const char* name, bool word_align = false, bool odd_offset = false) {
-  return make_unique<Entry>(name, Type::PSTRING, Format::TEXT, 2, word_align ? 2 : 0, odd_offset ? 1 : 0);
+static std::unique_ptr<Entry> t_pstring_2(const char* name, bool word_align = false, bool odd_offset = false) {
+  return std::make_unique<Entry>(name, Type::PSTRING, Format::TEXT, 2, word_align ? 2 : 0, odd_offset ? 1 : 0);
 }
 
-static unique_ptr<Entry> t_pstring_fixed(const char* name, uint8_t width, bool word_align = false, bool odd_offset = false) {
-  return make_unique<Entry>(name, Type::FIXED_PSTRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0);
+static std::unique_ptr<Entry> t_pstring_fixed(const char* name, uint8_t width, bool word_align = false, bool odd_offset = false) {
+  return std::make_unique<Entry>(name, Type::FIXED_PSTRING, Format::TEXT, width, word_align ? 2 : 0, odd_offset ? 1 : 0);
 }
 
-static unique_ptr<Entry> t_rect(const char* name) {
-  return make_unique<Entry>(name, Type::RECT, Format::DECIMAL, 2);
+static std::unique_ptr<Entry> t_rect(const char* name) {
+  return std::make_unique<Entry>(name, Type::RECT, Format::DECIMAL, 2);
 }
 
-static unique_ptr<Entry> t_color_3words(const char* name) {
-  return make_unique<Entry>(name, Type::COLOR, Format::HEX, 2);
-}
-
-template <size_t N>
-static unique_ptr<Entry> t_bitfield(unique_ptr<Entry> (&&entries)[N]) {
-  return make_unique<Entry>("", Type::BITFIELD, t_entry_list(std::move(entries)));
-}
-
-static unique_ptr<Entry> t_data_hex(const char* name, size_t size) {
-  return make_unique<Entry>(name, Type::STRING, Format::HEX, size, 0, 0, false);
-}
-
-static unique_ptr<Entry> t_data_eof_hex(const char* name) {
-  return make_unique<Entry>(name, Type::EOF_STRING, Format::HEX, 0, 0, 0, false);
+static std::unique_ptr<Entry> t_color_3words(const char* name) {
+  return std::make_unique<Entry>(name, Type::COLOR, Format::HEX, 2);
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_list_eof(const char* name, unique_ptr<Entry> (&&entries)[N]) {
-  return make_unique<Entry>(name, Type::LIST_EOF, t_entry_list(std::move(entries)));
+static std::unique_ptr<Entry> t_bitfield(std::unique_ptr<Entry> (&&entries)[N]) {
+  return std::make_unique<Entry>("", Type::BITFIELD, t_entry_list(std::move(entries)));
+}
+
+static std::unique_ptr<Entry> t_data_hex(const char* name, size_t size) {
+  return std::make_unique<Entry>(name, Type::STRING, Format::HEX, size, 0, 0, false);
+}
+
+static std::unique_ptr<Entry> t_data_eof_hex(const char* name) {
+  return std::make_unique<Entry>(name, Type::EOF_STRING, Format::HEX, 0, 0, 0, false);
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_list_zero_byte(const char* name, unique_ptr<Entry> (&&entries)[N]) {
-  return make_unique<Entry>(name, Type::LIST_ZERO_BYTE, t_entry_list(std::move(entries)));
+static std::unique_ptr<Entry> t_list_eof(const char* name, std::unique_ptr<Entry> (&&entries)[N]) {
+  return std::make_unique<Entry>(name, Type::LIST_EOF, t_entry_list(std::move(entries)));
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_list_zero_count(const char* name, unique_ptr<Entry> (&&entries)[N]) {
+static std::unique_ptr<Entry> t_list_zero_byte(const char* name, std::unique_ptr<Entry> (&&entries)[N]) {
+  return std::make_unique<Entry>(name, Type::LIST_ZERO_BYTE, t_entry_list(std::move(entries)));
+}
+
+template <size_t N>
+static std::unique_ptr<Entry> t_list_zero_count(const char* name, std::unique_ptr<Entry> (&&entries)[N]) {
   // list count is a word
-  return make_unique<Entry>(name, Type::LIST_ZERO_COUNT, t_entry_list(std::move(entries)));
+  return std::make_unique<Entry>(name, Type::LIST_ZERO_COUNT, t_entry_list(std::move(entries)));
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_list_one_count(const char* name, unique_ptr<Entry> (&&entries)[N]) {
+static std::unique_ptr<Entry> t_list_one_count(const char* name, std::unique_ptr<Entry> (&&entries)[N]) {
   // list count is a word
-  return make_unique<Entry>(name, Type::LIST_ONE_COUNT, t_entry_list(std::move(entries)));
+  return std::make_unique<Entry>(name, Type::LIST_ONE_COUNT, t_entry_list(std::move(entries)));
 }
 
 template <size_t N>
-static unique_ptr<Entry> t_opt_eof(unique_ptr<Entry> (&&entries)[N]) {
-  return make_unique<Entry>("", Type::OPT_EOF, t_entry_list(std::move(entries)));
+static std::unique_ptr<Entry> t_opt_eof(std::unique_ptr<Entry> (&&entries)[N]) {
+  return std::make_unique<Entry>("", Type::OPT_EOF, t_entry_list(std::move(entries)));
 }
 
-static unique_ptr<Entry> t_dvdr(const char* comment) {
-  return make_unique<Entry>(comment, Type::VOID, Format::DECIMAL, 0, 0, 0);
+static std::unique_ptr<Entry> t_dvdr(const char* comment) {
+  return std::make_unique<Entry>(comment, Type::VOID, Format::DECIMAL, 0, 0, 0);
 }
 
 template <size_t N>
-static pair<uint32_t, EntryList> tmpl(uint32_t type, unique_ptr<Entry> (&&entries)[N]) {
+static std::pair<uint32_t, EntryList> tmpl(uint32_t type, std::unique_ptr<Entry> (&&entries)[N]) {
   return {type, t_entry_list(std::move(entries))};
 }
 
 template <size_t N>
-static unordered_map<uint32_t, ResourceFile::TemplateEntryList> tmpls(pair<uint32_t, EntryList> (&&entries)[N]) {
-  return {move_iterator(entries), move_iterator(entries + N)};
+static std::unordered_map<uint32_t, ResourceFile::TemplateEntryList> tmpls(std::pair<uint32_t, EntryList> (&&entries)[N]) {
+  return {std::move_iterator(entries), std::move_iterator(entries + N)};
 }
 
 // clang-format off
-static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_templates = tmpls({
+static const std::unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_templates = tmpls({
   tmpl(RESOURCE_TYPE_acur, {
     t_word("Number of frames (cursors)", false),
     t_word("Used frame counter", false),
@@ -249,8 +246,8 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   }),
   tmpl(RESOURCE_TYPE_ALIS, { // Beatnik ALIS; not the same as Mac OS alis
     t_long("Version", false),
-    // TODO: The list count appears to actually be a long here; support this
-    // natively instead of assuming the upper 2 bytes are zeroes
+    // TODO: The list count appears to actually be a long here; support this natively instead of assuming the upper 2
+    // bytes are zeroes
     t_zero("", 2),
     t_list_one_count("Aliases", {
       t_long("Alias from", false),
@@ -380,8 +377,7 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_dvdr("prevent e.g. security INITs from loading"),
     t_word("Dummy"),
   }),
-  // TODO: Info is non-text for several item types; we should make a real
-  // renderer or something
+  // TODO: Info is non-text for several item types; we should make a real renderer or something
   tmpl(RESOURCE_TYPE_DITL, {
     t_list_zero_count("Items", {
       t_zero("", 4),
@@ -413,9 +409,8 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
   }),
   tmpl(RESOURCE_TYPE_FBTN, {
     t_list_one_count("Buttons", {
-      // TODO: The presence of an icon here merits an actual decoder (e.g.
-      // decode_FBTN); unfortunately, I don't have any example resources to test
-      // such a decoder on, so I haven't written it yet.
+      // TODO: The presence of an icon here merits an actual decoder (e.g. decode_FBTN); unfortunately, I don't have
+      // any example resources to test such a decoder on, so I haven't written it yet.
       t_data_hex("Icon", 128),
       t_ostype("Type"),
       t_pstring("Application", true),
@@ -431,8 +426,8 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_list_eof("Folders", {
       t_ostype("Folder type"),
       t_zero("Version", 2),
-      // TODO: This kind of implies that the pstring should be a wstring
-      // instead, but the TMPL explicitly has a t_zero before it. Fix this?
+      // TODO: This kind of implies that the pstring should be a wstring instead, but the TMPL explicitly has a t_zero
+      // before it. Fix this?
       t_zero("Length (high byte)", 1),
       t_pstring("Folder name", true, true),
     }),
@@ -580,8 +575,8 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
       t_word("Package ID"),
     }),
   }),
-  // Note: There is a TMPL for 'infa' in ResEdit, but it appears to be incorrect
-  // or outdated because it doesn't match any example resources I could find.
+  // Note: There is a TMPL for 'infa' in ResEdit, but it appears to be incorrect or outdated because it doesn't match
+  // any example resources I could find.
   tmpl(RESOURCE_TYPE_infs, {
     t_ostype("File type"),
     t_ostype("File creator"),
@@ -947,8 +942,8 @@ static const unordered_map<uint32_t, ResourceFile::TemplateEntryList> system_tem
     t_ostype("LDEF type"),
     t_pstring("Option string"),
   }),
-  // Note: There is a TMPL for 'POST' in ResEdit, but it appears to be incorrect
-  // or outdated because it doesn't match any example resources I could find.
+  // Note: There is a TMPL for 'POST' in ResEdit, but it appears to be incorrect or outdated because it doesn't match
+  // any example resources I could find.
   tmpl(RESOURCE_TYPE_ppcc, {
     t_dvdr("(PPC = program-to-program communication, not PowerPC)"),
     t_byte("NBP lookup interval"),
@@ -1212,7 +1207,7 @@ static const ResourceFile::TemplateEntryList empty_template;
 const ResourceFile::TemplateEntryList& get_system_template(uint32_t type) {
   try {
     return system_templates.at(type);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return empty_template;
   }
 }

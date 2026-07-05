@@ -21,8 +21,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 class X86Emulator : public EmulatorBase {
 public:
   static constexpr bool is_little_endian = true;
@@ -65,10 +63,10 @@ public:
   class Regs {
   public:
     union IntReg {
-      le_uint32_t u;
-      le_int32_t s;
-      le_uint16_t u16;
-      le_int16_t s16;
+      phosg::le_uint32_t u;
+      phosg::le_int32_t s;
+      phosg::le_uint16_t u16;
+      phosg::le_int16_t s16;
       struct U8Fields {
         uint8_t l;
         uint8_t h;
@@ -82,18 +80,18 @@ public:
     } __attribute__((packed));
 
     union XMMReg {
-      // Because these are little-endian, the highest value is in the last entry;
-      // that is, u64[1] is the high half, and u8[15] is the highest byte.
+      // Because these are little-endian, the highest value is in the last entry; that is, u64[1] is the high half, and
+      // u8[15] is the highest byte.
       uint8_t u8[16];
-      le_uint16_t u16[8];
-      le_uint32_t u32[4];
-      le_uint64_t u64[2];
+      phosg::le_uint16_t u16[8];
+      phosg::le_uint32_t u32[4];
+      phosg::le_uint64_t u64[2];
       int8_t s8[16];
-      le_int16_t s16[8];
-      le_int32_t s32[4];
-      le_int64_t s64[2];
-      le_float f32[4];
-      le_double f64[2];
+      phosg::le_int16_t s16[8];
+      phosg::le_int32_t s32[4];
+      phosg::le_int64_t s64[2];
+      phosg::le_float f32[4];
+      phosg::le_double f64[2];
 
       XMMReg();
       XMMReg(uint32_t v);
@@ -112,23 +110,20 @@ public:
       template <typename T>
       T* as() {
         static_assert(sizeof(T) <= sizeof(XMMReg), "partition type is too large");
-        static_assert((sizeof(XMMReg) % sizeof(T)) == 0,
-            "partition type does not evenly divide xmm reg data");
+        static_assert((sizeof(XMMReg) % sizeof(T)) == 0, "partition type does not evenly divide xmm reg data");
         return reinterpret_cast<T*>(&this->u8[0]);
       }
 
       template <typename T>
       const T& lowest() const {
         static_assert(sizeof(T) <= sizeof(XMMReg), "partition type is too large");
-        static_assert((sizeof(XMMReg) % sizeof(T)) == 0,
-            "partition type does not evenly divide xmm reg data");
+        static_assert((sizeof(XMMReg) % sizeof(T)) == 0, "partition type does not evenly divide xmm reg data");
         return *reinterpret_cast<const T*>(&this->u8[0]);
       }
       template <typename T>
       const T& highest() const {
         static_assert(sizeof(T) <= sizeof(XMMReg), "partition type is too large");
-        static_assert((sizeof(XMMReg) % sizeof(T)) == 0,
-            "partition type does not evenly divide xmm reg data");
+        static_assert((sizeof(XMMReg) % sizeof(T)) == 0, "partition type does not evenly divide xmm reg data");
         const T* data = reinterpret_cast<const T*>(&this->u8[0]);
         return data[(sizeof(XMMReg) / sizeof(T)) - 1];
       }
@@ -159,17 +154,17 @@ public:
     inline const IntReg& edi() const { return this->regs[7]; }
 
     uint8_t& reg8(uint8_t which);
-    le_uint16_t& reg16(uint8_t which);
-    le_uint32_t& reg32(uint8_t which);
+    phosg::le_uint16_t& reg16(uint8_t which);
+    phosg::le_uint32_t& reg32(uint8_t which);
     const uint8_t& reg8(uint8_t which) const;
-    const le_uint16_t& reg16(uint8_t which) const;
-    const le_uint32_t& reg32(uint8_t which) const;
+    const phosg::le_uint16_t& reg16(uint8_t which) const;
+    const phosg::le_uint32_t& reg32(uint8_t which) const;
 
-    le_uint32_t& xmm32(uint8_t which);
-    le_uint64_t& xmm64(uint8_t which);
+    phosg::le_uint32_t& xmm32(uint8_t which);
+    phosg::le_uint64_t& xmm64(uint8_t which);
     XMMReg& xmm128(uint8_t which);
-    const le_uint32_t& xmm32(uint8_t which) const;
-    const le_uint64_t& xmm64(uint8_t which) const;
+    const phosg::le_uint32_t& xmm32(uint8_t which) const;
+    const phosg::le_uint64_t& xmm64(uint8_t which) const;
     const XMMReg& xmm128(uint8_t which) const;
 
     uint32_t read(uint8_t which, uint8_t size) const;
@@ -177,11 +172,11 @@ public:
 
     template <typename T>
     T read(uint8_t which) const {
-      if (bits_for_type<T> == 8) {
+      if constexpr (phosg::bits_for_type<T> == 8) {
         return this->reg8(which);
-      } else if (bits_for_type<T> == 16) {
+      } else if constexpr (phosg::bits_for_type<T> == 16) {
         return this->reg16(which).load();
-      } else if (bits_for_type<T> == 32) {
+      } else if constexpr (phosg::bits_for_type<T> == 32) {
         return this->reg32(which).load();
       } else {
         throw std::logic_error("invalid register size");
@@ -189,11 +184,11 @@ public:
     }
     template <typename T>
     T read_xmm(uint8_t which) const {
-      if (bits_for_type<T> == 32) {
+      if constexpr (phosg::bits_for_type<T> == 32) {
         return this->xmm32(which).load();
-      } else if (bits_for_type<T> == 64) {
+      } else if constexpr (phosg::bits_for_type<T> == 64) {
         return this->xmm64(which).load();
-      } else if (bits_for_type<T> == 128) {
+      } else if constexpr (phosg::bits_for_type<T> == 128) {
         return this->xmm128(which).lowest<T>();
       } else {
         throw std::logic_error("invalid register size");
@@ -201,11 +196,11 @@ public:
     }
     template <typename T>
     void write(uint8_t which, T value) {
-      if (bits_for_type<T> == 8) {
+      if constexpr (phosg::bits_for_type<T> == 8) {
         this->reg8(which) = value;
-      } else if (bits_for_type<T> == 16) {
+      } else if constexpr (phosg::bits_for_type<T> == 16) {
         this->reg16(which).store(value);
-      } else if (bits_for_type<T> == 32) {
+      } else if constexpr (phosg::bits_for_type<T> == 32) {
         this->reg32(which).store(value);
       } else {
         throw std::logic_error("invalid register size");
@@ -213,11 +208,11 @@ public:
     }
     template <typename T>
     void write_xmm(uint8_t which, T value) {
-      if (bits_for_type<T> == 32) {
+      if constexpr (phosg::bits_for_type<T> == 32) {
         this->xmm32(which).store(value);
-      } else if (bits_for_type<T> == 64) {
+      } else if constexpr (phosg::bits_for_type<T> == 64) {
         this->xmm64(which).store(value);
-      } else if (bits_for_type<T> == 128) {
+      } else if constexpr (phosg::bits_for_type<T> == 128) {
         this->xmm128(which) = value;
       } else {
         throw std::logic_error("invalid register size");
@@ -225,16 +220,16 @@ public:
     }
 
     inline uint8_t read8(uint8_t which) const { return this->read<uint8_t>(which); }
-    inline uint16_t read16(uint8_t which) const { return this->read<le_uint16_t>(which); }
-    inline uint32_t read32(uint8_t which) const { return this->read<le_uint32_t>(which); }
-    inline uint32_t read_xmm32(uint8_t which) const { return this->read_xmm<le_uint32_t>(which); }
-    inline uint64_t read_xmm64(uint8_t which) const { return this->read_xmm<le_uint64_t>(which); }
+    inline uint16_t read16(uint8_t which) const { return this->read<phosg::le_uint16_t>(which); }
+    inline uint32_t read32(uint8_t which) const { return this->read<phosg::le_uint32_t>(which); }
+    inline uint32_t read_xmm32(uint8_t which) const { return this->read_xmm<phosg::le_uint32_t>(which); }
+    inline uint64_t read_xmm64(uint8_t which) const { return this->read_xmm<phosg::le_uint64_t>(which); }
     inline XMMReg read_xmm128(uint8_t which) const { return this->read_xmm<XMMReg>(which); }
     inline void write8(uint8_t which, uint8_t v) { this->write<uint8_t>(which, v); }
-    inline void write16(uint8_t which, le_uint16_t v) { this->write<le_uint16_t>(which, v); }
-    inline void write32(uint8_t which, le_uint32_t v) { this->write<le_uint32_t>(which, v); }
-    inline void write_xmm32(uint8_t which, uint32_t v) { this->write_xmm<le_uint32_t>(which, v); }
-    inline void write_xmm64(uint8_t which, uint64_t v) { this->write_xmm<le_uint64_t>(which, v); }
+    inline void write16(uint8_t which, phosg::le_uint16_t v) { this->write<phosg::le_uint16_t>(which, v); }
+    inline void write32(uint8_t which, phosg::le_uint32_t v) { this->write<phosg::le_uint32_t>(which, v); }
+    inline void write_xmm32(uint8_t which, uint32_t v) { this->write_xmm<phosg::le_uint32_t>(which, v); }
+    inline void write_xmm64(uint8_t which, uint64_t v) { this->write_xmm<phosg::le_uint64_t>(which, v); }
     inline void write_xmm128(uint8_t which, const XMMReg& v) { this->write_xmm<XMMReg>(which, v); }
 
     inline uint8_t r_al() const { return this->read<uint8_t>(0); }
@@ -245,22 +240,22 @@ public:
     inline uint8_t r_ch() const { return this->read<uint8_t>(5); }
     inline uint8_t r_dh() const { return this->read<uint8_t>(6); }
     inline uint8_t r_bh() const { return this->read<uint8_t>(7); }
-    inline uint16_t r_ax() const { return this->read<le_uint16_t>(0); }
-    inline uint16_t r_cx() const { return this->read<le_uint16_t>(1); }
-    inline uint16_t r_dx() const { return this->read<le_uint16_t>(2); }
-    inline uint16_t r_bx() const { return this->read<le_uint16_t>(3); }
-    inline uint16_t r_sp() const { return this->read<le_uint16_t>(4); }
-    inline uint16_t r_bp() const { return this->read<le_uint16_t>(5); }
-    inline uint16_t r_si() const { return this->read<le_uint16_t>(6); }
-    inline uint16_t r_di() const { return this->read<le_uint16_t>(7); }
-    inline uint32_t r_eax() const { return this->read<le_uint32_t>(0); }
-    inline uint32_t r_ecx() const { return this->read<le_uint32_t>(1); }
-    inline uint32_t r_edx() const { return this->read<le_uint32_t>(2); }
-    inline uint32_t r_ebx() const { return this->read<le_uint32_t>(3); }
-    inline uint32_t r_esp() const { return this->read<le_uint32_t>(4); }
-    inline uint32_t r_ebp() const { return this->read<le_uint32_t>(5); }
-    inline uint32_t r_esi() const { return this->read<le_uint32_t>(6); }
-    inline uint32_t r_edi() const { return this->read<le_uint32_t>(7); }
+    inline uint16_t r_ax() const { return this->read<phosg::le_uint16_t>(0); }
+    inline uint16_t r_cx() const { return this->read<phosg::le_uint16_t>(1); }
+    inline uint16_t r_dx() const { return this->read<phosg::le_uint16_t>(2); }
+    inline uint16_t r_bx() const { return this->read<phosg::le_uint16_t>(3); }
+    inline uint16_t r_sp() const { return this->read<phosg::le_uint16_t>(4); }
+    inline uint16_t r_bp() const { return this->read<phosg::le_uint16_t>(5); }
+    inline uint16_t r_si() const { return this->read<phosg::le_uint16_t>(6); }
+    inline uint16_t r_di() const { return this->read<phosg::le_uint16_t>(7); }
+    inline uint32_t r_eax() const { return this->read<phosg::le_uint32_t>(0); }
+    inline uint32_t r_ecx() const { return this->read<phosg::le_uint32_t>(1); }
+    inline uint32_t r_edx() const { return this->read<phosg::le_uint32_t>(2); }
+    inline uint32_t r_ebx() const { return this->read<phosg::le_uint32_t>(3); }
+    inline uint32_t r_esp() const { return this->read<phosg::le_uint32_t>(4); }
+    inline uint32_t r_ebp() const { return this->read<phosg::le_uint32_t>(5); }
+    inline uint32_t r_esi() const { return this->read<phosg::le_uint32_t>(6); }
+    inline uint32_t r_edi() const { return this->read<phosg::le_uint32_t>(7); }
 
     inline void w_al(uint8_t v) { this->write<uint8_t>(0, v); }
     inline void w_cl(uint8_t v) { this->write<uint8_t>(1, v); }
@@ -270,22 +265,22 @@ public:
     inline void w_ch(uint8_t v) { this->write<uint8_t>(5, v); }
     inline void w_dh(uint8_t v) { this->write<uint8_t>(6, v); }
     inline void w_bh(uint8_t v) { this->write<uint8_t>(7, v); }
-    inline void w_ax(uint16_t v) { this->write<le_uint16_t>(0, v); }
-    inline void w_cx(uint16_t v) { this->write<le_uint16_t>(1, v); }
-    inline void w_dx(uint16_t v) { this->write<le_uint16_t>(2, v); }
-    inline void w_bx(uint16_t v) { this->write<le_uint16_t>(3, v); }
-    inline void w_sp(uint16_t v) { this->write<le_uint16_t>(4, v); }
-    inline void w_bp(uint16_t v) { this->write<le_uint16_t>(5, v); }
-    inline void w_si(uint16_t v) { this->write<le_uint16_t>(6, v); }
-    inline void w_di(uint16_t v) { this->write<le_uint16_t>(7, v); }
-    inline void w_eax(uint32_t v) { this->write<le_uint32_t>(0, v); }
-    inline void w_ecx(uint32_t v) { this->write<le_uint32_t>(1, v); }
-    inline void w_edx(uint32_t v) { this->write<le_uint32_t>(2, v); }
-    inline void w_ebx(uint32_t v) { this->write<le_uint32_t>(3, v); }
-    inline void w_esp(uint32_t v) { this->write<le_uint32_t>(4, v); }
-    inline void w_ebp(uint32_t v) { this->write<le_uint32_t>(5, v); }
-    inline void w_esi(uint32_t v) { this->write<le_uint32_t>(6, v); }
-    inline void w_edi(uint32_t v) { this->write<le_uint32_t>(7, v); }
+    inline void w_ax(uint16_t v) { this->write<phosg::le_uint16_t>(0, v); }
+    inline void w_cx(uint16_t v) { this->write<phosg::le_uint16_t>(1, v); }
+    inline void w_dx(uint16_t v) { this->write<phosg::le_uint16_t>(2, v); }
+    inline void w_bx(uint16_t v) { this->write<phosg::le_uint16_t>(3, v); }
+    inline void w_sp(uint16_t v) { this->write<phosg::le_uint16_t>(4, v); }
+    inline void w_bp(uint16_t v) { this->write<phosg::le_uint16_t>(5, v); }
+    inline void w_si(uint16_t v) { this->write<phosg::le_uint16_t>(6, v); }
+    inline void w_di(uint16_t v) { this->write<phosg::le_uint16_t>(7, v); }
+    inline void w_eax(uint32_t v) { this->write<phosg::le_uint32_t>(0, v); }
+    inline void w_ecx(uint32_t v) { this->write<phosg::le_uint32_t>(1, v); }
+    inline void w_edx(uint32_t v) { this->write<phosg::le_uint32_t>(2, v); }
+    inline void w_ebx(uint32_t v) { this->write<phosg::le_uint32_t>(3, v); }
+    inline void w_esp(uint32_t v) { this->write<phosg::le_uint32_t>(4, v); }
+    inline void w_ebp(uint32_t v) { this->write<phosg::le_uint32_t>(5, v); }
+    inline void w_esi(uint32_t v) { this->write<phosg::le_uint32_t>(6, v); }
+    inline void w_edi(uint32_t v) { this->write<phosg::le_uint32_t>(7, v); }
 
     inline uint32_t read_eflags() const {
       return this->eflags;
@@ -319,17 +314,23 @@ public:
     static std::string flags_str(uint32_t eflags);
     std::string flags_str() const;
 
-    template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+    template <typename T>
+      requires(std::is_unsigned_v<T>)
     void set_flags_integer_result(T res, uint32_t apply_mask = Regs::default_int_flags);
-    template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+    template <typename T>
+      requires(std::is_unsigned_v<T>)
     void set_flags_bitwise_result(T res, uint32_t apply_mask = Regs::default_int_flags);
-    template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+    template <typename T>
+      requires(std::is_unsigned_v<T>)
     T set_flags_integer_add(T a, T b, uint32_t apply_mask = Regs::default_int_flags);
-    template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+    template <typename T>
+      requires(std::is_unsigned_v<T>)
     T set_flags_integer_add_with_carry(T a, T b, uint32_t apply_mask = Regs::default_int_flags);
-    template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+    template <typename T>
+      requires(std::is_unsigned_v<T>)
     T set_flags_integer_subtract(T a, T b, uint32_t apply_mask = Regs::default_int_flags);
-    template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+    template <typename T>
+      requires(std::is_unsigned_v<T>)
     T set_flags_integer_subtract_with_borrow(T a, T b, uint32_t apply_mask = Regs::default_int_flags);
 
     bool check_condition(uint8_t cc);
@@ -369,26 +370,23 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
-  static AssembleResult assemble(const std::string& text,
-      std::function<std::string(const std::string&)> get_include = nullptr,
+  static AssembleResult assemble(
+      const std::string& text, std::function<std::string(const std::string&)> get_include = nullptr,
       uint32_t start_address = 0);
-  static AssembleResult assemble(const std::string& text,
-      const std::vector<std::string>& include_dirs,
-      uint32_t start_address = 0);
+  static AssembleResult assemble(
+      const std::string& text, const std::vector<std::string>& include_dirs, uint32_t start_address = 0);
 
   static bool test_assembler(const std::string& start_opcode = "", bool stop_on_failure = false, bool verbose = false);
 
-  // NOTE: If the storage size of this enum changes, the format versions
-  // implemented in import_state and export_state must also change.
+  // NOTE: If the storage size of this enum changes, the format versions implemented in import_state and export_state
+  // must also change.
   enum class Behavior : uint8_t {
-    // Default behavior is to emulate an x86 CPU implemented according to
-    // Intel's manuals. All unspecified behaviors do nothing; for example, flags
-    // whose values are technically undefined after certain opcodes are never
-    // affected in this mode (they retain their previous values).
+    // Default behavior is to emulate an x86 CPU implemented according to Intel's manuals. All unspecified behaviors do
+    // nothing; for example, flags whose values are technically undefined after certain opcodes are never affected in
+    // this mode (they retain their previous values).
     SPECIFICATION = 0,
-    // Behave like the CPU emulator implemented in Windows 11 for ARM64 systems.
-    // This CPU emulator has some supposedly nonstandard behaviors; for example,
-    // bit shift opcodes do not set the result status flags (SF, ZF, PF) whereas
+    // Behave like the CPU emulator implemented in Windows 11 for ARM64 systems. This CPU emulator has some supposedly
+    // nonstandard behaviors; for example, bit shift opcodes do not set the result status flags (SF, ZF, PF) whereas
     // the manual says they should.
     WINDOWS_ARM_EMULATOR,
   };
@@ -404,13 +402,11 @@ public:
   virtual void set_time_base(uint64_t time_base);
   virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
 
-  inline void set_syscall_handler(
-      std::function<void(X86Emulator&, uint8_t)> handler) {
+  inline void set_syscall_handler(std::function<void(X86Emulator&, uint8_t)> handler) {
     this->syscall_handler = handler;
   }
 
-  inline void set_debug_hook(
-      std::function<void(X86Emulator&)> hook) {
+  inline void set_debug_hook(std::function<void(X86Emulator&)> hook) {
     this->debug_hook = hook;
   }
 
@@ -479,7 +475,7 @@ protected:
   using RMF = DecodedRM::StrFlags;
 
   struct DisassemblyState {
-    StringReader r;
+    phosg::StringReader r;
     uint32_t start_address;
     bool include_hex;
     uint8_t opcode;
@@ -487,9 +483,8 @@ protected:
     Overrides overrides;
     std::map<uint32_t, LabelRefs> branch_refs;
     const std::multimap<uint32_t, std::string>* labels;
-    // If not null, the emulator pointer is used for resolving EA addresses
-    // based on the emulator's current state (for use in the interactive
-    // debugging shell)
+    // If not null, the emulator pointer is used for resolving EA addresses based on the emulator's current state (for
+    // use in the interactive debugging shell)
     const X86Emulator* emu;
 
     uint8_t standard_operand_size() const;
@@ -513,10 +508,10 @@ protected:
     return this->fetch_instruction_data<uint8_t>();
   }
   inline uint16_t fetch_instruction_word() {
-    return this->fetch_instruction_data<le_uint16_t>();
+    return this->fetch_instruction_data<phosg::le_uint16_t>();
   }
   inline uint32_t fetch_instruction_dword() {
-    return this->fetch_instruction_data<le_uint32_t>();
+    return this->fetch_instruction_data<phosg::le_uint32_t>();
   }
 
   template <typename GetU8T, typename GetU32LT>
@@ -548,15 +543,11 @@ protected:
 
   template <typename T>
   T read_ea(const DecodedRM& rm) {
-    return (rm.ea_index_scale < 0)
-        ? this->regs.read<T>(rm.ea_reg)
-        : this->r_mem<T>(this->resolve_mem_ea(rm));
+    return (rm.ea_index_scale < 0) ? this->regs.read<T>(rm.ea_reg) : this->r_mem<T>(this->resolve_mem_ea(rm));
   }
   template <typename T>
   T read_ea_xmm(const DecodedRM& rm) {
-    return (rm.ea_index_scale < 0)
-        ? this->regs.read_xmm<T>(rm.ea_reg)
-        : this->r_mem<T>(this->resolve_mem_ea(rm));
+    return (rm.ea_index_scale < 0) ? this->regs.read_xmm<T>(rm.ea_reg) : this->r_mem<T>(this->resolve_mem_ea(rm));
   }
   template <typename T>
   void write_ea(const DecodedRM& rm, T v) {
@@ -576,28 +567,28 @@ protected:
   }
 
   inline uint8_t r_non_ea8(const DecodedRM& rm) { return this->read_non_ea<uint8_t>(rm); }
-  inline uint16_t r_non_ea16(const DecodedRM& rm) { return this->read_non_ea<le_uint16_t>(rm); }
-  inline uint32_t r_non_ea32(const DecodedRM& rm) { return this->read_non_ea<le_uint32_t>(rm); }
-  inline uint32_t r_non_ea_xmm32(const DecodedRM& rm) { return this->read_non_ea_xmm<le_uint32_t>(rm); }
-  inline uint64_t r_non_ea_xmm64(const DecodedRM& rm) { return this->read_non_ea_xmm<le_uint64_t>(rm); }
+  inline uint16_t r_non_ea16(const DecodedRM& rm) { return this->read_non_ea<phosg::le_uint16_t>(rm); }
+  inline uint32_t r_non_ea32(const DecodedRM& rm) { return this->read_non_ea<phosg::le_uint32_t>(rm); }
+  inline uint32_t r_non_ea_xmm32(const DecodedRM& rm) { return this->read_non_ea_xmm<phosg::le_uint32_t>(rm); }
+  inline uint64_t r_non_ea_xmm64(const DecodedRM& rm) { return this->read_non_ea_xmm<phosg::le_uint64_t>(rm); }
   inline Regs::XMMReg r_non_ea_xmm128(const DecodedRM& rm) { return this->read_non_ea_xmm<Regs::XMMReg>(rm); }
   inline void w_non_ea8(const DecodedRM& rm, uint8_t v) { this->write_non_ea<uint8_t>(rm, v); }
-  inline void w_non_ea16(const DecodedRM& rm, uint16_t v) { this->write_non_ea<le_uint16_t>(rm, v); }
-  inline void w_non_ea32(const DecodedRM& rm, uint32_t v) { this->write_non_ea<le_uint32_t>(rm, v); }
-  inline void w_non_ea_xmm32(const DecodedRM& rm, uint32_t v) { this->write_non_ea_xmm<le_uint32_t>(rm, v); }
-  inline void w_non_ea_xmm64(const DecodedRM& rm, uint64_t v) { this->write_non_ea_xmm<le_uint64_t>(rm, v); }
+  inline void w_non_ea16(const DecodedRM& rm, uint16_t v) { this->write_non_ea<phosg::le_uint16_t>(rm, v); }
+  inline void w_non_ea32(const DecodedRM& rm, uint32_t v) { this->write_non_ea<phosg::le_uint32_t>(rm, v); }
+  inline void w_non_ea_xmm32(const DecodedRM& rm, uint32_t v) { this->write_non_ea_xmm<phosg::le_uint32_t>(rm, v); }
+  inline void w_non_ea_xmm64(const DecodedRM& rm, uint64_t v) { this->write_non_ea_xmm<phosg::le_uint64_t>(rm, v); }
   inline void w_non_ea_xmm128(const DecodedRM& rm, const Regs::XMMReg& v) { this->write_non_ea_xmm<Regs::XMMReg>(rm, v); }
   inline uint8_t r_ea8(const DecodedRM& rm) { return this->read_ea<uint8_t>(rm); }
-  inline uint16_t r_ea16(const DecodedRM& rm) { return this->read_ea<le_uint16_t>(rm); }
-  inline uint32_t r_ea32(const DecodedRM& rm) { return this->read_ea<le_uint32_t>(rm); }
-  inline uint32_t r_ea_xmm32(const DecodedRM& rm) { return this->read_ea_xmm<le_uint32_t>(rm); }
-  inline uint64_t r_ea_xmm64(const DecodedRM& rm) { return this->read_ea_xmm<le_uint64_t>(rm); }
+  inline uint16_t r_ea16(const DecodedRM& rm) { return this->read_ea<phosg::le_uint16_t>(rm); }
+  inline uint32_t r_ea32(const DecodedRM& rm) { return this->read_ea<phosg::le_uint32_t>(rm); }
+  inline uint32_t r_ea_xmm32(const DecodedRM& rm) { return this->read_ea_xmm<phosg::le_uint32_t>(rm); }
+  inline uint64_t r_ea_xmm64(const DecodedRM& rm) { return this->read_ea_xmm<phosg::le_uint64_t>(rm); }
   inline Regs::XMMReg r_ea_xmm128(const DecodedRM& rm) { return this->read_ea_xmm<Regs::XMMReg>(rm); }
   inline void w_ea8(const DecodedRM& rm, uint8_t v) { this->write_ea<uint8_t>(rm, v); }
-  inline void w_ea16(const DecodedRM& rm, uint16_t v) { this->write_ea<le_uint16_t>(rm, v); }
-  inline void w_ea32(const DecodedRM& rm, uint32_t v) { this->write_ea<le_uint32_t>(rm, v); }
-  inline void w_ea_xmm32(const DecodedRM& rm, uint32_t v) { this->write_ea_xmm<le_uint32_t>(rm, v); }
-  inline void w_ea_xmm64(const DecodedRM& rm, uint64_t v) { this->write_ea_xmm<le_uint64_t>(rm, v); }
+  inline void w_ea16(const DecodedRM& rm, uint16_t v) { this->write_ea<phosg::le_uint16_t>(rm, v); }
+  inline void w_ea32(const DecodedRM& rm, uint32_t v) { this->write_ea<phosg::le_uint32_t>(rm, v); }
+  inline void w_ea_xmm32(const DecodedRM& rm, uint32_t v) { this->write_ea_xmm<phosg::le_uint32_t>(rm, v); }
+  inline void w_ea_xmm64(const DecodedRM& rm, uint64_t v) { this->write_ea_xmm<phosg::le_uint64_t>(rm, v); }
   inline void w_ea_xmm128(const DecodedRM& rm, const Regs::XMMReg& v) { this->write_ea_xmm<Regs::XMMReg>(rm, v); }
 
   template <typename T>
@@ -613,7 +604,7 @@ protected:
 
   template <typename T>
   T exec_integer_math_logic(uint8_t what, T dest, T src);
-  template <typename T, typename LET = little_endian<T>>
+  template <typename T, typename LET = phosg::little_endian<T>>
   T exec_F6_F7_misc_math_logic(uint8_t what, T value);
   template <typename T>
   T exec_bit_test_ops_logic(uint8_t what, T v, uint8_t bit_number);
@@ -621,9 +612,9 @@ protected:
   T exec_bit_shifts_logic(uint8_t what, T value, uint8_t distance, bool distance_is_cl);
   template <typename T>
   T exec_shld_shrd_logic(bool is_right_shift, T dest_value, T incoming_value, uint8_t distance, bool distance_is_cl);
-  template <typename T, typename LET = little_endian<T>>
+  template <typename T, typename LET = phosg::little_endian<T>>
   void exec_string_op_logic(uint8_t opcode);
-  template <typename T, typename LET = little_endian<T>>
+  template <typename T, typename LET = phosg::little_endian<T>>
   void exec_rep_string_op_logic(uint8_t opcode);
 
   void exec_0F_extensions(uint8_t);
@@ -874,18 +865,18 @@ protected:
 
       std::string str() const;
 
-      uint8_t resolve_operand_size(StringWriter& w, size_t max_args = 0) const;
+      uint8_t resolve_operand_size(phosg::StringWriter& w, size_t max_args = 0) const;
       void check_arg_types(std::initializer_list<Argument::Type> types) const;
       [[nodiscard]] bool arg_types_match(std::initializer_list<Argument::Type> types) const;
       void check_arg_operand_sizes(std::initializer_list<uint8_t> operand_sizes) const;
       void check_arg_fixed_registers(std::initializer_list<uint8_t> reg_nums) const;
       void check_arg_is_st(size_t arg_num, uint8_t which) const;
-      uint8_t require_16_or_32(StringWriter& w, size_t max_args = 0) const;
+      uint8_t require_16_or_32(phosg::StringWriter& w, size_t max_args = 0) const;
       uint8_t require_arg_16_or_32(size_t arg_index) const;
       uint8_t require_arg_32_or_64(size_t arg_index) const;
       uint8_t require_arg_16_or_32_or_64(size_t arg_index) const;
       uint8_t get_size_mnemonic_suffix(const std::string& base_name) const;
-      uint8_t require_size_mnemonic_suffix(StringWriter& w, const std::string& base_name) const;
+      uint8_t require_size_mnemonic_suffix(phosg::StringWriter& w, const std::string& base_name) const;
       bool any_arg_has_code_delta() const;
     };
     uint32_t start_address = 0;
@@ -895,153 +886,151 @@ protected:
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
 
-    typedef void (Assembler::*AssembleFunction)(StringWriter& w, StreamItem& si) const;
+    typedef void (Assembler::*AssembleFunction)(phosg::StringWriter& w, StreamItem& si) const;
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
 
-    AssembleResult assemble(
-        const std::string& text,
-        std::function<std::string(const std::string&)> get_include);
+    AssembleResult assemble(const std::string& text, std::function<std::string(const std::string&)> get_include);
 
-    void encode_segment_override(StringWriter& w, const Argument& mem_ref) const;
-    void encode_imm(StringWriter& w, uint64_t value, uint8_t operand_size) const;
-    void encode_rm(StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
-    void encode_rm(StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
+    void encode_segment_override(phosg::StringWriter& w, const Argument& mem_ref) const;
+    void encode_imm(phosg::StringWriter& w, uint64_t value, uint8_t operand_size) const;
+    void encode_rm(phosg::StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
+    void encode_rm(phosg::StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
     uint32_t compute_branch_target_from_arg0(const StreamItem& si) const;
     int64_t resolve_immediate(const Argument& arg) const;
 
-    void asm_aaa_aas_aad_aam(StringWriter& w, StreamItem& si) const;
-    void asm_add_or_adc_sbb_and_sub_xor_cmp(StringWriter& w, StreamItem& si) const;
-    void asm_amx_adx(StringWriter& w, StreamItem& si) const;
-    void asm_bsf_bsr(StringWriter& w, StreamItem& si) const;
-    void asm_bswap(StringWriter& w, StreamItem& si) const;
-    void asm_bt_bts_btr_btc(StringWriter& w, StreamItem& si) const;
-    void asm_call_jmp(StringWriter& w, StreamItem& si) const;
-    void asm_cbw_cwde(StringWriter& w, StreamItem& si) const;
-    void asm_clc(StringWriter& w, StreamItem& si) const;
-    void asm_cld(StringWriter& w, StreamItem& si) const;
-    void asm_cli(StringWriter& w, StreamItem& si) const;
-    void asm_cmc(StringWriter& w, StreamItem& si) const;
-    void asm_cmov_mnemonics(StringWriter& w, StreamItem& si) const;
-    void asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics(StringWriter& w, StreamItem& si) const;
-    void asm_cmpxchg(StringWriter& w, StreamItem& si) const;
-    void asm_cmpxchg8b(StringWriter& w, StreamItem& si) const;
-    void asm_cpuid(StringWriter& w, StreamItem& si) const;
-    void asm_crc32(StringWriter& w, StreamItem& si) const;
-    void asm_cs(StringWriter& w, StreamItem& si) const;
-    void asm_cwd_cdq(StringWriter& w, StreamItem& si) const;
-    void asm_daa(StringWriter& w, StreamItem& si) const;
-    void asm_das(StringWriter& w, StreamItem& si) const;
-    void asm_inc_dec(StringWriter& w, StreamItem& si) const;
-    void asm_div_idiv(StringWriter& w, StreamItem& si) const;
-    void asm_ds(StringWriter& w, StreamItem& si) const;
-    void asm_enter(StringWriter& w, StreamItem& si) const;
-    void asm_es(StringWriter& w, StreamItem& si) const;
-    void asm_fs(StringWriter& w, StreamItem& si) const;
-    void asm_gs(StringWriter& w, StreamItem& si) const;
-    void asm_hlt(StringWriter& w, StreamItem& si) const;
-    void asm_imul_mul(StringWriter& w, StreamItem& si) const;
-    void asm_in_out(StringWriter& w, StreamItem& si) const;
-    void asm_int(StringWriter& w, StreamItem& si) const;
-    void asm_into(StringWriter& w, StreamItem& si) const;
-    void asm_iret(StringWriter& w, StreamItem& si) const;
-    void asm_j_mnemonics(StringWriter& w, StreamItem& si) const;
-    void asm_jcxz_jecxz_loop_mnemonics(StringWriter& w, StreamItem& si) const;
-    void asm_lahf_sahf(StringWriter& w, StreamItem& si) const;
-    void asm_lea(StringWriter& w, StreamItem& si) const;
-    void asm_leave(StringWriter& w, StreamItem& si) const;
-    void asm_lock(StringWriter& w, StreamItem& si) const;
-    void asm_mov(StringWriter& w, StreamItem& si) const;
-    void asm_movbe(StringWriter& w, StreamItem& si) const;
-    void asm_movsx_movzx(StringWriter& w, StreamItem& si) const;
-    void asm_neg_not(StringWriter& w, StreamItem& si) const;
-    void asm_nop(StringWriter& w, StreamItem& si) const;
-    void asm_pop_push(StringWriter& w, StreamItem& si) const;
-    void asm_popa_popad(StringWriter& w, StreamItem& si) const;
-    void asm_popcnt(StringWriter& w, StreamItem& si) const;
-    void asm_popf_popfd(StringWriter& w, StreamItem& si) const;
-    void asm_pusha_pushad(StringWriter& w, StreamItem& si) const;
-    void asm_pushf_pushfd(StringWriter& w, StreamItem& si) const;
-    void asm_rol_ror_rcl_rcr_shl_sal_shr_sar(StringWriter& w, StreamItem& si) const;
-    void asm_rdtsc(StringWriter& w, StreamItem& si) const;
-    void asm_rep_mnemomics(StringWriter& w, StreamItem& si) const;
-    void asm_ret(StringWriter& w, StreamItem& si) const;
-    void asm_salc_setalc(StringWriter& w, StreamItem& si) const;
-    void asm_set_mnemonics(StringWriter& w, StreamItem& si) const;
-    void asm_shld_shrd(StringWriter& w, StreamItem& si) const;
-    void asm_ss(StringWriter& w, StreamItem& si) const;
-    void asm_stc(StringWriter& w, StreamItem& si) const;
-    void asm_std(StringWriter& w, StreamItem& si) const;
-    void asm_sti(StringWriter& w, StreamItem& si) const;
-    void asm_test(StringWriter& w, StreamItem& si) const;
-    void asm_xadd(StringWriter& w, StreamItem& si) const;
-    void asm_xchg(StringWriter& w, StreamItem& si) const;
+    void asm_aaa_aas_aad_aam(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_add_or_adc_sbb_and_sub_xor_cmp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_amx_adx(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_bsf_bsr(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_bswap(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_bt_bts_btr_btc(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_call_jmp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cbw_cwde(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_clc(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cld(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cli(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cmc(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cmov_mnemonics(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_ins_outs_movs_cmps_stos_lods_scas_mnemonics(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cmpxchg(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cmpxchg8b(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cpuid(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_crc32(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cs(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_cwd_cdq(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_daa(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_das(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_inc_dec(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_div_idiv(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_ds(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_enter(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_es(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fs(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_gs(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_hlt(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_imul_mul(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_in_out(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_int(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_into(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_iret(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_j_mnemonics(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_jcxz_jecxz_loop_mnemonics(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_lahf_sahf(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_lea(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_leave(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_lock(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_mov(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_movbe(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_movsx_movzx(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_neg_not(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_nop(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_pop_push(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_popa_popad(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_popcnt(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_popf_popfd(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_pusha_pushad(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_pushf_pushfd(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_rol_ror_rcl_rcr_shl_sal_shr_sar(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_rdtsc(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_rep_mnemomics(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_ret(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_salc_setalc(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_set_mnemonics(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_shld_shrd(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_ss(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_stc(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_std(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_sti(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_test(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_xadd(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_xchg(phosg::StringWriter& w, StreamItem& si) const;
 
-    void asm_fxsave_fxrstor(StringWriter& w, StreamItem& si) const;
-    void asm_fsave_fnsave_frstor(StringWriter& w, StreamItem& si) const;
-    void asm_fstenv_fnstenv_fldenv(StringWriter& w, StreamItem& si) const;
-    void asm_fstcw_fnstcw_fldcw(StringWriter& w, StreamItem& si) const;
-    void asm_fstsw_fnstsw(StringWriter& w, StreamItem& si) const;
-    void asm_fwait(StringWriter& w, StreamItem& si) const;
-    void asm_fclex_fnclex(StringWriter& w, StreamItem& si) const;
-    void asm_finit_fninit(StringWriter& w, StreamItem& si) const;
-    void asm_fadd(StringWriter& w, StreamItem& si) const;
-    void asm_faddp(StringWriter& w, StreamItem& si) const;
-    void asm_fmul(StringWriter& w, StreamItem& si) const;
-    void asm_fmulp(StringWriter& w, StreamItem& si) const;
-    void asm_fcom_fcomp(StringWriter& w, StreamItem& si) const;
-    void asm_fcomi_fcomip(StringWriter& w, StreamItem& si) const;
-    void asm_fcompp(StringWriter& w, StreamItem& si) const;
-    void asm_fsub_fsubr(StringWriter& w, StreamItem& si) const;
-    void asm_fsubp_fsubrp(StringWriter& w, StreamItem& si) const;
-    void asm_fdiv_fdivr(StringWriter& w, StreamItem& si) const;
-    void asm_fdivp_fdivrp(StringWriter& w, StreamItem& si) const;
-    void asm_fld(StringWriter& w, StreamItem& si) const;
-    void asm_fld1(StringWriter& w, StreamItem& si) const;
-    void asm_fldl2t(StringWriter& w, StreamItem& si) const;
-    void asm_fldl2e(StringWriter& w, StreamItem& si) const;
-    void asm_fldpi(StringWriter& w, StreamItem& si) const;
-    void asm_fldlg2(StringWriter& w, StreamItem& si) const;
-    void asm_fldln2(StringWriter& w, StreamItem& si) const;
-    void asm_fldz(StringWriter& w, StreamItem& si) const;
-    void asm_fxch(StringWriter& w, StreamItem& si) const;
-    void asm_fst_fstp(StringWriter& w, StreamItem& si) const;
-    void asm_fnop(StringWriter& w, StreamItem& si) const;
-    void asm_fchs(StringWriter& w, StreamItem& si) const;
-    void asm_fabs(StringWriter& w, StreamItem& si) const;
-    void asm_ftst(StringWriter& w, StreamItem& si) const;
-    void asm_fxam(StringWriter& w, StreamItem& si) const;
-    void asm_f2xm1(StringWriter& w, StreamItem& si) const;
-    void asm_fyl2x(StringWriter& w, StreamItem& si) const;
-    void asm_fptan(StringWriter& w, StreamItem& si) const;
-    void asm_fpatan(StringWriter& w, StreamItem& si) const;
-    void asm_fxtract(StringWriter& w, StreamItem& si) const;
-    void asm_fprem1(StringWriter& w, StreamItem& si) const;
-    void asm_fdecstp(StringWriter& w, StreamItem& si) const;
-    void asm_fincstp(StringWriter& w, StreamItem& si) const;
-    void asm_fprem(StringWriter& w, StreamItem& si) const;
-    void asm_fyl2xp1(StringWriter& w, StreamItem& si) const;
-    void asm_fsqrt(StringWriter& w, StreamItem& si) const;
-    void asm_fsincos(StringWriter& w, StreamItem& si) const;
-    void asm_frndint(StringWriter& w, StreamItem& si) const;
-    void asm_fscale(StringWriter& w, StreamItem& si) const;
-    void asm_fsin(StringWriter& w, StreamItem& si) const;
-    void asm_fcos(StringWriter& w, StreamItem& si) const;
-    void asm_fcmov_mnemonics(StringWriter& w, StreamItem& si) const;
-    void asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr(StringWriter& w, StreamItem& si) const;
-    void asm_fucompp(StringWriter& w, StreamItem& si) const;
-    void asm_fild(StringWriter& w, StreamItem& si) const;
-    void asm_fist_fistp_fisttp(StringWriter& w, StreamItem& si) const;
-    void asm_fneni(StringWriter& w, StreamItem& si) const;
-    void asm_fndisi(StringWriter& w, StreamItem& si) const;
-    void asm_fnsetpm(StringWriter& w, StreamItem& si) const;
-    void asm_ffree_ffreep(StringWriter& w, StreamItem& si) const;
-    void asm_fucom_fucomi_fucomp_fucomip(StringWriter& w, StreamItem& si) const;
-    void asm_fbld(StringWriter& w, StreamItem& si) const;
-    void asm_fbstp(StringWriter& w, StreamItem& si) const;
+    void asm_fxsave_fxrstor(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fsave_fnsave_frstor(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fstenv_fnstenv_fldenv(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fstcw_fnstcw_fldcw(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fstsw_fnstsw(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fwait(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fclex_fnclex(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_finit_fninit(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fadd(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_faddp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fmul(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fmulp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fcom_fcomp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fcomi_fcomip(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fcompp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fsub_fsubr(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fsubp_fsubrp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fdiv_fdivr(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fdivp_fdivrp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fld(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fld1(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fldl2t(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fldl2e(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fldpi(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fldlg2(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fldln2(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fldz(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fxch(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fst_fstp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fnop(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fchs(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fabs(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_ftst(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fxam(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_f2xm1(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fyl2x(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fptan(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fpatan(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fxtract(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fprem1(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fdecstp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fincstp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fprem(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fyl2xp1(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fsqrt(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fsincos(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_frndint(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fscale(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fsin(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fcos(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fcmov_mnemonics(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fiadd_fimul_ficom_ficomp_fisub_fisubr_fidiv_fidivr(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fucompp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fild(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fist_fistp_fisttp(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fneni(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fndisi(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fnsetpm(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_ffree_ffreep(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fucom_fucomi_fucomp_fucomip(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fbld(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_fbstp(phosg::StringWriter& w, StreamItem& si) const;
 
-    void asm_dir_data(StringWriter& w, StreamItem& si) const;
-    void asm_dir_zero(StringWriter& w, StreamItem& si) const;
-    void asm_dir_binary(StringWriter& w, StreamItem& si) const;
+    void asm_dir_data(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_dir_zero(phosg::StringWriter& w, StreamItem& si) const;
+    void asm_dir_binary(phosg::StringWriter& w, StreamItem& si) const;
   };
 };
 

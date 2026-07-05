@@ -14,9 +14,6 @@
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 inline size_t get_system_page_size() {
@@ -33,13 +30,13 @@ void* map_alloc(size_t size) {
 #ifndef PHOSG_WINDOWS
   void* ret = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   if (ret == MAP_FAILED) {
-    throw runtime_error(std::format("cannot mmap 0x{:X} bytes", size));
+    throw std::runtime_error(std::format("cannot mmap 0x{:X} bytes", size));
   }
   return ret;
 #else
   void* ret = VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
   if (ret == nullptr) {
-    throw runtime_error(std::format("cannot mmap 0x{:X} bytes", size));
+    throw std::runtime_error(std::format("cannot mmap 0x{:X} bytes", size));
   }
   return ret;
 #endif
@@ -64,10 +61,10 @@ MemoryContext::MemoryContext()
       strict(false) {
 
   if (this->page_size == 0) {
-    throw invalid_argument("system page size is zero");
+    throw std::invalid_argument("system page size is zero");
   }
   if (this->page_size & (this->page_size - 1)) {
-    throw invalid_argument("system page size is not a power of 2");
+    throw std::invalid_argument("system page size is not a power of 2");
   }
 
   {
@@ -77,7 +74,7 @@ MemoryContext::MemoryContext()
       this->page_bits++;
     }
     if (!this->page_bits) {
-      throw invalid_argument("system page bits is zero");
+      throw std::invalid_argument("system page bits is zero");
     }
   }
 
@@ -136,7 +133,7 @@ MemoryContext MemoryContext::duplicate() const {
   ret.free_bytes = this->free_bytes;
   ret.strict = this->strict;
   for (const auto& [_, this_arena] : this->arenas_by_addr) {
-    auto ret_arena = make_shared<Arena>(this_arena->duplicate());
+    auto ret_arena = std::make_shared<Arena>(this_arena->duplicate());
     ret.arenas_by_addr.emplace(ret_arena->addr, ret_arena);
     ret.arenas_by_host_addr.emplace(ret_arena->host_addr, ret_arena);
     size_t end_page_num = this->page_number_for_addr(ret_arena->addr + ret_arena->size - 1);
@@ -164,7 +161,7 @@ uint32_t MemoryContext::allocate_within(uint32_t addr_low, uint32_t addr_high, s
   // completely within the requested range.
   // TODO: make this not linear time in the arena count somehow
   uint32_t block_addr = 0;
-  shared_ptr<Arena> arena = nullptr;
+  std::shared_ptr<Arena> arena = nullptr;
   {
     size_t smallest_block = 0xFFFFFFFF;
     for (auto arena_it = this->arenas_by_addr.lower_bound(addr_low);
@@ -195,7 +192,7 @@ uint32_t MemoryContext::allocate_within(uint32_t addr_low, uint32_t addr_high, s
   this->allocated_bytes += requested_size;
 
   // Uncomment for debugging
-  // fwrite_fmt(stderr, "[MemoryContext] allocate_within {:08X} {:08X} {:X} => {:08X}\n",
+  // phosg::fwrite_fmt(stderr, "[MemoryContext] allocate_within {:08X} {:08X} {:X} => {:08X}\n",
   //     addr_low, addr_high, requested_size, block_addr);
   // this->print_state(stderr);
   // this->verify();
@@ -207,7 +204,7 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
 
   // Round requested_size up to a multiple of 4, as in allocate(). Here, we also need to ensure that addr is aligned.
   if (addr & 3) {
-    throw invalid_argument("blocks can only be allocated on 4-byte boundaries");
+    throw std::invalid_argument("blocks can only be allocated on 4-byte boundaries");
   }
   requested_size = (requested_size + 3) & (~3);
 
@@ -216,10 +213,10 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
   // and allocate_at should generally only be called on a new MemoryContext before any dynamic blocks are allocated.)
   uint32_t start_page_number = this->page_number_for_addr(addr);
   uint32_t end_page_num = this->page_number_for_addr(addr + requested_size - 1);
-  shared_ptr<Arena> arena = this->arena_for_page_number.at(start_page_number);
+  std::shared_ptr<Arena> arena = this->arena_for_page_number.at(start_page_number);
   for (uint64_t page_num = start_page_number + 1; page_num <= end_page_num; page_num++) {
     if (this->arena_for_page_number.at(page_num) != arena) {
-      throw runtime_error("fixed-address allocation request spans multiple arenas");
+      throw std::runtime_error("fixed-address allocation request spans multiple arenas");
     }
   }
 
@@ -233,14 +230,14 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
   } else {
     auto it = arena->free_blocks_by_addr.upper_bound(addr);
     if (it == arena->free_blocks_by_addr.begin()) {
-      throw runtime_error("arena contains no free blocks");
+      throw std::runtime_error("arena contains no free blocks");
     }
     it--;
     if (it->first > addr) {
-      throw logic_error("preceding free block is not before the requested address");
+      throw std::logic_error("preceding free block is not before the requested address");
     }
     if (it->first + it->second < addr + requested_size) {
-      throw runtime_error("not enough space in preceding free block");
+      throw std::runtime_error("not enough space in preceding free block");
     }
     free_block_addr = it->first;
   }
@@ -253,7 +250,7 @@ void MemoryContext::allocate_at(uint32_t addr, size_t requested_size) {
   this->allocated_bytes += requested_size;
 
   // Uncomment for debugging
-  // fwrite_fmt(stderr, "[MemoryContext] allocate_at {:08X} {:X}\n",
+  // phosg::fwrite_fmt(stderr, "[MemoryContext] allocate_at {:08X} {:X}\n",
   //     addr, requested_size);
   // this->print_state(stderr);
   // this->verify();
@@ -327,8 +324,8 @@ MemoryContext::Arena MemoryContext::Arena::duplicate() const {
   return ret;
 }
 
-string MemoryContext::Arena::str() const {
-  string ret = std::format("[Arena {:08X}-{:08X} at {} alloc={:X} free={:X} alloc_blocks=[",
+std::string MemoryContext::Arena::str() const {
+  std::string ret = std::format("[Arena {:08X}-{:08X} at {} alloc={:X} free={:X} alloc_blocks=[",
       this->addr, this->addr + this->size, this->host_addr, this->allocated_bytes, this->free_bytes);
   for (const auto& it : this->allocated_blocks) {
     ret += std::format("{:08X}-{:X},", it.first, it.first + it.second);
@@ -368,13 +365,13 @@ void MemoryContext::Arena::split_free_block(
 
   // If any of the sizes overflowed, then the allocated block doesn't fit in the free block
   if (new_free_bytes_before > free_block_size) {
-    throw runtime_error("cannot split free block: allocated address too low");
+    throw std::runtime_error("cannot split free block: allocated address too low");
   }
   if (new_free_bytes_after > free_block_size) {
-    throw runtime_error("cannot split free block: allocated address or size too high");
+    throw std::runtime_error("cannot split free block: allocated address or size too high");
   }
   if (new_free_bytes_before + allocate_size + new_free_bytes_after != free_block_size) {
-    throw logic_error("sizes do not add up correctly after splitting free block");
+    throw std::logic_error("sizes do not add up correctly after splitting free block");
   }
 
   // Delete the existing free block
@@ -405,7 +402,7 @@ uint32_t MemoryContext::find_unallocated_arena_space(uint32_t addr_low, uint32_t
   size_t start_page_num = this->page_number_for_addr(addr_low);
   size_t end_page_num = this->page_number_for_addr(addr_high - 1);
   if (this->arena_for_page_number.size() < end_page_num) {
-    throw out_of_range("not enough unallocated arena space");
+    throw std::out_of_range("not enough unallocated arena space");
   }
 
   for (size_t z = start_page_num; z < end_page_num; z++) {
@@ -416,12 +413,12 @@ uint32_t MemoryContext::find_unallocated_arena_space(uint32_t addr_low, uint32_t
     }
   }
   if (end_page_num - start_page_num < page_count) {
-    throw out_of_range("not enough unallocated arena space");
+    throw std::out_of_range("not enough unallocated arena space");
   }
   return (start_page_num << this->page_bits);
 }
 
-shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(uint32_t addr, size_t size) {
+std::shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(uint32_t addr, size_t size) {
   // Round size up to a host page boundary
   size = this->page_size_for_size(size);
 
@@ -429,12 +426,12 @@ shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(uint32_t addr, size
   size_t end_page_num = this->page_number_for_addr(addr + size - 1);
   for (size_t z = this->page_number_for_addr(addr); z <= end_page_num; z++) {
     if (this->arena_for_page_number[z].get()) {
-      throw runtime_error("fixed-address arena overlaps existing arena");
+      throw std::runtime_error("fixed-address arena overlaps existing arena");
     }
   }
 
   // Create the arena and add it to the arenas list
-  auto arena = make_shared<Arena>(addr, size);
+  auto arena = std::make_shared<Arena>(addr, size);
   this->arenas_by_addr.emplace(arena->addr, arena);
   this->arenas_by_host_addr.emplace(arena->host_addr, arena);
   for (uint32_t z = this->page_number_for_addr(arena->addr); z <= end_page_num; z++) {
@@ -449,20 +446,20 @@ shared_ptr<MemoryContext::Arena> MemoryContext::create_arena(uint32_t addr, size
   return arena;
 }
 
-void MemoryContext::delete_arena(shared_ptr<Arena> arena) {
+void MemoryContext::delete_arena(std::shared_ptr<Arena> arena) {
   // Remove the arena from the arenas set
   if (!this->arenas_by_addr.erase(arena->addr)) {
-    throw logic_error("arena not registered in addr index");
+    throw std::logic_error("arena not registered in addr index");
   }
   if (!this->arenas_by_host_addr.erase(arena->host_addr)) {
-    throw logic_error("arena not registered in host_addr index");
+    throw std::logic_error("arena not registered in host_addr index");
   }
 
   // Clear the arena from the page pointers list
   size_t end_page_num = this->page_number_for_addr(arena->addr + arena->size - 1);
   for (size_t z = this->page_number_for_addr(arena->addr); z <= end_page_num; z++) {
     if (this->arena_for_page_number[z] != arena) {
-      throw logic_error("arena did not have all valid page pointers at deletion time");
+      throw std::logic_error("arena did not have all valid page pointers at deletion time");
     }
     this->arena_for_page_number[z].reset();
   }
@@ -478,13 +475,13 @@ void MemoryContext::free(uint32_t addr) {
   // Find the arena that this region is within
   auto arena = this->arena_for_page_number.at(this->page_number_for_addr(addr));
   if (!arena.get()) {
-    throw invalid_argument("freed region is not part of any arena");
+    throw std::invalid_argument("freed region is not part of any arena");
   }
 
   // Find the allocated block
   auto allocated_block_it = arena->allocated_blocks.find(addr);
   if (allocated_block_it == arena->allocated_blocks.end()) {
-    throw invalid_argument("pointer being freed is not allocated");
+    throw std::invalid_argument("pointer being freed is not allocated");
   }
 
   // Delete the allocated block. If there are no allocated blocks remaining in the arena, don't bother cleaning up the
@@ -506,10 +503,10 @@ void MemoryContext::free(uint32_t addr) {
     if (before_free_block_it != arena->free_blocks_by_addr.begin()) {
       before_free_block_it--;
       if (before_free_block_it->first >= addr) {
-        throw logic_error("before free block is not actually before allocated address");
+        throw std::logic_error("before free block is not actually before allocated address");
       }
       if (before_free_block_it->first + before_free_block_it->second != addr) {
-        throw logic_error("unrepresented space before allocated block");
+        throw std::logic_error("unrepresented space before allocated block");
       }
     } else {
       before_free_block_it = arena->free_blocks_by_addr.end();
@@ -546,7 +543,7 @@ void MemoryContext::free(uint32_t addr) {
   }
 
   // Uncomment for debugging
-  // fwrite_fmt(stderr, "[MemoryContext] free {:08X}\n", addr);
+  // phosg::fwrite_fmt(stderr, "[MemoryContext] free {:08X}\n", addr);
   // this->print_state(stderr);
   // this->verify();
 }
@@ -558,13 +555,13 @@ bool MemoryContext::resize(uint32_t addr, size_t new_size) {
   // Find the arena that this region is within
   auto arena = this->arena_for_page_number.at(this->page_number_for_addr(addr));
   if (!arena.get()) {
-    throw invalid_argument("resized region is not part of any arena");
+    throw std::invalid_argument("resized region is not part of any arena");
   }
 
   // Find the allocated block
   auto allocated_block_it = arena->allocated_blocks.find(addr);
   if (allocated_block_it == arena->allocated_blocks.end()) {
-    throw invalid_argument("pointer being resized is not allocated");
+    throw std::invalid_argument("pointer being resized is not allocated");
   }
   size_t existing_size = allocated_block_it->second;
   if (new_size == existing_size) {
@@ -610,14 +607,14 @@ bool MemoryContext::resize(uint32_t addr, size_t new_size) {
 
 void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
   if (!this->symbol_addrs.emplace(name, addr).second) {
-    throw runtime_error("cannot redefine symbol");
+    throw std::runtime_error("cannot redefine symbol");
   }
   if (!this->addr_symbols.emplace(addr, name).second) {
-    throw logic_error("symbol index is inconsistent");
+    throw std::logic_error("symbol index is inconsistent");
   }
 }
 
-void MemoryContext::set_symbol_addr(const string& name, uint32_t addr) {
+void MemoryContext::set_symbol_addr(const std::string& name, uint32_t addr) {
   this->set_symbol_addr(name.c_str(), addr);
 }
 
@@ -629,7 +626,7 @@ void MemoryContext::delete_symbol(const char* name) {
   }
 }
 
-void MemoryContext::delete_symbol(const string& name) {
+void MemoryContext::delete_symbol(const std::string& name) {
   this->delete_symbol(name.c_str());
 }
 
@@ -645,7 +642,7 @@ uint32_t MemoryContext::get_symbol_addr(const char* name) const {
   return this->symbol_addrs.at(name);
 }
 
-uint32_t MemoryContext::get_symbol_addr(const string& name) const {
+uint32_t MemoryContext::get_symbol_addr(const std::string& name) const {
   return this->get_symbol_addr(name.c_str());
 }
 
@@ -653,7 +650,7 @@ const char* MemoryContext::get_symbol_at_addr(uint32_t addr) const {
   return this->addr_symbols.at(addr).c_str();
 }
 
-const unordered_map<string, uint32_t> MemoryContext::all_symbols() const {
+const std::unordered_map<std::string, uint32_t> MemoryContext::all_symbols() const {
   return this->symbol_addrs;
 }
 
@@ -664,7 +661,7 @@ size_t MemoryContext::get_block_size(uint32_t addr) const {
   }
   try {
     return arena->allocated_blocks.at(addr);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return 0;
   }
 }
@@ -673,13 +670,13 @@ bool MemoryContext::exists(uint32_t addr, size_t size, bool skip_strict) const {
   try {
     this->at<uint8_t>(addr, size, skip_strict);
     return true;
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return false;
   }
 }
 
-vector<pair<uint32_t, uint32_t>> MemoryContext::allocated_blocks() const {
-  vector<pair<uint32_t, uint32_t>> ret;
+std::vector<std::pair<uint32_t, uint32_t>> MemoryContext::allocated_blocks() const {
+  std::vector<std::pair<uint32_t, uint32_t>> ret;
   for (const auto& arena_it : this->arenas_by_addr) {
     for (const auto& block_it : arena_it.second->allocated_blocks) {
       ret.emplace_back(block_it.first, block_it.second);
@@ -693,7 +690,7 @@ size_t MemoryContext::get_page_size() const {
 }
 
 void MemoryContext::print_state(FILE* stream) const {
-  fwrite_fmt(stream, "MemoryContext page_bits={} page_size=0x{:X} total_pages=0x{:X} size=0x{:X} allocated_bytes=0x{:X} free_bytes=0x{:X}\n  Arenas:\n",
+  phosg::fwrite_fmt(stream, "MemoryContext page_bits={} page_size=0x{:X} total_pages=0x{:X} size=0x{:X} allocated_bytes=0x{:X} free_bytes=0x{:X}\n  Arenas:\n",
       this->page_bits,
       this->page_size,
       this->total_pages,
@@ -702,14 +699,13 @@ void MemoryContext::print_state(FILE* stream) const {
       this->free_bytes);
   for (const auto& it : this->arenas_by_addr) {
     const auto& arena = it.second;
-    string s = arena->str();
-    fwrite_fmt(stream, "    {:08X} => {}\n", it.first, s);
+    phosg::fwrite_fmt(stream, "    {:08X} => {}\n", it.first, arena->str());
   }
-  fwrite_fmt(stream, "  Page map:\n");
+  phosg::fwrite_fmt(stream, "  Page map:\n");
   for (size_t z = 0; z < this->total_pages; z++) {
     const auto& arena = this->arena_for_page_number[z];
     if (arena.get()) {
-      fwrite_fmt(stream, "    [{:X}] => {:08X}\n", z, arena->addr);
+      phosg::fwrite_fmt(stream, "    [{:X}] => {:08X}\n", z, arena->addr);
     }
   }
 }
@@ -717,8 +713,8 @@ void MemoryContext::print_state(FILE* stream) const {
 void MemoryContext::print_contents(FILE* stream) const {
   for (const auto& arena_it : this->arenas_by_addr) {
     for (const auto& block_it : arena_it.second->allocated_blocks) {
-      print_data(stream, this->at<void>(block_it.first, block_it.second), block_it.second, block_it.first, nullptr,
-          FormatDataFlags::PRINT_ASCII | FormatDataFlags::OFFSET_32_BITS);
+      phosg::print_data(stream, this->at<void>(block_it.first, block_it.second), block_it.second, block_it.first,
+          nullptr, phosg::FormatDataFlags::PRINT_ASCII | phosg::FormatDataFlags::OFFSET_32_BITS);
     }
   }
 }
@@ -731,25 +727,25 @@ void MemoryContext::import_state(FILE* stream) {
   this->symbol_addrs.clear();
   this->addr_symbols.clear();
 
-  uint8_t version = freadx<uint8_t>(stream);
+  uint8_t version = phosg::freadx<uint8_t>(stream);
   if (version > 1) {
-    throw runtime_error("unknown format version");
+    throw std::runtime_error("unknown format version");
   }
 
-  uint64_t region_count = freadx<le_uint64_t>(stream);
+  uint64_t region_count = phosg::freadx<phosg::le_uint64_t>(stream);
   for (size_t x = 0; x < region_count; x++) {
-    uint32_t addr = freadx<le_uint32_t>(stream);
-    uint32_t size = freadx<le_uint32_t>(stream);
+    uint32_t addr = phosg::freadx<phosg::le_uint32_t>(stream);
+    uint32_t size = phosg::freadx<phosg::le_uint32_t>(stream);
     this->allocate_at(addr, size);
-    freadx(stream, this->at<void>(addr, size), size);
+    phosg::freadx(stream, this->at<void>(addr, size), size);
   }
 
   if (version >= 1) {
-    uint64_t symbol_count = freadx<le_uint64_t>(stream);
+    uint64_t symbol_count = phosg::freadx<phosg::le_uint64_t>(stream);
     for (uint64_t z = 0; z < symbol_count; z++) {
-      uint32_t addr = freadx<le_uint32_t>(stream);
-      uint64_t name_length = freadx<le_uint64_t>(stream);
-      string name = freadx(stream, name_length);
+      uint32_t addr = phosg::freadx<phosg::le_uint32_t>(stream);
+      uint64_t name_length = phosg::freadx<phosg::le_uint64_t>(stream);
+      std::string name = phosg::freadx(stream, name_length);
       this->symbol_addrs.emplace(name, addr);
       this->addr_symbols.emplace(addr, std::move(name));
     }
@@ -757,40 +753,40 @@ void MemoryContext::import_state(FILE* stream) {
 }
 
 void MemoryContext::export_state(FILE* stream) const {
-  fwritex<uint8_t>(stream, 1); // version
+  phosg::fwritex<uint8_t>(stream, 1); // version
 
-  map<uint32_t, uint32_t> regions_to_export;
+  std::map<uint32_t, uint32_t> regions_to_export;
   for (const auto& arena_it : this->arenas_by_addr) {
     for (const auto& block_it : arena_it.second->allocated_blocks) {
       regions_to_export.emplace(block_it.first, block_it.second);
     }
   }
 
-  fwritex<le_uint64_t>(stream, regions_to_export.size());
+  phosg::fwritex<phosg::le_uint64_t>(stream, regions_to_export.size());
   for (const auto& region_it : regions_to_export) {
     uint32_t addr = region_it.first;
     uint32_t size = region_it.second;
-    fwritex<le_uint32_t>(stream, addr);
-    fwritex<le_uint32_t>(stream, size);
-    fwritex(stream, this->at<void>(addr, size), size);
+    phosg::fwritex<phosg::le_uint32_t>(stream, addr);
+    phosg::fwritex<phosg::le_uint32_t>(stream, size);
+    phosg::fwritex(stream, this->at<void>(addr, size), size);
   }
 
-  fwritex<le_uint64_t>(stream, this->symbol_addrs.size());
+  phosg::fwritex<phosg::le_uint64_t>(stream, this->symbol_addrs.size());
   for (const auto& symbol_it : this->symbol_addrs) {
-    const string& name = symbol_it.first;
+    const std::string& name = symbol_it.first;
     uint32_t addr = symbol_it.second;
-    fwritex<le_uint32_t>(stream, addr);
-    fwritex<le_uint64_t>(stream, name.size());
-    fwritex(stream, name);
+    phosg::fwritex<phosg::le_uint32_t>(stream, addr);
+    phosg::fwritex<phosg::le_uint64_t>(stream, name.size());
+    phosg::fwritex(stream, name);
   }
 }
 
 void MemoryContext::verify() const {
   if (this->page_size != static_cast<size_t>(1 << this->page_bits)) {
-    throw logic_error("page_size is incorrect");
+    throw std::logic_error("page_size is incorrect");
   }
   if (this->total_pages != static_cast<size_t>((0x100000000 >> this->page_bits) - 1)) {
-    throw logic_error("total_pages is incorrect");
+    throw std::logic_error("total_pages is incorrect");
   }
 
   size_t expected_size = 0;
@@ -801,31 +797,31 @@ void MemoryContext::verify() const {
   }
 
   if (this->size != expected_size) {
-    throw logic_error("size does not match page number index");
+    throw std::logic_error("size does not match page number index");
   }
   if (this->allocated_bytes > this->size) {
-    throw logic_error("allocated_bytes > size");
+    throw std::logic_error("allocated_bytes > size");
   }
   if (this->free_bytes > this->size) {
-    throw logic_error("allocated_bytes > size");
+    throw std::logic_error("allocated_bytes > size");
   }
   if (this->allocated_bytes + this->free_bytes != this->size) {
-    throw logic_error("allocated_bytes + free_bytes != size");
+    throw std::logic_error("allocated_bytes + free_bytes != size");
   }
 
-  unordered_set<shared_ptr<Arena>> arenas_by_addr_coll;
-  unordered_set<shared_ptr<Arena>> arenas_by_host_addr_coll;
-  unordered_set<shared_ptr<Arena>> arenas_for_page_number_coll;
+  std::unordered_set<std::shared_ptr<Arena>> arenas_by_addr_coll;
+  std::unordered_set<std::shared_ptr<Arena>> arenas_by_host_addr_coll;
+  std::unordered_set<std::shared_ptr<Arena>> arenas_for_page_number_coll;
   for (const auto& it : this->arenas_by_addr) {
     arenas_by_addr_coll.emplace(it.second);
     if (it.first != it.second->addr) {
-      throw logic_error("arena index key in arenas_by_addr is wrong");
+      throw std::logic_error("arena index key in arenas_by_addr is wrong");
     }
   }
   for (const auto& it : this->arenas_by_host_addr) {
     arenas_by_host_addr_coll.emplace(it.second);
     if (it.first != it.second->host_addr) {
-      throw logic_error("arena index key in arenas_by_host_addr is wrong");
+      throw std::logic_error("arena index key in arenas_by_host_addr is wrong");
     }
   }
   for (size_t z = 0; z < this->arena_for_page_number.size(); z++) {
@@ -835,26 +831,26 @@ void MemoryContext::verify() const {
     }
     uint32_t page_base = this->addr_for_page_number(z);
     if (page_base < arena->addr) {
-      throw logic_error("arena appears in incorrect early location in page number index");
+      throw std::logic_error("arena appears in incorrect early location in page number index");
     }
     if (page_base >= arena->addr + arena->size) {
-      throw logic_error("arena appears in incorrect late location in page number index");
+      throw std::logic_error("arena appears in incorrect late location in page number index");
     }
     arenas_for_page_number_coll.emplace(arena);
   }
 
   if (arenas_by_addr_coll != arenas_by_host_addr_coll) {
-    throw logic_error("addr and host addr arena indexes are inconsistent");
+    throw std::logic_error("addr and host addr arena indexes are inconsistent");
   }
   if (arenas_by_addr_coll != arenas_for_page_number_coll) {
-    throw logic_error("page number arena index is inconsistent with other collections");
+    throw std::logic_error("page number arena index is inconsistent with other collections");
   }
 
   for (const auto& arena : arenas_for_page_number_coll) {
     uint64_t end_addr = arena->addr + arena->size;
     for (uint64_t page_addr = arena->addr; page_addr < end_addr; page_addr++) {
       if (this->arena_for_page_number[this->page_number_for_addr(page_addr)] != arena) {
-        throw logic_error("arena covers space in page number index that does not point back to arena");
+        throw std::logic_error("arena covers space in page number index that does not point back to arena");
       }
     }
   }
@@ -866,16 +862,16 @@ void MemoryContext::verify() const {
 
 void MemoryContext::Arena::verify() const {
   if (this->host_addr == nullptr) {
-    throw logic_error(std::format("(arena {:08X}) host address is null", this->addr));
+    throw std::logic_error(std::format("(arena {:08X}) host address is null", this->addr));
   }
   if (this->allocated_bytes > this->size) {
-    throw logic_error(std::format("(arena {:08X}) allocated bytes is larger than size", this->addr));
+    throw std::logic_error(std::format("(arena {:08X}) allocated bytes is larger than size", this->addr));
   }
   if (this->free_bytes > this->size) {
-    throw logic_error(std::format("(arena {:08X}) free bytes is larger than size", this->addr));
+    throw std::logic_error(std::format("(arena {:08X}) free bytes is larger than size", this->addr));
   }
   if (this->allocated_bytes + this->free_bytes != this->size) {
-    throw logic_error(std::format("(arena {:08X}) allocated_bytes + free_bytes != size", this->addr));
+    throw std::logic_error(std::format("(arena {:08X}) allocated_bytes + free_bytes != size", this->addr));
   }
 
   for (const auto& it : this->free_blocks_by_addr) {
@@ -883,48 +879,48 @@ void MemoryContext::Arena::verify() const {
     for (auto it2s = this->free_blocks_by_size.equal_range(it.second); it2s.first != it2s.second; it2s.first++) {
       if (it2s.first->second == it.first) {
         if (found) {
-          throw logic_error(std::format("(arena {:08X}) duplicate free block in size index", this->addr));
+          throw std::logic_error(std::format("(arena {:08X}) duplicate free block in size index", this->addr));
         }
         found = true;
       }
     }
     if (!found) {
-      throw logic_error(std::format("(arena {:08X}) free block missing from size index", this->addr));
+      throw std::logic_error(std::format("(arena {:08X}) free block missing from size index", this->addr));
     }
   }
   for (const auto& it : this->free_blocks_by_size) {
     auto it2 = this->free_blocks_by_addr.find(it.second);
     if (it2 == this->free_blocks_by_addr.end()) {
-      throw logic_error(std::format("(arena {:08X}) stray free block in size index", this->addr));
+      throw std::logic_error(std::format("(arena {:08X}) stray free block in size index", this->addr));
     }
     if (it2->second != it.first) {
-      throw logic_error(std::format("(arena {:08X}) free block size is incorrect in size index", this->addr));
+      throw std::logic_error(std::format("(arena {:08X}) free block size is incorrect in size index", this->addr));
     }
   }
 
-  map<uint32_t, uint32_t> all_blocks;
+  std::map<uint32_t, uint32_t> all_blocks;
   for (const auto& it : this->allocated_blocks) {
     if (!all_blocks.emplace(it.first, it.second).second) {
-      throw logic_error(std::format("(arena {:08X}) duplicate block in allocated map", this->addr));
+      throw std::logic_error(std::format("(arena {:08X}) duplicate block in allocated map", this->addr));
     }
   }
   for (const auto& it : this->free_blocks_by_addr) {
     if (!all_blocks.emplace(it.first, it.second).second) {
-      throw logic_error(std::format("(arena {:08X}) duplicate block in free map", this->addr));
+      throw std::logic_error(std::format("(arena {:08X}) duplicate block in free map", this->addr));
     }
   }
 
   uint32_t addr = this->addr;
   for (const auto& it : all_blocks) {
     if (addr < it.first) {
-      throw logic_error(std::format("(arena {:08X}) unrepresented space", this->addr));
+      throw std::logic_error(std::format("(arena {:08X}) unrepresented space", this->addr));
     } else if (addr > it.first) {
-      throw logic_error(std::format("(arena {:08X}) multiply-represented space", this->addr));
+      throw std::logic_error(std::format("(arena {:08X}) multiply-represented space", this->addr));
     }
     addr += it.second;
   }
   if (addr != this->addr + this->size) {
-    throw logic_error(std::format("(arena {:08X}) blocks did not end on arena end boundary", this->addr));
+    throw std::logic_error(std::format("(arena {:08X}) blocks did not end on arena end boundary", this->addr));
   }
 }
 
@@ -936,7 +932,7 @@ bool MemoryContext::Arena::is_within_allocated_block(
   }
   it--;
   if (it->first > addr) {
-    throw logic_error("allocated blocks map is inconsistent");
+    throw std::logic_error("allocated blocks map is inconsistent");
   }
   // Note: We use a uint64_t here in case the block ends exactly at the top of the address space
   uint64_t block_end = static_cast<uint64_t>(it->first) + it->second;

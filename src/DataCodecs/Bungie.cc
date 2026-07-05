@@ -10,14 +10,11 @@
 #include <stdexcept>
 #include <string>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-string unpack_pathways(const void* data, size_t size) {
-  StringReader r(data, size);
-  StringWriter w;
+std::string unpack_pathways(const void* data, size_t size) {
+  phosg::StringReader r(data, size);
+  phosg::StringWriter w;
 
   size_t decompressed_size = r.get_u32b();
   while (w.size() < decompressed_size) {
@@ -37,7 +34,7 @@ string unpack_pathways(const void* data, size_t size) {
   return std::move(w.str());
 }
 
-string unpack_pathways(const string& data) {
+std::string unpack_pathways(const std::string& data) {
   return unpack_pathways(data.data(), data.size());
 }
 

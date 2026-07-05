@@ -12,17 +12,13 @@
 #include "BitmapFontRenderer.hh"
 #include "ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 int main(int argc, char** argv) {
-  using Align = BitmapFontRenderer::HorizontalAlignment;
+  using Align = ResourceDASM::BitmapFontRenderer::HorizontalAlignment;
 
   phosg::Arguments args(&argv[1], argc - 1);
 
   if (args.get<bool>("help") || argc <= 1) {
-    fwrite_fmt(stderr, "\
+    phosg::fwrite_fmt(stderr, "\
 Usage: render_text [options] FONT-FILE INPUT-FILE OUTPUT-FILE\n\
 \n\
 FONT-FILE should refer to an exported FONT resource from a Classic Mac OS\n\
@@ -62,7 +58,7 @@ Options:\n\
   bool cr = args.get<bool>("cr");
   bool inline_text = args.get<bool>("inline");
   Align align = Align::LEFT;
-  const auto& align_str = args.get<string>("align", false);
+  const auto& align_str = args.get<std::string>("align", false);
   if (align_str == "center") {
     align = Align::CENTER;
   } else if (align_str == "right") {
@@ -70,19 +66,24 @@ Options:\n\
   } else if (align_str != "left" && align_str != "") {
     throw std::runtime_error("Invalid horizontal alignment mode");
   }
-  string font_filename = args.get<string>(0, true);
-  string input_filename = args.get<string>(1, true);
-  string output_filename = args.get<string>(2, true);
+  const auto& font_filename = args.get<std::string>(0, true);
+  const auto& input_filename = args.get<std::string>(1, true);
+  const auto& output_filename = args.get<std::string>(2, true);
 
-  string font_data = load_file(font_filename);
-  auto font = make_shared<ResourceFile::DecodedFontResource>(ResourceFile::decode_FONT_only(font_data.data(), font_data.size()));
-  BitmapFontRenderer renderer(font);
+  auto font_data = phosg::load_file(font_filename);
+  auto font = std::make_shared<ResourceDASM::ResourceFile::DecodedFontResource>(
+      ResourceDASM::ResourceFile::decode_FONT_only(font_data.data(), font_data.size()));
+  ResourceDASM::BitmapFontRenderer renderer(font);
 
-  string text = inline_text ? input_filename : ((input_filename == "-") ? read_all(stdin) : load_file(input_filename));
-  strip_trailing_whitespace(text);
+  std::string text = inline_text
+      ? input_filename
+      : (input_filename == "-")
+      ? phosg::read_all(stdin)
+      : phosg::load_file(input_filename);
+  phosg::strip_trailing_whitespace(text);
 
   if (cr) {
-    text = replace_cr_with_lf(text);
+    text = ResourceDASM::replace_cr_with_lf(text);
   }
 
   if (wrap_width) {
@@ -90,25 +91,25 @@ Options:\n\
   }
 
   if (text.empty()) {
-    throw runtime_error("No text to render");
+    throw std::runtime_error("No text to render");
   }
 
   auto [text_width, text_height] = renderer.pixel_dimensions_for_text(text);
   width = width ? width : text_width;
   height = height ? height : text_height;
-  fwrite_fmt(stderr, "Text dimensions computed as {}x{} (image dimensions {}x{}, wrap width {})\n",
+  phosg::fwrite_fmt(stderr, "Text dimensions computed as {}x{} (image dimensions {}x{}, wrap width {})\n",
       text_width, text_height, width, height, wrap_width);
 
-  ImageRGBA8888N ret(width, height);
+  phosg::ImageRGBA8888N ret(width, height);
   ret.clear(bg_color);
   renderer.render_text(ret, text, 0, 0, ret.get_width(), ret.get_height(), text_color, align);
 
   if (output_filename == "-") {
-    fwritex(stdout, ret.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
-    fwrite_fmt(stderr, "Image written to stdout\n");
+    phosg::fwritex(stdout, ret.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
+    phosg::fwrite_fmt(stderr, "Image written to stdout\n");
   } else {
-    save_file(output_filename, ret.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
-    fwrite_fmt(stderr, "Image written to {}\n", output_filename);
+    phosg::save_file(output_filename, ret.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
+    phosg::fwrite_fmt(stderr, "Image written to {}\n", output_filename);
   }
 
   return 0;

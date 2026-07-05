@@ -12,27 +12,23 @@
 #include "../DataCodecs/Codecs.hh"
 #include "../IndexFormats/Formats.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 static constexpr uint32_t SHPD_type = 0x53485044;
 static constexpr uint32_t SHPT_type = 0x53485054;
 
 struct SHPDResource {
-  be_uint32_t offset;
-  be_uint32_t compressed_size; // If 0, data is not compressed
-  be_uint32_t decompressed_size;
+  phosg::be_uint32_t offset;
+  phosg::be_uint32_t compressed_size; // If 0, data is not compressed
+  phosg::be_uint32_t decompressed_size;
 } __attribute__((packed));
 
-static ImageRGBA8888N decode_lemmings_color_image(
-    StringReader& r, size_t width, size_t height, const vector<ColorTableEntry>& clut) {
-  // Lemmings color images are encoded in a fairly simple format: each command
-  // is a single byte. If the high bit is set, then (cmd & 0x7F) + 1 pixels are
-  // skipped (transparent). If the high bit is not set, then (cmd + 1) pixels
+static phosg::ImageRGBA8888N decode_lemmings_color_image(
+    phosg::StringReader& r, size_t width, size_t height, const std::vector<ColorTableEntry>& clut) {
+  // Lemmings color images are encoded in a fairly simple format: each command is a single byte. If the high bit is
+  // set, then (cmd & 0x7F) + 1 pixels are skipped (transparent). If the high bit is not set, then (cmd + 1) pixels
   // (bytes) are written directly from the input stream.
-  ImageRGBA8888N ret(width, height);
+  phosg::ImageRGBA8888N ret(width, height);
   size_t x = 0, y = 0;
   auto advance_x = [&](size_t count) {
     x += count;
@@ -57,19 +53,21 @@ static ImageRGBA8888N decode_lemmings_color_image(
   return ret;
 }
 
-vector<DecodedSHPDImage> decode_SHPD_images(
-    ResourceFile& rf, int16_t shpd_id, const string& data, const vector<ColorTableEntry>& clut, SHPDVersion version) {
-  StringReader r(data);
-  vector<DecodedSHPDImage> ret;
+std::vector<DecodedSHPDImage> decode_SHPD_images(
+    ResourceFile& rf,
+    int16_t shpd_id,
+    const std::string& data,
+    const std::vector<ColorTableEntry>& clut,
+    SHPDVersion version) {
+  phosg::StringReader r(data);
+  std::vector<DecodedSHPDImage> ret;
 
   if (version == SHPDVersion::LEMMINGS_V1 || version == SHPDVersion::LEMMINGS_V2) {
-    // Lemmings SHPD image data consists of a list of offsets, each pointing to
-    // an image data segment. The segments are composed of a short header (8
-    // bytes in v1, 12 bytes in v2) followed by the image data.
+    // Lemmings SHPD image data consists of a list of offsets, each pointing to an image data segment. The segments are
+    // composed of a short header (8 bytes in v1, 12 bytes in v2) followed by the image data.
     uint32_t offsets_end_offset = r.get_u32b(false);
     if (offsets_end_offset == 0) {
-      // If the first 4 bytes are zero, the image is a single image in PICT
-      // format instead of a list of images.
+      // If the first 4 bytes are zero, the image is a single image in PICT format instead of a list of images.
       ResourceFile::Resource pict_res(RESOURCE_TYPE_PICT, 0, data);
       ResourceFile pict_rf;
       pict_rf.add(pict_res);
@@ -88,7 +86,7 @@ vector<DecodedSHPDImage> decode_SHPD_images(
           img.origin_x = 0;
           img.origin_y = 0;
         } else {
-          StringReader image_r = r.sub(start_offset);
+          phosg::StringReader image_r = r.sub(start_offset);
           if (is_v2) {
             image_r.skip(4); // Unknown what these bytes are for
           }
@@ -106,12 +104,11 @@ vector<DecodedSHPDImage> decode_SHPD_images(
     }
 
   } else if (version == SHPDVersion::PRINCE_OF_PERSIA) {
-    // Prince of Persia has SHPT resources that further split the SHPDs into
-    // sub-images. (This is similar to how Lemmings uses a list of offsets at
-    // the beginning, but in Prince of Persia the offsets are stored in a
-    // separate resource.)
+    // Prince of Persia has SHPT resources that further split the SHPDs into sub-images. (This is similar to how
+    // Lemmings uses a list of offsets at the beginning, but in Prince of Persia the offsets are stored in a separate
+    // resource.)
     auto res = rf.get_resource(SHPT_type, shpd_id);
-    StringReader shpt_r(res->data);
+    phosg::StringReader shpt_r(res->data);
     while (!shpt_r.eof()) {
       uint32_t start_offset = shpt_r.get_u32b();
       if (start_offset == 0xFFFFFFFF) {
@@ -119,11 +116,10 @@ vector<DecodedSHPDImage> decode_SHPD_images(
       }
       uint32_t end_offset = shpt_r.eof() ? r.size() : shpt_r.get_u32b(false);
 
-      StringReader image_r = r.sub(start_offset, end_offset - start_offset);
+      phosg::StringReader image_r = r.sub(start_offset, end_offset - start_offset);
       auto& img = ret.emplace_back();
 
-      // Unlike Lemmings, the width and height are the first fields in the
-      // header, not the last.
+      // Unlike Lemmings, the width and height are the first fields in the header, not the last.
       size_t width = image_r.get_u16b();
       size_t height = image_r.get_u16b();
       img.origin_x = image_r.get_u16b();
@@ -131,39 +127,40 @@ vector<DecodedSHPDImage> decode_SHPD_images(
       if (!clut.empty()) {
         img.image = decode_presage_v1_commands(image_r, width, height, clut);
       } else {
-        // Prince of Persia appears to use a different default compositing mode;
-        // it looks like AND rather than MASK_COPY
+        // Prince of Persia appears to use a different default compositing mode; looks like AND rather than MASK_COPY
         img.image = decode_presage_mono_image(image_r, width, height, true).convert_monochrome_to_color();
       }
     }
 
   } else {
-    throw logic_error("invalid SHPD version");
+    throw std::logic_error("invalid SHPD version");
   }
   return ret;
 }
 
-unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
-    ResourceFile& rf, const string& data_fork_contents, const vector<ColorTableEntry>& clut, SHPDVersion version) {
-  StringReader r(data_fork_contents);
-  unordered_map<string, DecodedSHPDImage> ret;
+std::unordered_map<std::string, DecodedSHPDImage> decode_SHPD_collection(
+    ResourceFile& rf,
+    const std::string& data_fork_contents,
+    const std::vector<ColorTableEntry>& clut,
+    SHPDVersion version) {
+  phosg::StringReader r(data_fork_contents);
+  std::unordered_map<std::string, DecodedSHPDImage> ret;
   for (const auto& id : rf.all_resources_of_type(SHPD_type)) {
     auto res = rf.get_resource(SHPD_type, id);
     if (res->data.size() != sizeof(SHPDResource)) {
-      throw runtime_error(std::format(
-          "incorrect resource size: expected {:X} bytes, received {:X} bytes",
+      throw std::runtime_error(std::format("incorrect resource size: expected {:X} bytes, received {:X} bytes",
           sizeof(SHPDResource), res->data.size()));
     }
     const auto* shpd = reinterpret_cast<const SHPDResource*>(res->data.data());
 
-    string data;
+    std::string data;
     if (shpd->compressed_size == 0) {
       data = r.preadx(shpd->offset, shpd->decompressed_size);
     } else {
-      StringReader sub_r = r.sub(shpd->offset, shpd->compressed_size);
+      phosg::StringReader sub_r = r.sub(shpd->offset, shpd->compressed_size);
       data = decompress_presage_lzss(sub_r, shpd->decompressed_size);
       if (shpd->decompressed_size != data.size()) {
-        throw runtime_error(std::format(
+        throw std::runtime_error(std::format(
             "incorrect decompressed data size: expected {:X} bytes, received {:X} bytes",
             shpd->decompressed_size, data.size()));
       }
@@ -177,13 +174,13 @@ unordered_map<string, DecodedSHPDImage> decode_SHPD_collection(
   return ret;
 }
 
-unordered_map<string, ImageRGBA8888N> decode_SHPD_collection_images_only(
+std::unordered_map<std::string, phosg::ImageRGBA8888N> decode_SHPD_collection_images_only(
     ResourceFile& rf,
-    const string& data_fork_contents,
-    const vector<ColorTableEntry>& clut,
+    const std::string& data_fork_contents,
+    const std::vector<ColorTableEntry>& clut,
     SHPDVersion version) {
   auto decoded = decode_SHPD_collection(rf, data_fork_contents, clut, version);
-  unordered_map<string, ImageRGBA8888N> ret;
+  std::unordered_map<std::string, phosg::ImageRGBA8888N> ret;
   for (auto& it : decoded) {
     ret.emplace(it.first, std::move(it.second.image));
   }

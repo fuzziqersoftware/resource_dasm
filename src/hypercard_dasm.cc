@@ -20,71 +20,63 @@
 #include "ResourceFile.hh"
 #include "TextCodecs.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
-void print_extra_data(StringReader& r, size_t end_offset, const char* what) {
+void print_extra_data(phosg::StringReader& r, size_t end_offset, const char* what) {
   size_t offset = r.where();
   if (offset > end_offset) {
-    throw runtime_error(std::format("{} parsing extended beyond end", what));
+    throw std::runtime_error(std::format("{} parsing extended beyond end", what));
   } else if (offset < end_offset) {
-    string extra_data = r.read(end_offset - offset);
-    if (extra_data.find_first_not_of('\0') != string::npos) {
-      fwrite_fmt(stderr, "Warning: extra data after {} ignored:\n", what);
-      print_data(stderr, extra_data, offset);
+    std::string extra_data = r.read(end_offset - offset);
+    if (extra_data.find_first_not_of('\0') != std::string::npos) {
+      phosg::fwrite_fmt(stderr, "Warning: extra data after {} ignored:\n", what);
+      phosg::print_data(stderr, extra_data, offset);
     }
   }
 }
 
-string get_cstr_pad(StringReader& r) {
+std::string get_cstr_pad(phosg::StringReader& r) {
   bool initial_parity = r.where() & 1;
-  string ret = r.get_cstr();
+  std::string ret = r.get_cstr();
   if (initial_parity != (r.where() & 1)) {
     r.get_u8();
   }
   return ret;
 }
 
-string trim_and_decode(const string& src) {
+std::string trim_and_decode(const std::string& src) {
   size_t zero_pos = src.find('\0');
-  string ret = (zero_pos != string::npos) ? src.substr(0, zero_pos) : src;
-  return decode_mac_roman(ret);
+  std::string ret = (zero_pos != std::string::npos) ? src.substr(0, zero_pos) : src;
+  return ResourceDASM::decode_mac_roman(ret);
 }
 
 bool format_is_v2(uint32_t format) {
-  // TODO: When exactly did CARD/BKGD formats change? We assume here that they
-  // changed between v1 and v2, which is probably correct, but this is not
-  // verified.
+  // TODO: When exactly did CARD/BKGD formats change? We assume here that they changed between v1 and v2, which is
+  // probably correct, but this is not verified.
   return (format >= 9);
 }
 
-string autoformat_hypertalk(const string& src) {
-  vector<string> lines = split(src, '\n');
+std::string autoformat_hypertalk(const std::string& src) {
+  std::vector<std::string> lines = phosg::split(src, '\n');
 
   // First, eliminate all continuation characters by combining lines
   {
     size_t write_index = 0;
-    // Note: The seeming mismatch of loop variables here is not a bug. The loop
-    // ends when read_index reaches the end of lines, but each iteration of the
-    // loop handles a single write_index (and possibly multiple read_indexes).
+    // Note: The seeming mismatch of loop variables here is not a bug. The loop ends when read_index reaches the end of
+    // lines, but each iteration of the loop handles a single write_index (and possibly multiple read_indexes).
     for (size_t read_index = 0; read_index < lines.size(); write_index++) {
-      string& write_line = lines[write_index];
+      std::string& write_line = lines[write_index];
       if (read_index != write_index) {
         write_line = std::move(lines[read_index]);
       }
       read_index++;
 
-      // Combine read lines into the write line while the write line still ends
-      // with a continuation character. This handles sequences of multiple lines
-      // with continuations.
+      // Combine read lines into the write line while the write line still ends with a continuation character. This
+      // handles sequences of multiple lines with continuations.
       while ((read_index < lines.size()) &&
           (write_line.size() > 1) &&
           // The return character (C2 in Mac Roman) decodes to C2 AC
           (static_cast<uint8_t>(write_line[write_line.size() - 2]) == 0xC2) &&
           (static_cast<uint8_t>(write_line[write_line.size() - 1]) == 0xAC)) {
-        // Remove the continuation character and preceding whitespace, leaving a
-        // single space at the end
+        // Remove the continuation character and preceding whitespace, leaving a single space at the end
         write_line.pop_back();
         write_line.pop_back();
         while (!write_line.empty() && isblank(write_line.back())) {
@@ -112,23 +104,23 @@ string autoformat_hypertalk(const string& src) {
     size_t indent = 0;
     bool prev_is_if_then = false;
     for (size_t line_num = 0; line_num < lines.size(); line_num++) {
-      string& line = lines[line_num];
+      std::string& line = lines[line_num];
 
       // Strip whitespace from the beginning and end; we'll auto-indent later
       size_t line_start_offset = line.find_first_not_of(" \t");
       size_t line_end_offset = line.find_last_not_of(" \t");
-      if (line_start_offset == string::npos) {
+      if (line_start_offset == std::string::npos) {
         line.clear();
       } else {
         line = line.substr(line_start_offset, line_end_offset - line_start_offset + 1);
 
         // Lowercase the line for pseudo-parsing
-        string lowercase_line = tolower(line);
+        std::string lowercase_line = phosg::tolower(line);
         size_t comment_start = lowercase_line.find("--");
-        if (comment_start != string::npos) {
+        if (comment_start != std::string::npos) {
           lowercase_line.resize(comment_start);
           size_t lowercase_line_end_offset = lowercase_line.find_last_not_of(" \t");
-          if (lowercase_line_end_offset == string::npos) {
+          if (lowercase_line_end_offset == std::string::npos) {
             lowercase_line.clear();
           } else {
             lowercase_line.resize(lowercase_line_end_offset + 1);
@@ -170,7 +162,7 @@ string autoformat_hypertalk(const string& src) {
   for (const auto& line : lines) {
     script_bytes += line.size();
   }
-  string ret;
+  std::string ret;
   ret.reserve(script_bytes);
   for (const auto& line : lines) {
     ret += line;
@@ -185,18 +177,18 @@ struct OSAScriptData {
   //   uint16_t script_size;
   //   uint8_t extra_header_data[...]; // if script_offset != 2 presumably
   //   char script[script_size];
-  string extra_header_data;
-  string script;
+  std::string extra_header_data;
+  std::string script;
 
   OSAScriptData() = default;
-  OSAScriptData(StringReader& r) {
+  OSAScriptData(phosg::StringReader& r) {
     if (r.get_u16b(false) == 0) {
       return;
     }
     uint16_t script_offset = r.get_u16b();
     uint16_t script_size = r.get_u16b();
     if (script_offset < 2) {
-      throw runtime_error("OSA script overlaps size field");
+      throw std::runtime_error("OSA script overlaps size field");
     }
     if (script_offset > 2) {
       this->extra_header_data = r.read(script_offset - 2);
@@ -205,16 +197,16 @@ struct OSAScriptData {
   }
 };
 
-void print_formatted_script(FILE* f, const string& script, const OSAScriptData& osa_script_data) {
-  string extra_header_data;
+void print_formatted_script(FILE* f, const std::string& script, const OSAScriptData& osa_script_data) {
+  std::string extra_header_data;
   if (script.empty()) {
     if (!osa_script_data.extra_header_data.empty()) {
-      fwrite_fmt(f, "----- OSA script extra header data -----\n");
-      print_data(f, osa_script_data.extra_header_data);
+      phosg::fwrite_fmt(f, "----- OSA script extra header data -----\n");
+      phosg::print_data(f, osa_script_data.extra_header_data);
     }
     if (!osa_script_data.script.empty()) {
-      fwrite_fmt(f, "----- OSA script -----\n");
-      string decoded_script = decode_mac_roman(osa_script_data.script);
+      phosg::fwrite_fmt(f, "----- OSA script -----\n");
+      std::string decoded_script = ResourceDASM::decode_mac_roman(osa_script_data.script);
       bool all_chars_printable = true;
       for (char ch : decoded_script) {
         if (!isprint(ch) && (ch != '\n') && (ch != '\t')) {
@@ -223,23 +215,23 @@ void print_formatted_script(FILE* f, const string& script, const OSAScriptData& 
         }
       }
       if (all_chars_printable) {
-        fwritex(f, decoded_script);
+        phosg::fwritex(f, decoded_script);
       } else {
-        print_data(f, osa_script_data.script);
+        phosg::print_data(f, osa_script_data.script);
       }
     }
 
   } else {
-    fwrite_fmt(f, "----- HyperTalk script -----\n");
-    string formatted_script = autoformat_hypertalk(script);
-    fwritex(f, formatted_script);
+    phosg::fwrite_fmt(f, "----- HyperTalk script -----\n");
+    std::string formatted_script = autoformat_hypertalk(script);
+    phosg::fwritex(f, formatted_script);
   }
 }
 
 struct BlockHeader {
-  be_uint32_t size;
-  be_uint32_t type;
-  be_int32_t id;
+  phosg::be_uint32_t size;
+  phosg::be_uint32_t type;
+  phosg::be_int32_t id;
 } __attribute__((packed));
 
 struct StackBlock {
@@ -263,8 +255,8 @@ struct StackBlock {
   uint32_t hypercard_modify_version;
   uint32_t hypercard_open_version;
   uint32_t checksum;
-  Rect window_rect;
-  Rect screen_rect;
+  ResourceDASM::Rect window_rect;
+  ResourceDASM::Rect screen_rect;
   int16_t scroll_y;
   int16_t scroll_x;
   int32_t font_table_block_id;
@@ -272,10 +264,10 @@ struct StackBlock {
   uint16_t card_height;
   uint16_t card_width;
   uint64_t patterns[0x28];
-  string script;
+  std::string script;
   OSAScriptData osa_script_data;
 
-  StackBlock(StringReader& r) {
+  StackBlock(phosg::StringReader& r) {
     // Format (v2, at least):
     //   BlockHeader header; // type 'STAK'
     //   uint32_t unknown;
@@ -348,9 +340,9 @@ struct StackBlock {
     // 0x70
     this->checksum = r.get_u32b();
     r.skip(4);
-    this->window_rect = r.get<Rect>();
+    this->window_rect = r.get<ResourceDASM::Rect>();
     // 0x80
-    this->screen_rect = r.get<Rect>();
+    this->screen_rect = r.get<ResourceDASM::Rect>();
     this->scroll_y = r.get_s16b();
     this->scroll_x = r.get_s16b();
     r.skip(4);
@@ -405,9 +397,9 @@ struct StackBlock {
     }
   }
 
-  string str_for_flags(uint16_t flags) {
+  std::string str_for_flags(uint16_t flags) {
     // 8000 can't modify, 4000 can't delete, 2000 private access, 1000 always set (?), 0800 can't abort, 0400 can't peek
-    vector<const char*> tokens;
+    std::vector<const char*> tokens;
     if (flags & 0x8000) {
       tokens.emplace_back("can\'t modify");
     }
@@ -426,7 +418,7 @@ struct StackBlock {
     if (tokens.empty()) {
       return "none";
     }
-    return join(tokens, ", ");
+    return phosg::join(tokens, ", ");
   }
 };
 
@@ -439,7 +431,7 @@ struct StyleTableBlock {
     uint16_t style_flags; // bold, italic, underline, etc. may be 0xFFFF for inherit
     int16_t font_size; // -1 = inherit
 
-    Entry(StringReader& r) {
+    Entry(phosg::StringReader& r) {
       // Format:
       //   uint8_t unknown1[0x10];
       //   int16_t font_id;
@@ -454,9 +446,9 @@ struct StyleTableBlock {
     }
   };
 
-  vector<Entry> entries;
+  std::vector<Entry> entries;
 
-  StyleTableBlock(StringReader& r) {
+  StyleTableBlock(phosg::StringReader& r) {
     // Format:
     //   BlockHeader header; // type 'STBL'
     //   uint32_t unknown1;
@@ -473,9 +465,9 @@ struct StyleTableBlock {
 
 struct FontTableBlock {
   BlockHeader header; // type 'FTBL'
-  unordered_map<int16_t, string> font_id_to_name;
+  std::unordered_map<int16_t, std::string> font_id_to_name;
 
-  FontTableBlock(StringReader& r) {
+  FontTableBlock(phosg::StringReader& r) {
     // Format:
     //   BlockHeader header; // type 'FTBL'
     //   uint8_t unknown1[6];
@@ -493,7 +485,7 @@ struct FontTableBlock {
     for (size_t x = 0; x < font_count; x++) {
       int16_t font_id = r.get_s16b();
       uint8_t name_length = r.get_u8();
-      string name = r.read(name_length);
+      std::string name = r.read(name_length);
       if (!(name_length & 1)) {
         r.get_u8(); // end of entry is always word-aligned
       }
@@ -505,9 +497,9 @@ struct FontTableBlock {
 struct PageTableListBlock {
   BlockHeader header; // type 'LIST'
   uint16_t card_blocks_size;
-  vector<int32_t> page_block_ids;
+  std::vector<int32_t> page_block_ids;
 
-  PageTableListBlock(StringReader& r) {
+  PageTableListBlock(phosg::StringReader& r) {
     // Format:
     //   BlockHeader header; // type 'LIST'
     //   uint32_t page_table_count;
@@ -587,12 +579,12 @@ struct CardOrBackgroundBlock {
     // 0x0100 = bold
     uint16_t style_flags;
     uint16_t line_height;
-    string name; // c-string
-    string script; // c-string
+    std::string name; // c-string
+    std::string script; // c-string
     OSAScriptData osa_script_data;
     // Format ends with a padding byte if needed to make the size even
 
-    PartEntry(StringReader& r) {
+    PartEntry(phosg::StringReader& r) {
       // This format appears to be the same in v1 and v2
       size_t start_offset = r.where();
       // Format exactly matches the struct above
@@ -615,11 +607,11 @@ struct CardOrBackgroundBlock {
       this->name = r.get_cstr();
       // It seems there's always a double zero after the name
       if (r.get_u8() != 0) {
-        throw runtime_error("space byte after part name is not zero");
+        throw std::runtime_error("space byte after part name is not zero");
       }
       this->script = trim_and_decode(r.get_cstr());
       if ((r.where() & 1) && (r.get_u8() != 0)) {
-        throw runtime_error("alignment byte after part script is not zero");
+        throw std::runtime_error("alignment byte after part script is not zero");
       }
       // TODO: parse OSA script if present
       print_extra_data(r, start_offset + this->entry_size, "part entry");
@@ -628,10 +620,10 @@ struct CardOrBackgroundBlock {
 
   struct PartContentEntry {
     int16_t part_id; // if negative, card part; if positive, background part
-    map<uint16_t, uint16_t> offset_to_style_entry_index;
-    string text;
+    std::map<uint16_t, uint16_t> offset_to_style_entry_index;
+    std::string text;
 
-    PartContentEntry(StringReader& r, uint32_t stack_format) {
+    PartContentEntry(phosg::StringReader& r, uint32_t stack_format) {
       bool is_v2 = format_is_v2(stack_format);
 
       // In v1:
@@ -655,25 +647,25 @@ struct CardOrBackgroundBlock {
       // size_t start_offset = r.where();
       this->part_id = r.get_s16b();
       if (!is_v2) {
-        this->text = decode_mac_roman(r.get_cstr());
+        this->text = ResourceDASM::decode_mac_roman(r.get_cstr());
       } else { // v2
         uint16_t text_size = r.get_u16b();
 
         uint8_t has_styles = r.get_u8();
         if (has_styles) {
           if (!(has_styles & 0x80)) {
-            throw runtime_error("part content entry style presence flag not set, but marker byte is not zero");
+            throw std::runtime_error("part content entry style presence flag not set, but marker byte is not zero");
           }
           uint16_t styles_size = ((has_styles << 8) & 0x7F) | r.get_u8();
           if ((styles_size - 2) & 3) {
-            throw runtime_error("part content styles length splits style entry");
+            throw std::runtime_error("part content styles length splits style entry");
           }
           uint16_t num_entries = (styles_size - 2) / 4;
           while (this->offset_to_style_entry_index.size() < num_entries) {
             uint16_t start_offset = r.get_u16b();
             uint16_t style_entry_index = r.get_u16b();
             if (!this->offset_to_style_entry_index.emplace(start_offset, style_entry_index).second) {
-              throw runtime_error("part content styles entries contain duplicate offset");
+              throw std::runtime_error("part content styles entries contain duplicate offset");
             }
           }
         }
@@ -692,13 +684,13 @@ struct CardOrBackgroundBlock {
   int32_t prev_background_id;
   int32_t next_background_id;
   int32_t background_id;
-  vector<PartEntry> parts;
-  vector<PartContentEntry> part_contents;
-  string name;
-  string script;
+  std::vector<PartEntry> parts;
+  std::vector<PartContentEntry> part_contents;
+  std::string name;
+  std::string script;
   OSAScriptData osa_script_data;
 
-  CardOrBackgroundBlock(StringReader& r, uint32_t stack_format) {
+  CardOrBackgroundBlock(phosg::StringReader& r, uint32_t stack_format) {
     bool is_v2 = format_is_v2(stack_format);
 
     size_t start_offset = r.where();
@@ -749,22 +741,20 @@ struct CardOrBackgroundBlock {
     }
     for (size_t x = 0; x < parts_contents_count; x++) {
       if (is_v2) {
-        // Note: it looks like these must always start on aligned boundaries, but
-        // they don't necessarily end on aligned boundaries!
+        // Note: it looks like these must always start on aligned boundaries, but they don't necessarily end on aligned boundaries!
         if ((r.where() & 1) && (r.get_u8() != 0)) {
-          throw runtime_error(std::format("part content entry alignment byte at {:X} is not zero", r.where() - 1));
+          throw std::runtime_error(std::format("part content entry alignment byte at {:X} is not zero", r.where() - 1));
         }
       }
       this->part_contents.emplace_back(r, stack_format);
     }
     if (is_v2) {
       if ((r.where() & 1) && (r.get_u8() != 0)) {
-        throw runtime_error(std::format("alignment byte at {:X} after part content entries is not zero", r.where()));
+        throw std::runtime_error(std::format("alignment byte at {:X} after part content entries is not zero", r.where()));
       }
     }
     this->name = r.get_cstr();
-    // If the script is blank, it looks like the CARD block sometimes just ends
-    // early, so we have to check the offset here.
+    // If the script is blank, it looks like the CARD block sometimes just ends early, so we have to check the offset
     if (r.where() < start_offset + this->header.size - 1) {
       this->script = trim_and_decode(r.get_cstr());
     }
@@ -772,16 +762,16 @@ struct CardOrBackgroundBlock {
   }
 };
 
-static void operator^=(string& a, const string& b) {
+static void operator^=(std::string& a, const std::string& b) {
   if (a.size() != b.size()) {
-    throw invalid_argument("strings must be the same length");
+    throw std::invalid_argument("strings must be the same length");
   }
   for (size_t x = 0; x < b.size(); x++) {
     a[x] ^= b[x];
   }
 }
 
-static void operator>>=(string& s, size_t sh) {
+static void operator>>=(std::string& s, size_t sh) {
   size_t size = s.size();
   if (sh >= size * 8) {
     s.clear();
@@ -789,9 +779,8 @@ static void operator>>=(string& s, size_t sh) {
     return;
   }
 
-  // TODO: This can probably be done in a faster way than shifting first by
-  // bytes, then by bits. In practice, only one of these cases will ever do any
-  // real work, since dh can only be 1, 2, 8, or 16.
+  // TODO: This can probably be done in a faster way than shifting first by bytes, then by bits. In practice, only one
+  // of these cases will ever do any real work, since dh can only be 1, 2, 8, or 16.
 
   // First, shift entire bytes over.
   if (sh >= 8) {
@@ -818,11 +807,11 @@ static void operator>>=(string& s, size_t sh) {
 
 struct BitmapBlock {
   BlockHeader header; // type 'BMAP'
-  Rect card_rect;
-  Rect mask_rect;
-  Rect image_rect;
-  ImageG1 mask;
-  ImageG1 image;
+  ResourceDASM::Rect card_rect;
+  ResourceDASM::Rect mask_rect;
+  ResourceDASM::Rect image_rect;
+  phosg::ImageG1 mask;
+  phosg::ImageG1 image;
 
   enum class MaskMode {
     PRESENT,
@@ -831,7 +820,7 @@ struct BitmapBlock {
   };
   MaskMode mask_mode;
 
-  BitmapBlock(StringReader& r, uint32_t stack_format) {
+  BitmapBlock(phosg::StringReader& r, uint32_t stack_format) {
     bool is_v2 = format_is_v2(stack_format);
 
     // Format:
@@ -852,14 +841,14 @@ struct BitmapBlock {
     } else {
       r.skip(8);
     }
-    this->card_rect = r.get<Rect>();
-    this->mask_rect = r.get<Rect>();
-    this->image_rect = r.get<Rect>();
+    this->card_rect = r.get<ResourceDASM::Rect>();
+    this->mask_rect = r.get<ResourceDASM::Rect>();
+    this->image_rect = r.get<ResourceDASM::Rect>();
     r.skip(8);
     uint32_t mask_data_size = r.get_u32b();
     uint32_t image_data_size = r.get_u32b();
-    string mask_data = r.read(mask_data_size);
-    string image_data = r.read(image_data_size);
+    std::string mask_data = r.read(mask_data_size);
+    std::string image_data = r.read(image_data_size);
     if (!mask_data.empty()) {
       this->mask_mode = MaskMode::PRESENT;
       this->mask = this->decode_bitmap(mask_data, this->mask_rect);
@@ -871,42 +860,38 @@ struct BitmapBlock {
     this->image = this->decode_bitmap(image_data, this->image_rect);
   }
 
-  static ImageG1 decode_bitmap(const string& compressed_data, const Rect& bounds) {
+  static phosg::ImageG1 decode_bitmap(const std::string& compressed_data, const ResourceDASM::Rect& bounds) {
     size_t expanded_bounds_left = bounds.x1 & (~31);
     size_t expanded_bounds_right = ((bounds.x2 + 31) & (~31));
     size_t row_length_bits = expanded_bounds_right - expanded_bounds_left;
     size_t row_length_bytes = row_length_bits >> 3;
-    string data;
+    std::string data;
 
     uint8_t dh = 0, dv = 0;
     auto apply_dh_dv_transform_if_row_end = [&]() {
-      // If we aren't at the end of a row or the dh/dv transform would do
-      // nothing, then do nothing
+      // If we aren't at the end of a row or the dh/dv transform would do nothing, then do nothing
       if ((data.size() % row_length_bytes) || ((dh == 0) && (dv == 0))) {
         return;
       }
 
-      string row = data.substr(data.size() - row_length_bytes);
-      string xor_row(row_length_bytes, '\0');
+      std::string row = data.substr(data.size() - row_length_bytes);
+      std::string xor_row(row_length_bytes, '\0');
 
       if (dh) {
-        string xor_row = data.substr(data.size() - row_length_bytes);
+        std::string xor_row = data.substr(data.size() - row_length_bytes);
         for (size_t z = row_length_bits / dh; z > 0; z--) {
           xor_row >>= dh;
           row ^= xor_row;
         }
       }
       if (dv) {
-        // Some BMAPs set dv to a nonzero value on the very first row. I assume
-        // this just means to not do the dv transform for the first row(s)
+        // Some BMAPs set dv to a nonzero value on the very first row. I assume this just means to not do the dv
+        // transform for the first row(s)
         if (data.size() >= (1 + dv) * row_length_bytes) {
           row ^= data.substr(data.size() - (1 + dv) * row_length_bytes, row_length_bytes);
         }
       }
-
-      memcpy(data.data() + data.size() - row_length_bytes,
-          row.data(),
-          row_length_bytes);
+      memcpy(data.data() + data.size() - row_length_bytes, row.data(), row_length_bytes);
     };
 
     uint8_t row_memo_bytes[8] = {0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55};
@@ -915,16 +900,15 @@ struct BitmapBlock {
     size_t image_h = bounds.y2 - bounds.y1;
     size_t image_bits = image_w * image_h;
     if (image_bits & 3) {
-      throw logic_error("image bits is not divisible by 8");
+      throw std::logic_error("image bits is not divisible by 8");
     }
     size_t image_bytes = image_bits >> 3;
 
-    StringReader r(compressed_data.data(), compressed_data.size());
+    phosg::StringReader r(compressed_data.data(), compressed_data.size());
     size_t repeat_count = 1;
     size_t next_repeat_count = 1;
-    // Note: It looks like sometimes there are extra bytes at the end of a BMAP
-    // stream. The actual image should always end on an opcode boundary, so we
-    // just stop early if we've produced enough bytes.
+    // Note: It looks like sometimes there are extra bytes at the end of a BMAP stream. The actual image should always
+    // end on an opcode boundary, so we just stop early if we've produced enough bytes.
     while (!r.eof() && data.size() < image_bytes) {
       uint8_t opcode = r.get_u8();
       for (; repeat_count > 0; repeat_count--) {
@@ -971,7 +955,7 @@ struct BitmapBlock {
             case 0x87: { // copy the third row above
               uint8_t dy = opcode - 0x84;
               if (data.size() < dy * row_length_bytes) {
-                throw runtime_error("backreference beyond beginning of output");
+                throw std::runtime_error("backreference beyond beginning of output");
               }
               data.append(data.data() + data.size() - dy * row_length_bytes, row_length_bytes);
               break;
@@ -1013,14 +997,14 @@ struct BitmapBlock {
           }
 
         } else if (opcode < 0xA0) { // invalid
-          throw runtime_error("invalid opcode in compressed bitmap");
+          throw std::runtime_error("invalid opcode in compressed bitmap");
 
         } else if (opcode < 0xC0) { // repeat the next instruction (opcode & 0x1F) times
           next_repeat_count = opcode & 0x1F;
           if (next_repeat_count == 0) {
-            throw runtime_error("C-class opcode specified a repeat count of zero");
+            throw std::runtime_error("C-class opcode specified a repeat count of zero");
           } else if (next_repeat_count == 1) {
-            throw runtime_error("C-class opcode specified a repeat count of one");
+            throw std::runtime_error("C-class opcode specified a repeat count of one");
           }
 
         } else if (opcode < 0xE0) { // (opcode & 0x1F) << 3 data bytes
@@ -1043,7 +1027,7 @@ struct BitmapBlock {
     }
 
     if (data.size() != image_bytes) {
-      throw runtime_error(std::format(
+      throw std::runtime_error(std::format(
           "decompression produced an incorrect amount of data ({} bytes produced, ({} * {} >> 3) = {} bytes expected)",
           data.size(), image_w, image_h, image_bytes));
     }
@@ -1051,7 +1035,7 @@ struct BitmapBlock {
     // TODO: We should trim the left/right edges of the image here
     size_t left_pixels_to_skip = bounds.x1 - expanded_bounds_left;
     size_t right_pixels_to_skip = expanded_bounds_right - bounds.x2;
-    ImageG1 ret(image_w - left_pixels_to_skip - right_pixels_to_skip, image_h);
+    phosg::ImageG1 ret(image_w - left_pixels_to_skip - right_pixels_to_skip, image_h);
     for (size_t z = 0; z < data.size(); z++) {
       size_t x = (z % row_length_bytes) << 3;
       size_t y = z / row_length_bytes;
@@ -1067,8 +1051,8 @@ struct BitmapBlock {
     return ret;
   }
 
-  void render_into_card(ImageRGB888& dest) const {
-    Rect effective_mask_rect = this->mask_mode == MaskMode::NONE ? this->image_rect : this->mask_rect;
+  void render_into_card(phosg::ImageRGB888& dest) const {
+    ResourceDASM::Rect effective_mask_rect = this->mask_mode == MaskMode::NONE ? this->image_rect : this->mask_rect;
     for (ssize_t y = 0; y < effective_mask_rect.height(); y++) {
       for (ssize_t x = 0; x < effective_mask_rect.width(); x++) {
         ssize_t card_x = effective_mask_rect.x1 + x;
@@ -1088,7 +1072,7 @@ struct BitmapBlock {
 };
 
 void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: hypercard_dasm [options] <input-filename> [output-dir]\n\
 \n\
 If output-dir is not given, the directory <input-filename>.out is created and\n\
@@ -1112,13 +1096,13 @@ Options:\n\
 }
 
 int main(int argc, char** argv) {
-  string filename;
-  string out_dir;
+  std::string filename;
+  std::string out_dir;
   bool dump_raw_blocks = false;
   bool render_background_parts = true;
   bool render_card_parts = true;
   bool render_bitmap = true;
-  ImageSaver image_saver;
+  ResourceDASM::ImageSaver image_saver;
   const char* manhole_res_directory = nullptr;
   for (int x = 1; x < argc; x++) {
     if (!strcmp(argv[x], "--dump-raw-blocks")) {
@@ -1138,7 +1122,7 @@ int main(int argc, char** argv) {
     } else if (out_dir.empty()) {
       out_dir = argv[x];
     } else {
-      fwrite_fmt(stderr, "Excess argument: {}\n", argv[x]);
+      phosg::fwrite_fmt(stderr, "Excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -1149,18 +1133,18 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  vector<ResourceFile> manhole_rfs;
+  std::vector<ResourceDASM::ResourceFile> manhole_rfs;
   if (manhole_res_directory) {
     for (const auto& item : std::filesystem::directory_iterator(manhole_res_directory)) {
-      string file_path = std::format("{}/{}", manhole_res_directory, item.path().filename().string());
+      std::string file_path = std::format("{}/{}", manhole_res_directory, item.path().filename().string());
       if (std::filesystem::is_regular_file(file_path)) {
-        manhole_rfs.emplace_back(parse_resource_fork(load_file(file_path + "/..namedfork/rsrc")));
-        fwrite_fmt(stderr, "Added manhole resource file: {}\n", file_path);
+        manhole_rfs.emplace_back(ResourceDASM::parse_resource_fork(phosg::load_file(file_path + "/..namedfork/rsrc")));
+        phosg::fwrite_fmt(stderr, "Added manhole resource file: {}\n", file_path);
       } else if (std::filesystem::is_directory(file_path)) {
-        fwrite_fmt(stderr, "Skipping directory: {}\n", file_path);
+        phosg::fwrite_fmt(stderr, "Skipping directory: {}\n", file_path);
       }
     }
-    manhole_rfs.emplace_back(parse_resource_fork(load_file(filename + "/..namedfork/rsrc")));
+    manhole_rfs.emplace_back(ResourceDASM::parse_resource_fork(phosg::load_file(filename + "/..namedfork/rsrc")));
   }
 
   if (out_dir.empty()) {
@@ -1168,14 +1152,14 @@ int main(int argc, char** argv) {
   }
   std::filesystem::create_directories(out_dir);
 
-  string data = load_file(filename);
-  StringReader r(data.data(), data.size());
+  std::string data = phosg::load_file(filename);
+  phosg::StringReader r(data.data(), data.size());
   uint32_t stack_format = 0;
 
-  shared_ptr<StackBlock> stack;
-  unordered_map<uint32_t, BitmapBlock> bitmaps;
-  unordered_map<uint32_t, CardOrBackgroundBlock> backgrounds;
-  unordered_map<uint32_t, CardOrBackgroundBlock> cards;
+  std::shared_ptr<StackBlock> stack;
+  std::unordered_map<uint32_t, BitmapBlock> bitmaps;
+  std::unordered_map<uint32_t, CardOrBackgroundBlock> backgrounds;
+  std::unordered_map<uint32_t, CardOrBackgroundBlock> cards;
   while (!r.eof()) {
     size_t block_offset = r.where();
     const BlockHeader& header = r.get<BlockHeader>(false);
@@ -1186,39 +1170,36 @@ int main(int argc, char** argv) {
     int32_t block_id = header.id;
 
     if (dump_raw_blocks) {
-      string type_str = string_for_resource_type(header.type);
-      string data = r.read(header.size);
-      string output_filename = std::format("{}/{}_{}_{:X}.bin", out_dir,
-          type_str, block_id, block_offset);
-      save_file(output_filename, data);
-      fwrite_fmt(stderr, "... {}\n", output_filename);
+      std::string type_str = ResourceDASM::string_for_resource_type(header.type);
+      std::string data = r.read(header.size);
+      std::string output_filename = std::format("{}/{}_{}_{:X}.bin", out_dir, type_str, block_id, block_offset);
+      phosg::save_file(output_filename, data);
+      phosg::fwrite_fmt(stderr, "... {}\n", output_filename);
     }
 
     switch (header.type) {
       case 0x5354414B: // STAK
-        stack = make_shared<StackBlock>(r);
+        stack = std::make_shared<StackBlock>(r);
         stack_format = stack->format;
         break;
       case 0x424B4744: // BKGD
-        backgrounds.emplace(piecewise_construct, make_tuple(block_id),
-            forward_as_tuple(r, stack_format));
+        backgrounds.emplace(
+            std::piecewise_construct, std::make_tuple(block_id), std::forward_as_tuple(r, stack_format));
         break;
       case 0x43415244: // CARD
-        cards.emplace(piecewise_construct, make_tuple(block_id),
-            forward_as_tuple(r, stack_format));
+        cards.emplace(std::piecewise_construct, std::make_tuple(block_id), std::forward_as_tuple(r, stack_format));
         break;
       case 0x424D4150: // BMAP
-        bitmaps.emplace(piecewise_construct, make_tuple(block_id),
-            forward_as_tuple(r, stack_format));
+        bitmaps.emplace(std::piecewise_construct, std::make_tuple(block_id), std::forward_as_tuple(r, stack_format));
         break;
 
       default:
-        fwrite_fmt(stderr, "Warning: skipping unknown block at {:08X} size: {:08X} type: {:08X} ({:.4}) id: {:08X} ({})\n",
-            r.where(), header.size, header.type,
-            reinterpret_cast<const char*>(&header.type), block_id, block_id);
+        phosg::fwrite_fmt(stderr,
+            "Warning: skipping unknown block at {:08X} size: {:08X} type: {:08X} ({:.4}) id: {:08X} ({})\n",
+            r.where(), header.size, header.type, reinterpret_cast<const char*>(&header.type), block_id, block_id);
 
         if (header.size < sizeof(BlockHeader)) {
-          throw runtime_error("block is smaller than header");
+          throw std::runtime_error("block is smaller than header");
         }
         r.go(block_end);
     }
@@ -1228,49 +1209,49 @@ int main(int argc, char** argv) {
 
   // Disassemble stack block
   if (stack.get()) {
-    string disassembly_filename = out_dir + "/stack.txt";
-    auto f = fopen_unique(disassembly_filename, "wt");
-    fwrite_fmt(f.get(), "-- stack: {}\n", filename);
+    std::string disassembly_filename = out_dir + "/stack.txt";
+    auto f = phosg::fopen_unique(disassembly_filename, "wt");
+    phosg::fwrite_fmt(f.get(), "-- stack: {}\n", filename);
 
-    fwrite_fmt(f.get(), "-- format: {} ({})\n", stack->format, stack->name_for_format(stack->format));
-    string flags_str = stack->str_for_flags(stack->flags);
-    fwrite_fmt(f.get(), "-- flags: 0x{:X} ({})\n", stack->flags, flags_str);
-    fwrite_fmt(f.get(), "-- protect password hash: {}\n", stack->protect_password_hash);
-    fwrite_fmt(f.get(), "-- maximum user level: {} ({})\n", stack->max_user_level, stack->name_for_user_level(stack->max_user_level));
+    phosg::fwrite_fmt(f.get(), "-- format: {} ({})\n", stack->format, stack->name_for_format(stack->format));
+    std::string flags_str = stack->str_for_flags(stack->flags);
+    phosg::fwrite_fmt(f.get(), "-- flags: 0x{:X} ({})\n", stack->flags, flags_str);
+    phosg::fwrite_fmt(f.get(), "-- protect password hash: {}\n", stack->protect_password_hash);
+    phosg::fwrite_fmt(f.get(), "-- maximum user level: {} ({})\n", stack->max_user_level, stack->name_for_user_level(stack->max_user_level));
 
-    string window_rect_str = stack->window_rect.str();
-    fwrite_fmt(f.get(), "-- window: {}\n", window_rect_str);
-    string screen_rect_str = stack->screen_rect.str();
-    fwrite_fmt(f.get(), "-- screen: {}\n", screen_rect_str);
-    fwrite_fmt(f.get(), "-- card dimensions: w={} h={}\n", stack->card_width, stack->card_height);
-    fwrite_fmt(f.get(), "-- scroll: x={} y={}\n", stack->scroll_x, stack->scroll_y);
+    std::string window_rect_str = stack->window_rect.str();
+    phosg::fwrite_fmt(f.get(), "-- window: {}\n", window_rect_str);
+    std::string screen_rect_str = stack->screen_rect.str();
+    phosg::fwrite_fmt(f.get(), "-- screen: {}\n", screen_rect_str);
+    phosg::fwrite_fmt(f.get(), "-- card dimensions: w={} h={}\n", stack->card_width, stack->card_height);
+    phosg::fwrite_fmt(f.get(), "-- scroll: x={} y={}\n", stack->scroll_x, stack->scroll_y);
 
-    fwrite_fmt(f.get(), "-- background count: {}\n", stack->background_count);
-    fwrite_fmt(f.get(), "-- first background id: {}\n", stack->first_background_id);
+    phosg::fwrite_fmt(f.get(), "-- background count: {}\n", stack->background_count);
+    phosg::fwrite_fmt(f.get(), "-- first background id: {}\n", stack->first_background_id);
 
-    fwrite_fmt(f.get(), "-- card count: {}\n", stack->card_count);
-    fwrite_fmt(f.get(), "-- first card id: {}\n", stack->first_card_id);
+    phosg::fwrite_fmt(f.get(), "-- card count: {}\n", stack->card_count);
+    phosg::fwrite_fmt(f.get(), "-- first card id: {}\n", stack->first_card_id);
 
-    fwrite_fmt(f.get(), "-- list block id: {}\n", stack->list_block_id);
-    fwrite_fmt(f.get(), "-- print block id: {}\n", stack->print_block_id);
-    fwrite_fmt(f.get(), "-- font table block id: {}\n", stack->font_table_block_id);
-    fwrite_fmt(f.get(), "-- style table block id: {}\n", stack->style_table_block_id);
-    fwrite_fmt(f.get(), "-- free block count: {}\n", stack->free_block_count);
-    fwrite_fmt(f.get(), "-- free size: {} bytes\n", stack->free_size);
-    fwrite_fmt(f.get(), "-- total size: {} bytes\n", stack->total_size);
-    fwrite_fmt(f.get(), "-- stack block size: {} bytes\n", stack->stack_block_size);
+    phosg::fwrite_fmt(f.get(), "-- list block id: {}\n", stack->list_block_id);
+    phosg::fwrite_fmt(f.get(), "-- print block id: {}\n", stack->print_block_id);
+    phosg::fwrite_fmt(f.get(), "-- font table block id: {}\n", stack->font_table_block_id);
+    phosg::fwrite_fmt(f.get(), "-- style table block id: {}\n", stack->style_table_block_id);
+    phosg::fwrite_fmt(f.get(), "-- free block count: {}\n", stack->free_block_count);
+    phosg::fwrite_fmt(f.get(), "-- free size: {} bytes\n", stack->free_size);
+    phosg::fwrite_fmt(f.get(), "-- total size: {} bytes\n", stack->total_size);
+    phosg::fwrite_fmt(f.get(), "-- stack block size: {} bytes\n", stack->stack_block_size);
 
-    fwrite_fmt(f.get(), "-- created by hypercard version: 0x{:08X}\n", stack->hypercard_create_version);
-    fwrite_fmt(f.get(), "-- compacted by hypercard version: 0x{:08X}\n", stack->hypercard_compact_version);
-    fwrite_fmt(f.get(), "-- modified by hypercard version: 0x{:08X}\n", stack->hypercard_modify_version);
-    fwrite_fmt(f.get(), "-- opened by hypercard version: 0x{:08X}\n", stack->hypercard_open_version);
+    phosg::fwrite_fmt(f.get(), "-- created by hypercard version: 0x{:08X}\n", stack->hypercard_create_version);
+    phosg::fwrite_fmt(f.get(), "-- compacted by hypercard version: 0x{:08X}\n", stack->hypercard_compact_version);
+    phosg::fwrite_fmt(f.get(), "-- modified by hypercard version: 0x{:08X}\n", stack->hypercard_modify_version);
+    phosg::fwrite_fmt(f.get(), "-- opened by hypercard version: 0x{:08X}\n", stack->hypercard_open_version);
 
     for (size_t x = 0; x < 0x28; x++) {
-      fwrite_fmt(f.get(), "-- patterns[{}]: 0x{:016X}\n", x, stack->patterns[x]);
+      phosg::fwrite_fmt(f.get(), "-- patterns[{}]: 0x{:016X}\n", x, stack->patterns[x]);
     }
-    fwrite_fmt(f.get(), "-- checksum: 0x{:X}\n", stack->checksum);
+    phosg::fwrite_fmt(f.get(), "-- checksum: 0x{:X}\n", stack->checksum);
     print_formatted_script(f.get(), stack->script, stack->osa_script_data);
-    fwrite_fmt(stderr, "... {}\n", disassembly_filename);
+    phosg::fwrite_fmt(stderr, "... {}\n", disassembly_filename);
   }
 
   // Disassemble bitmap blocks
@@ -1278,14 +1259,14 @@ int main(int argc, char** argv) {
     int32_t id = bitmap_it.first;
     const auto& bmap = bitmap_it.second;
 
-    string filename = std::format("{}/bitmap_{}", out_dir, id);
+    std::string filename = std::format("{}/bitmap_{}", out_dir, id);
     filename = image_saver.save_image(bmap.image, filename);
-    fwrite_fmt(stderr, "... {}\n", filename);
+    phosg::fwrite_fmt(stderr, "... {}\n", filename);
 
     if (bmap.mask_mode == BitmapBlock::MaskMode::PRESENT) {
-      string filename = std::format("{}/bitmap_{}_mask", out_dir, id);
+      std::string filename = std::format("{}/bitmap_{}_mask", out_dir, id);
       filename = image_saver.save_image(bmap.mask, filename);
-      fwrite_fmt(stderr, "... {}\n", filename);
+      phosg::fwrite_fmt(stderr, "... {}\n", filename);
     }
   }
 
@@ -1293,41 +1274,39 @@ int main(int argc, char** argv) {
   {
     auto disassemble_block = [&](const CardOrBackgroundBlock& block) {
       bool is_card = block.header.type == 0x43415244;
-      string render_img_filename = std::format("{}/{}_{}_render",
+      std::string render_img_filename = std::format("{}/{}_{}_render",
           out_dir, is_card ? "card" : "background", block.header.id);
-      string disassembly_filename = std::format("{}/{}_{}.txt",
+      std::string disassembly_filename = std::format("{}/{}_{}.txt",
           out_dir, is_card ? "card" : "background", block.header.id);
 
-      // Figure out the background and bitmaps, for getting the card size and
-      // producing the render image
+      // Figure out the background and bitmaps, for getting the card size and producing the render image
       const CardOrBackgroundBlock* background = nullptr;
       const BitmapBlock* bmap = nullptr;
       const BitmapBlock* background_bmap = nullptr;
       if (block.bmap_block_id) {
         try {
           bmap = &bitmaps.at(block.bmap_block_id);
-        } catch (const out_of_range&) {
-          fwrite_fmt(stderr, "Warning: could not look up bitmap {}\n", block.bmap_block_id);
+        } catch (const std::out_of_range&) {
+          phosg::fwrite_fmt(stderr, "Warning: could not look up bitmap {}\n", block.bmap_block_id);
         }
       }
       if (block.background_id) {
         try {
           background = &backgrounds.at(block.background_id);
-        } catch (const out_of_range&) {
-          fwrite_fmt(stderr, "Warning: could not look up background {}\n", block.background_id);
+        } catch (const std::out_of_range&) {
+          phosg::fwrite_fmt(stderr, "Warning: could not look up background {}\n", block.background_id);
         }
         if (background && background->bmap_block_id) {
           try {
             background_bmap = &bitmaps.at(background->bmap_block_id);
-          } catch (const out_of_range&) {
-            fwrite_fmt(stderr, "Warning: could not look up background bitmap {}\n", background->bmap_block_id);
+          } catch (const std::out_of_range&) {
+            phosg::fwrite_fmt(stderr, "Warning: could not look up background bitmap {}\n", background->bmap_block_id);
           }
         }
       }
 
-      // If the stack block defines card dimensions, use them. Otherwise, use
-      // the card's bitmap dimensions if it exists, or use the background's
-      // bitmap dimensions if not. If none of these are defined, give up.
+      // If the stack block defines card dimensions, use them. Otherwise, use the card's bitmap dimensions if it
+      // exists, or use the background's bitmap dimensions if not. If none of these are defined, give up.
       size_t card_w = 0, card_h = 0;
       if (stack->card_width && stack->card_height) {
         card_w = stack->card_width;
@@ -1346,35 +1325,34 @@ int main(int argc, char** argv) {
         }
       }
 
-      ImageRGB888 render_img(card_w, card_h);
+      phosg::ImageRGB888 render_img(card_w, card_h);
       render_img.write_rect(0, 0, card_w, card_h, 0xFFFFFFFF);
 
-      // For The Manhole, the PICT ID is specified in a part contents entry.
-      // This is a hack... we take the first part whose contents are parseable
-      // as an integer and refer to a valid PICT.
+      // For The Manhole, the PICT ID is specified in a part contents entry. This is a hack... we take the first part
+      // whose contents are parseable as an integer and refer to a valid PICT.
       if (render_bitmap) {
         if (!manhole_rfs.empty() && card_w == 512 && card_h == 342) {
-          const ImageRGBA8888N* pict = nullptr;
+          const phosg::ImageRGBA8888N* pict = nullptr;
           for (const auto& part_contents : block.part_contents) {
             int16_t pict_id;
             try {
               pict_id = stol(part_contents.text, nullptr, 10);
-            } catch (const invalid_argument&) {
+            } catch (const std::invalid_argument&) {
               continue;
             }
 
-            static unordered_map<int16_t, ImageRGBA8888N> picts_cache;
+            static std::unordered_map<int16_t, phosg::ImageRGBA8888N> picts_cache;
             try {
               pict = &picts_cache.at(pict_id);
-            } catch (const out_of_range&) {
+            } catch (const std::out_of_range&) {
             }
 
             if (!pict) {
               for (auto& rf : manhole_rfs) {
-                if (rf.resource_exists(RESOURCE_TYPE_PICT, pict_id)) {
-                  auto decoded = rf.decode_PICT(pict_id, RESOURCE_TYPE_PICT, false);
+                if (rf.resource_exists(ResourceDASM::RESOURCE_TYPE_PICT, pict_id)) {
+                  auto decoded = rf.decode_PICT(pict_id, ResourceDASM::RESOURCE_TYPE_PICT, false);
                   if (!decoded.embedded_image_format.empty()) {
-                    throw runtime_error("PICT decoded to an unusable format");
+                    throw std::runtime_error("PICT decoded to an unusable format");
                   }
                   pict = &picts_cache.emplace(pict_id, std::move(decoded.image)).first->second;
                 }
@@ -1387,14 +1365,13 @@ int main(int argc, char** argv) {
           }
 
           if (!pict) {
-            fwrite_fmt(stderr, "Warning: no valid PICT found for this card\n");
+            phosg::fwrite_fmt(stderr, "Warning: no valid PICT found for this card\n");
           } else {
             render_img.copy_from(*pict, 0, 0, pict->get_width(), pict->get_height(), 0, 0);
           }
 
         } else {
-          // For regular HyperCard stacks, render the background and card
-          // bitmaps.
+          // For regular HyperCard stacks, render the background and card bitmaps
           if (background_bmap) {
             background_bmap->render_into_card(render_img);
           }
@@ -1404,12 +1381,12 @@ int main(int argc, char** argv) {
         }
       }
 
-      auto f = fopen_unique(disassembly_filename, "wt");
-      fwrite_fmt(f.get(), "-- {}: {} from stack: {}\n", is_card ? "card" : "background", block.header.id, filename);
-      fwrite_fmt(f.get(), "-- bmap block id: {}\n", block.bmap_block_id);
-      fwrite_fmt(f.get(), "-- flags: {:04X}\n", block.flags);
-      fwrite_fmt(f.get(), "-- background id: {}\n", block.background_id);
-      fwrite_fmt(f.get(), "-- name: {}\n", block.name);
+      auto f = phosg::fopen_unique(disassembly_filename, "wt");
+      phosg::fwrite_fmt(f.get(), "-- {}: {} from stack: {}\n", is_card ? "card" : "background", block.header.id, filename);
+      phosg::fwrite_fmt(f.get(), "-- bmap block id: {}\n", block.bmap_block_id);
+      phosg::fwrite_fmt(f.get(), "-- flags: {:04X}\n", block.flags);
+      phosg::fwrite_fmt(f.get(), "-- background id: {}\n", block.background_id);
+      phosg::fwrite_fmt(f.get(), "-- name: {}\n", block.name);
       print_formatted_script(f.get(), block.script, block.osa_script_data);
 
       const uint32_t background_parts_render_color = 0x00FF00FF;
@@ -1431,47 +1408,47 @@ int main(int argc, char** argv) {
           render_img.draw_vertical_line(part.rect_right, part.rect_top, part.rect_bottom, 0, card_parts_render_color);
           render_img.draw_text(part.rect_left + 1, part.rect_top + 1, card_parts_render_color, 0x00000000, "{}", part.part_id);
         }
-        fwrite_fmt(f.get(), "\n\n");
+        phosg::fwrite_fmt(f.get(), "\n\n");
         if (part.type == 0 || part.type > 2) {
-          fwrite_fmt(f.get(), "-- part {} (type {})\n", part.part_id, part.type);
+          phosg::fwrite_fmt(f.get(), "-- part {} (type {})\n", part.part_id, part.type);
         } else {
-          fwrite_fmt(f.get(), "-- part {} ({})\n", part.part_id, (part.type == 1) ? "button" : "field");
+          phosg::fwrite_fmt(f.get(), "-- part {} ({})\n", part.part_id, (part.type == 1) ? "button" : "field");
         }
-        fwrite_fmt(f.get(), "-- low flags: {:02X}\n", part.low_flags);
-        fwrite_fmt(f.get(), "-- high flags: {:04X}\n", part.high_flags);
-        fwrite_fmt(f.get(), "-- rect: left={} top={} right={} bottom={}\n",
+        phosg::fwrite_fmt(f.get(), "-- low flags: {:02X}\n", part.low_flags);
+        phosg::fwrite_fmt(f.get(), "-- high flags: {:04X}\n", part.high_flags);
+        phosg::fwrite_fmt(f.get(), "-- rect: left={} top={} right={} bottom={}\n",
             part.rect_left, part.rect_top, part.rect_bottom, part.rect_right);
-        fwrite_fmt(f.get(), "-- title width / last selected line: {}\n", part.title_width);
-        fwrite_fmt(f.get(), "-- icon id / first selected line: {} / {}\n", part.icon_id, part.first_selected_line);
-        fwrite_fmt(f.get(), "-- text alignment: {}\n", part.text_alignment);
-        fwrite_fmt(f.get(), "-- font id: {}\n", part.font_id);
-        fwrite_fmt(f.get(), "-- text size: {}\n", part.font_size);
-        fwrite_fmt(f.get(), "-- style flags: {}\n", part.style_flags);
-        fwrite_fmt(f.get(), "-- line height: {}\n", part.line_height);
-        fwrite_fmt(f.get(), "-- part name: {}\n", part.name);
+        phosg::fwrite_fmt(f.get(), "-- title width / last selected line: {}\n", part.title_width);
+        phosg::fwrite_fmt(f.get(), "-- icon id / first selected line: {} / {}\n", part.icon_id, part.first_selected_line);
+        phosg::fwrite_fmt(f.get(), "-- text alignment: {}\n", part.text_alignment);
+        phosg::fwrite_fmt(f.get(), "-- font id: {}\n", part.font_id);
+        phosg::fwrite_fmt(f.get(), "-- text size: {}\n", part.font_size);
+        phosg::fwrite_fmt(f.get(), "-- style flags: {}\n", part.style_flags);
+        phosg::fwrite_fmt(f.get(), "-- line height: {}\n", part.line_height);
+        phosg::fwrite_fmt(f.get(), "-- part name: {}\n", part.name);
         print_formatted_script(f.get(), part.script, part.osa_script_data);
       }
 
       for (const auto& part_contents : block.part_contents) {
-        fwrite_fmt(f.get(), "\n\n");
-        fwrite_fmt(f.get(), "-- part contents for {} part {}\n",
+        phosg::fwrite_fmt(f.get(), "\n\n");
+        phosg::fwrite_fmt(f.get(), "-- part contents for {} part {}\n",
             (part_contents.part_id < 0) ? "card" : "background",
             (part_contents.part_id < 0) ? -part_contents.part_id : part_contents.part_id);
         if (!part_contents.offset_to_style_entry_index.empty()) {
-          fwrite_fmt(f.get(), "-- note: style data is present\n");
+          phosg::fwrite_fmt(f.get(), "-- note: style data is present\n");
         }
-        fwrite_fmt(f.get(), "----- text -----\n");
-        fwritex(f.get(), part_contents.text);
+        phosg::fwrite_fmt(f.get(), "----- text -----\n");
+        phosg::fwritex(f.get(), part_contents.text);
       }
 
-      fwrite_fmt(stderr, "... {}\n", disassembly_filename);
+      phosg::fwrite_fmt(stderr, "... {}\n", disassembly_filename);
 
       // TODO: do something with OSA script data
       if (!card_w || !card_h) {
-        fwrite_fmt(stderr, "Warning: could not determine card dimensions\n");
+        phosg::fwrite_fmt(stderr, "Warning: could not determine card dimensions\n");
       } else if (render_bitmap || render_background_parts || render_card_parts) {
         render_img_filename = image_saver.save_image(render_img, render_img_filename);
-        fwrite_fmt(stderr, "... {}\n", render_img_filename);
+        phosg::fwrite_fmt(stderr, "... {}\n", render_img_filename);
       }
     };
 

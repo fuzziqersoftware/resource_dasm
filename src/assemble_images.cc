@@ -13,12 +13,9 @@
 #include <phosg/Strings.hh>
 #include <string>
 
-using namespace std;
-using namespace phosg;
-
 struct ImagePlacement {
-  string filename;
-  ImageRGBA8888N image;
+  std::string filename;
+  phosg::ImageRGBA8888N image;
   ssize_t x = 0;
   ssize_t y = 0;
   ssize_t w = -1;
@@ -29,7 +26,7 @@ struct ImagePlacement {
 
 int main(int argc, char** argv) {
   if (argc < 3) {
-    fwrite_fmt(stderr, "\
+    phosg::fwrite_fmt(stderr, "\
 Basic usage:\n\
   assemble_images filename1 filename2 ... --output=outfile.bmp\n\
 In this form, assemble_images concatenates the images (BMP or PPM files)\n\
@@ -53,8 +50,8 @@ In both forms, if --output is not given, the output is written to stdout.\n\
   }
 
   bool place = false;
-  vector<ImagePlacement> placements;
-  string output_filename;
+  std::vector<ImagePlacement> placements;
+  std::string output_filename;
   for (ssize_t z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--place")) {
       place = true;
@@ -62,17 +59,17 @@ In both forms, if --output is not given, the output is written to stdout.\n\
       output_filename = &argv[z][9];
     } else {
       auto& placement = placements.emplace_back();
-      auto tokens = split(argv[z], '@');
+      auto tokens = phosg::split(argv[z], '@');
       if (tokens.size() < 1 || tokens.size() > 2) {
-        throw runtime_error("invalid placement: " + string(argv[z]));
+        throw std::runtime_error("invalid placement: " + std::string(argv[z]));
       }
 
       placement.filename = tokens[0];
 
       if (tokens.size() > 1) {
-        auto coord_tokens = split(tokens[1], ',');
+        auto coord_tokens = phosg::split(tokens[1], ',');
         if ((coord_tokens.size() & 1) || (coord_tokens.size() > 6)) {
-          throw runtime_error("invalid placement: " + string(argv[z]));
+          throw std::runtime_error("invalid placement: " + std::string(argv[z]));
         }
 
         if (coord_tokens.size() >= 2) {
@@ -92,7 +89,7 @@ In both forms, if --output is not given, the output is written to stdout.\n\
   }
 
   if (placements.empty()) {
-    throw runtime_error("no source images given");
+    throw std::runtime_error("no source images given");
   }
 
   if (!place) {
@@ -105,7 +102,7 @@ In both forms, if --output is not given, the output is written to stdout.\n\
         dest_y += line_height;
         line_height = 0;
       } else {
-        placement.image = ImageRGBA8888N::from_file_data(load_file(placement.filename));
+        placement.image = phosg::ImageRGBA8888N::from_file_data(phosg::load_file(placement.filename));
         placement.x = dest_x;
         placement.y = dest_y;
         placement.w = placement.image.get_width();
@@ -113,12 +110,12 @@ In both forms, if --output is not given, the output is written to stdout.\n\
         placement.sx = 0;
         placement.sy = 0;
         dest_x += placement.w;
-        line_height = max<ssize_t>(line_height, placement.h);
+        line_height = std::max<ssize_t>(line_height, placement.h);
       }
     }
   } else {
     for (auto& placement : placements) {
-      placement.image = ImageRGBA8888N::from_file_data(load_file(placement.filename));
+      placement.image = phosg::ImageRGBA8888N::from_file_data(phosg::load_file(placement.filename));
     }
   }
 
@@ -132,15 +129,15 @@ In both forms, if --output is not given, the output is written to stdout.\n\
     placement.h = (placement.h < 0) ? placement.image.get_height() : placement.h;
     if ((placement.sx < 0) || (placement.sx + placement.w > static_cast<ssize_t>(placement.image.get_width())) ||
         (placement.sy < 0) || (placement.sy + placement.h > static_cast<ssize_t>(placement.image.get_height()))) {
-      throw runtime_error("source area for " + placement.filename + " extends beyond image boundary");
+      throw std::runtime_error("source area for " + placement.filename + " extends beyond image boundary");
     }
-    canvas_xmin = min<ssize_t>(canvas_xmin, placement.x);
-    canvas_xmax = max<ssize_t>(canvas_xmax, placement.x + placement.w);
-    canvas_ymin = min<ssize_t>(canvas_ymin, placement.y);
-    canvas_ymax = max<ssize_t>(canvas_ymax, placement.y + placement.h);
+    canvas_xmin = std::min<ssize_t>(canvas_xmin, placement.x);
+    canvas_xmax = std::max<ssize_t>(canvas_xmax, placement.x + placement.w);
+    canvas_ymin = std::min<ssize_t>(canvas_ymin, placement.y);
+    canvas_ymax = std::max<ssize_t>(canvas_ymax, placement.y + placement.h);
   }
 
-  ImageRGBA8888N result(canvas_xmax - canvas_xmin, canvas_ymax - canvas_ymin);
+  phosg::ImageRGBA8888N result(canvas_xmax - canvas_xmin, canvas_ymax - canvas_ymin);
   for (const auto& placement : placements) {
     if (!placement.image.empty()) {
       result.copy_from(
@@ -155,9 +152,9 @@ In both forms, if --output is not given, the output is written to stdout.\n\
   }
 
   if (output_filename.empty()) {
-    fwritex(stdout, result.serialize(ImageFormat::WINDOWS_BITMAP));
+    phosg::fwritex(stdout, result.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
   } else {
-    save_file(output_filename, result.serialize(ImageFormat::WINDOWS_BITMAP));
+    phosg::save_file(output_filename, result.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
   }
 
   return 0;

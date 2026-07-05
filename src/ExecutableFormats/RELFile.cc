@@ -12,9 +12,6 @@
 #include "../Emulators/PPC32Emulator.hh"
 #include "DOLFile.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 const char* RELRelocationInstruction::name_for_type(Type type) {
@@ -54,31 +51,27 @@ const char* RELRelocationInstruction::name_for_type(Type type) {
   }
 }
 
-RELFile::RELFile(const char* filename)
-    : filename(filename) {
-  string data = load_file(filename);
+RELFile::RELFile(const char* filename) : filename(filename) {
+  std::string data = phosg::load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-RELFile::RELFile(const char* filename, const string& data)
-    : filename(filename) {
+RELFile::RELFile(const char* filename, const std::string& data) : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
-RELFile::RELFile(const char* filename, const void* data, size_t size)
-    : filename(filename) {
+RELFile::RELFile(const char* filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 
 void RELFile::parse(const void* data, size_t size) {
-  StringReader r(data, size);
+  phosg::StringReader r(data, size);
 
   this->header = r.get<RELHeader>();
 
   // Read module name
   if (this->header.module_name_offset) {
-    this->name = r.preadx(
-        this->header.module_name_offset, this->header.module_name_size);
+    this->name = r.preadx(this->header.module_name_offset, this->header.module_name_size);
   }
 
   // Read section headers and data
@@ -96,18 +89,18 @@ void RELFile::parse(const void* data, size_t size) {
   }
 
   // Read import table
-  StringReader inst_r = r.subx(0);
+  phosg::StringReader inst_r = r.subx(0);
   r.go(this->header.import_table_offset);
   while (this->import_table.size() < (this->header.import_table_size / 8)) {
     const auto& import_entry = r.get<RELImportEntry>();
-    vector<RELRelocationInstruction> rel_instructions;
+    std::vector<RELRelocationInstruction> rel_instructions;
     inst_r.go(import_entry.relocations_offset);
     do {
       rel_instructions.emplace_back(inst_r.get<RELRelocationInstruction>());
     } while (rel_instructions.back().type != RELRelocationInstruction::Type::STOP);
     rel_instructions.pop_back(); // Don't include the STOP in the parsed list
     if (!this->import_table.emplace(import_entry.from_module_id, std::move(rel_instructions)).second) {
-      throw runtime_error(std::format(
+      throw std::runtime_error(std::format(
           "multiple import entries for module {:08X}", import_entry.from_module_id));
     }
   }
@@ -115,31 +108,31 @@ void RELFile::parse(const void* data, size_t size) {
 
 void RELFile::print(
     FILE* stream,
-    const multimap<uint32_t, string>* labels,
+    const std::multimap<uint32_t, std::string>* labels,
     bool print_hex_view_for_code,
     bool all_sections_as_code) const {
-  fwrite_fmt(stream, "[REL file: {}]\n", this->filename);
-  fwrite_fmt(stream, "  module id: {:08X}\n", this->header.module_id);
+  phosg::fwrite_fmt(stream, "[REL file: {}]\n", this->filename);
+  phosg::fwrite_fmt(stream, "  module id: {:08X}\n", this->header.module_id);
   if (this->name.empty()) {
-    fwrite_fmt(stream, "  internal name missing\n");
+    phosg::fwrite_fmt(stream, "  internal name missing\n");
   } else {
-    fwrite_fmt(stream, "  internal name: {}\n", this->name);
+    phosg::fwrite_fmt(stream, "  internal name: {}\n", this->name);
   }
-  fwrite_fmt(stream, "  format version: {:08X}\n", this->header.format_version);
-  fwrite_fmt(stream, "  BSS size: {:08X}\n", this->header.bss_size);
-  fwrite_fmt(stream, "  on_load: {:02X}:{:08X}\n", this->header.on_load_section, this->header.on_load_offset);
-  fwrite_fmt(stream, "  on_unload: {:02X}:{:08X}\n", this->header.on_unload_section, this->header.on_unload_offset);
-  fwrite_fmt(stream, "  on_missing: {:02X}:{:08X}\n", this->header.on_missing_section, this->header.on_missing_offset);
+  phosg::fwrite_fmt(stream, "  format version: {:08X}\n", this->header.format_version);
+  phosg::fwrite_fmt(stream, "  BSS size: {:08X}\n", this->header.bss_size);
+  phosg::fwrite_fmt(stream, "  on_load: {:02X}:{:08X}\n", this->header.on_load_section, this->header.on_load_offset);
+  phosg::fwrite_fmt(stream, "  on_unload: {:02X}:{:08X}\n", this->header.on_unload_section, this->header.on_unload_offset);
+  phosg::fwrite_fmt(stream, "  on_missing: {:02X}:{:08X}\n", this->header.on_missing_section, this->header.on_missing_offset);
   if (this->header.format_version > 1) {
-    fwrite_fmt(stream, "  alignment: {:08X}\n", this->header.alignment);
-    fwrite_fmt(stream, "  BSS alignment: {:08X}\n", this->header.bss_alignment);
+    phosg::fwrite_fmt(stream, "  alignment: {:08X}\n", this->header.alignment);
+    phosg::fwrite_fmt(stream, "  BSS alignment: {:08X}\n", this->header.bss_alignment);
     if (this->header.format_version > 2) {
-      fwrite_fmt(stream, "  (unknown): {:08X}\n", this->header.unknown_a1);
+      phosg::fwrite_fmt(stream, "  (unknown): {:08X}\n", this->header.unknown_a1);
     }
   }
   fputc('\n', stream);
 
-  multimap<uint32_t, string> effective_labels;
+  std::multimap<uint32_t, std::string> effective_labels;
   if (labels) {
     effective_labels = *labels;
   }
@@ -160,7 +153,7 @@ void RELFile::print(
     uint32_t module_id = imp_it.first;
     const auto& instructions = imp_it.second;
 
-    fwrite_fmt(stream, "[Import relocation table for module {:08X}: {} instructions]\n",
+    phosg::fwrite_fmt(stream, "[Import relocation table for module {:08X}: {} instructions]\n",
         module_id, instructions.size());
 
     size_t current_section = 0;
@@ -168,22 +161,17 @@ void RELFile::print(
     for (const auto& inst : instructions) {
       offset += inst.offset;
       const char* type_name = RELRelocationInstruction::name_for_type(inst.type);
-      fwrite_fmt(stream, "  ({:02X}:{:08X}) +{:04X} {:02X}:{:08X} {}\n",
-          current_section,
-          offset,
-          inst.offset,
-          inst.section_index,
-          inst.symbol_offset,
-          type_name);
+      phosg::fwrite_fmt(stream, "  ({:02X}:{:08X}) +{:04X} {:02X}:{:08X} {}\n",
+          current_section, offset, inst.offset, inst.section_index, inst.symbol_offset, type_name);
       if (inst.type == RELRelocationInstruction::Type::STOP) {
-        throw logic_error("STOP instruction in parsed relocation table");
+        throw std::logic_error("STOP instruction in parsed relocation table");
       } else if (inst.type == RELRelocationInstruction::SECTION) {
         current_section = inst.section_index;
         offset = 0;
       } else if ((inst.type != RELRelocationInstruction::Type::NONE) &&
           (inst.type != RELRelocationInstruction::Type::NOP)) {
         size_t patch_offset = this->sections.at(current_section).offset + offset;
-        string label_name = std::format("reloc_mod{:08X}_{:02X}_{:08X}_{}",
+        std::string label_name = std::format("reloc_mod{:08X}_{:02X}_{:08X}_{}",
             module_id, inst.section_index, inst.offset, type_name);
         effective_labels.emplace(patch_offset, std::move(label_name));
       }
@@ -192,20 +180,20 @@ void RELFile::print(
   fputc('\n', stream);
 
   for (const auto& section : this->sections) {
-    fwrite_fmt(stream, "\n[Section {:02X} ({}): {:X} bytes]\n", section.index,
-        section.has_code ? "code" : "data", section.size);
+    phosg::fwrite_fmt(stream, "\n[Section {:02X} ({}): {:X} bytes]\n",
+        section.index, section.has_code ? "code" : "data", section.size);
     if (!section.data.empty()) {
       if (all_sections_as_code || section.has_code) {
-        string disassembly = PPC32Emulator::disassemble(
+        std::string disassembly = PPC32Emulator::disassemble(
             section.data.data(), section.data.size(), section.offset, &effective_labels);
-        fwritex(stream, disassembly);
+        phosg::fwritex(stream, disassembly);
         if (print_hex_view_for_code) {
-          fwrite_fmt(stream, "\n[Section {:02X} ({}): {:X} bytes]\n", section.index,
+          phosg::fwrite_fmt(stream, "\n[Section {:02X} ({}): {:X} bytes]\n", section.index,
               section.has_code ? "code" : "data", section.size);
-          print_data(stream, section.data, section.offset);
+          phosg::print_data(stream, section.data, section.offset);
         }
       } else {
-        print_data(stream, section.data, section.offset);
+        phosg::print_data(stream, section.data, section.offset);
       }
     }
   }

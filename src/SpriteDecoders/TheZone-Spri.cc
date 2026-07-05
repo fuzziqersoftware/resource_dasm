@@ -9,16 +9,13 @@
 
 #include "../Emulators/M68KEmulator.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 struct SpriHeader {
   // All sprites are square, so both width and height are equal to side here.
-  be_uint16_t side;
+  phosg::be_uint16_t side;
   // For some reason, they also store the area, even though this value is always equal to side * side.
-  be_uint16_t area;
+  phosg::be_uint16_t area;
   // The TMPL says that for mask_type, 0 = mask and 1 = 68k executable code, but this appears not to be the case. Every
   // sprite in the file has 0 here, and all of them contain executable code.
   uint8_t mask_type;
@@ -28,15 +25,15 @@ struct SpriHeader {
   // uint8_t blitter_code[...EOF]
 } __attribute__((packed));
 
-ImageRGBA8888N decode_Spri(const string& spri_data, const vector<ColorTableEntry>& clut) {
-  StringReader r(spri_data);
+phosg::ImageRGBA8888N decode_Spri(const std::string& spri_data, const std::vector<ColorTableEntry>& clut) {
+  phosg::StringReader r(spri_data);
 
   const auto& header = r.get<SpriHeader>();
   if (header.area != header.side * header.side) {
-    throw runtime_error("sprite is not square");
+    throw std::runtime_error("sprite is not square");
   }
-  string data = r.read(header.area);
-  string code = r.read(r.size() - r.where());
+  std::string data = r.read(header.area);
+  std::string code = r.read(r.size() - r.where());
 
   // To render these sprites with accurate transparency, we have to actually execute the code they contain.
   // Fortunately, the code's interface is fairly simple (and is described below). In its original mode of operation,
@@ -47,7 +44,7 @@ ImageRGBA8888N decode_Spri(const string& spri_data, const vector<ColorTableEntry
   // we can tell which bytes it actually affects in the output buffer. Then we use that output as the alpha mask, and
   // combine it with the color data from the first pass to produce a sprite with correct transparency.
 
-  auto mem = make_shared<MemoryContext>();
+  auto mem = std::make_shared<MemoryContext>();
 
   // Memory map:
   // 10000000 - output color data
@@ -93,7 +90,7 @@ ImageRGBA8888N decode_Spri(const string& spri_data, const vector<ColorTableEntry
   // [A7+10] output buffer addr
 
   // Write a short bit of 68K code to call the sprite renderer twice.
-  StringWriter wrapper_code_w;
+  phosg::StringWriter wrapper_code_w;
   // pea.l [output_color_buffer]
   wrapper_code_w.put_u16b(0x4879);
   wrapper_code_w.put_u32b(output_color_addr);
@@ -130,7 +127,7 @@ ImageRGBA8888N decode_Spri(const string& spri_data, const vector<ColorTableEntry
   wrapper_code_w.put_u16b(0x4E70);
 
   // Set up the wrapper code region
-  const string& wrapper_code = wrapper_code_w.str();
+  const std::string& wrapper_code = wrapper_code_w.str();
   uint32_t wrapper_code_addr = 0xF0000000;
   mem->allocate_at(wrapper_code_addr, wrapper_code.size());
   mem->memcpy(wrapper_code_addr, wrapper_code.data(), wrapper_code.size());
@@ -148,7 +145,7 @@ ImageRGBA8888N decode_Spri(const string& spri_data, const vector<ColorTableEntry
   // another with the alpha channel. Convert these to an Image and return it.
   const uint8_t* output_color = mem->at<const uint8_t>(output_color_addr, header.area);
   const uint8_t* output_alpha = mem->at<const uint8_t>(output_alpha_addr, header.area);
-  ImageRGBA8888N ret(header.side, header.side);
+  phosg::ImageRGBA8888N ret(header.side, header.side);
   for (size_t y = 0; y < header.side; y++) {
     for (size_t x = 0; x < header.side; x++) {
       size_t z = (y * header.side) + x;

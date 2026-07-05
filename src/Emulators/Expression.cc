@@ -7,9 +7,6 @@
 
 #include "Expression.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 namespace Expression {
 
@@ -61,7 +58,7 @@ std::string Value::str(bool hex) const {
     return std::format("{}", this->as_float());
   } else if (this->is_string()) {
     return hex
-        ? phosg::format_data_string(this->as_string(), nullptr, FormatDataStringFlags::HEX_ONLY)
+        ? phosg::format_data_string(this->as_string(), nullptr, phosg::FormatDataStringFlags::HEX_ONLY)
         : std::format("\"{}\"", phosg::escape_quotes(this->as_string()));
   } else {
     throw std::logic_error("Unknown value type");
@@ -123,20 +120,20 @@ std::string FunctionCallNode::str() const {
 
 Value FunctionCallNode::default_handler(const std::string& name, const std::vector<Value>& args) {
   if (name == "bswap16" && args.size() == 1) {
-    return static_cast<int64_t>(bswap16(static_cast<uint16_t>(args[0].as_int())));
+    return static_cast<int64_t>(phosg::bswap16(static_cast<uint16_t>(args[0].as_int())));
   } else if (name == "bswap32" && args.size() == 1) {
-    return static_cast<int64_t>(bswap32(static_cast<uint32_t>(args[0].as_int())));
+    return static_cast<int64_t>(phosg::bswap32(static_cast<uint32_t>(args[0].as_int())));
   } else if (name == "encode_float" && args.size() == 1) {
     if (args[0].is_float()) {
-      return static_cast<int64_t>(bit_cast<uint32_t>(static_cast<float>(args[0].as_float())));
+      return static_cast<int64_t>(std::bit_cast<uint32_t>(static_cast<float>(args[0].as_float())));
     } else {
-      return static_cast<int64_t>(bit_cast<uint32_t>(static_cast<float>(args[0].as_int())));
+      return static_cast<int64_t>(std::bit_cast<uint32_t>(static_cast<float>(args[0].as_int())));
     }
   } else if (name == "decode_float" && args.size() == 1) {
     if (args[0].is_float()) {
       return args[0];
     } else {
-      return static_cast<double>(bit_cast<float>(static_cast<uint32_t>(args[0].as_int())));
+      return static_cast<double>(std::bit_cast<float>(static_cast<uint32_t>(args[0].as_int())));
     }
   } else {
     throw std::runtime_error("Undefined function: " + name);

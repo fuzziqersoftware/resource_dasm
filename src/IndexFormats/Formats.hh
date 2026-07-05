@@ -8,8 +8,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 // AppleSingle-AppleDouble.cc
 struct DecodedAppleSingle {
   std::string data_fork;
@@ -30,7 +28,7 @@ struct DecodedAppleSingle {
 
   std::string serialize() const;
 };
-DecodedAppleSingle parse_applesingle_appledouble(StringReader& r);
+DecodedAppleSingle parse_applesingle_appledouble(phosg::StringReader& r);
 DecodedAppleSingle parse_applesingle_appledouble(const std::string& data);
 ResourceFile parse_applesingle_appledouble_resource_fork(const std::string& data);
 
@@ -48,7 +46,7 @@ void save_resource_file_to_directory(const ResourceFile& rf, const std::string& 
 ResourceFile parse_hirf(const std::string& data);
 
 // MacBinary.cc
-std::pair<StringReader, StringReader> parse_macbinary(const std::string& data);
+std::pair<phosg::StringReader, phosg::StringReader> parse_macbinary(const std::string& data);
 ResourceFile parse_macbinary_resource_fork(const std::string& data);
 
 // Mohawk.cc
@@ -56,7 +54,7 @@ ResourceFile parse_mohawk(const std::string& data);
 
 // ResourceFork.cc
 ResourceFile parse_resource_fork(const std::string& data);
-ResourceFile parse_resource_fork(StringReader& data);
+ResourceFile parse_resource_fork(phosg::StringReader& data);
 std::string serialize_resource_fork(const ResourceFile& rf);
 
 } // namespace ResourceDASM

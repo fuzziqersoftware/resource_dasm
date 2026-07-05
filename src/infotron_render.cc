@@ -13,17 +13,13 @@
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
-static pair<uint8_t, uint8_t> read_coords(StringReader& r) {
+static std::pair<uint8_t, uint8_t> read_coords(phosg::StringReader& r) {
   uint8_t x = r.get_u8();
-  return make_pair(x, r.get_u8());
+  return std::make_pair(x, r.get_u8());
 }
 
 struct InfotronLevel {
-  string name;
+  std::string name;
 
   uint16_t w;
   uint16_t h;
@@ -31,14 +27,14 @@ struct InfotronLevel {
   uint8_t player_y;
   uint16_t infotron_count;
 
-  vector<pair<uint8_t, uint8_t>> scissor_coords;
-  vector<pair<uint8_t, uint8_t>> quark_coords;
-  vector<pair<uint8_t, uint8_t>> bug_coords;
+  std::vector<std::pair<uint8_t, uint8_t>> scissor_coords;
+  std::vector<std::pair<uint8_t, uint8_t>> quark_coords;
+  std::vector<std::pair<uint8_t, uint8_t>> bug_coords;
 
-  vector<uint16_t> field;
+  std::vector<uint16_t> field;
 
-  InfotronLevel(const string& level_data) {
-    StringReader r(level_data.data(), level_data.size());
+  InfotronLevel(const std::string& level_data) {
+    phosg::StringReader r(level_data.data(), level_data.size());
 
     uint8_t name_length = r.get_u8();
     this->name = r.read(name_length);
@@ -71,7 +67,7 @@ struct InfotronLevel {
     }
 
     if (r.get_s16b() != -1) {
-      throw invalid_argument("end of coordinate list was not -1");
+      throw std::invalid_argument("end of coordinate list was not -1");
     }
 
     // Read drawing commands
@@ -82,7 +78,7 @@ struct InfotronLevel {
     int16_t command = r.get_s16b();
     while (command) {
       if (offset >= this->field.size()) {
-        throw invalid_argument("reached the end of the field with more commands to execute");
+        throw std::invalid_argument("reached the end of the field with more commands to execute");
       }
 
       if (command > 0) {
@@ -124,42 +120,42 @@ struct InfotronLevel {
 };
 
 static void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: infotron_render [options]\n\
 \n" IMAGE_SAVER_HELP);
 }
 
 int main(int argc, char** argv) {
-  ImageSaver image_saver;
+  ResourceDASM::ImageSaver image_saver;
   for (int x = 1; x < argc; x++) {
     if (!image_saver.process_cli_arg(argv[x])) {
-      fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
+      phosg::fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
   }
 
-  const string levels_filename = "Infotron Levels/..namedfork/rsrc";
-  const string pieces_filename = "Infotron Pieces/..namedfork/rsrc";
+  const std::string levels_filename = "Infotron Levels/..namedfork/rsrc";
+  const std::string pieces_filename = "Infotron Pieces/..namedfork/rsrc";
 
-  ResourceFile levels(parse_resource_fork(load_file(levels_filename)));
-  ResourceFile pieces(parse_resource_fork(load_file(pieces_filename)));
+  auto levels = ResourceDASM::parse_resource_fork(phosg::load_file(levels_filename));
+  auto pieces = ResourceDASM::parse_resource_fork(phosg::load_file(pieces_filename));
   auto level_resources = levels.all_resources();
   auto tile_resources = pieces.all_resources();
 
   const uint32_t level_resource_type = 0x6C9F566C;
 
-  unordered_map<int16_t, ImageRGBA8888N> tile_cache;
+  std::unordered_map<int16_t, phosg::ImageRGBA8888N> tile_cache;
   for (const auto& it : level_resources) {
     if (it.first != level_resource_type) {
       continue;
     }
     int16_t level_id = it.second;
-    string level_data = levels.get_resource(level_resource_type, level_id)->data;
+    std::string level_data = levels.get_resource(level_resource_type, level_id)->data;
 
     InfotronLevel level(level_data);
 
-    ImageRGBA8888N result(level.w * 32, level.h * 32);
+    phosg::ImageRGBA8888N result(level.w * 32, level.h * 32);
     for (size_t y = 0; y < level.h; y++) {
       for (size_t x = 0; x < level.w; x++) {
 
@@ -168,27 +164,25 @@ int main(int argc, char** argv) {
           continue;
         }
 
-        ImageRGBA8888N* tile_src = nullptr;
+        phosg::ImageRGBA8888N* tile_src = nullptr;
         try {
           tile_src = &tile_cache.at(tile_id);
-        } catch (const out_of_range&) {
+        } catch (const std::out_of_range&) {
           tile_src = &tile_cache.emplace(tile_id, pieces.decode_icl8(tile_id)).first->second;
         }
 
         if (!tile_src) {
-          throw invalid_argument(std::format("tile {} (0x{:X}) does not exist", tile_id, tile_id));
+          throw std::invalid_argument(std::format("tile {} (0x{:X}) does not exist", tile_id, tile_id));
         }
 
         result.copy_from(*tile_src, x * 32, y * 32, 32, 32, 0, 0);
       }
     }
 
-    result.draw_text(0, 0, 0xFFFFFFFF, 0x00000080,
-        "Level {} ({}): {}x{}, {} infotron{} needed",
-        level_id, level.name, level.w, level.h, level.infotron_count,
-        (level.infotron_count == 1 ? "" : "s"));
+    result.draw_text(0, 0, 0xFFFFFFFF, 0x00000080, "Level {} ({}): {}x{}, {} infotron{} needed",
+        level_id, level.name, level.w, level.h, level.infotron_count, (level.infotron_count == 1 ? "" : "s"));
 
-    string sanitized_name;
+    std::string sanitized_name;
     for (char ch : level.name) {
       if (ch > 0x20 && ch <= 0x7E) {
         sanitized_name.push_back(ch);
@@ -197,9 +191,9 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = std::format("Infotron_Level_{}_{}", level_id, sanitized_name);
+    std::string result_filename = std::format("Infotron_Level_{}_{}", level_id, sanitized_name);
     result_filename = image_saver.save_image(result, result_filename);
-    fwrite_fmt(stderr, "... {}\n", result_filename);
+    phosg::fwrite_fmt(stderr, "... {}\n", result_filename);
   }
 
   return 0;

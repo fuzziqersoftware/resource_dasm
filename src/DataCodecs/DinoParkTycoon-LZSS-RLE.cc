@@ -13,25 +13,22 @@
 
 #include "../ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-string decompress_dinopark_tycoon_lzss(const void* data, size_t size) {
-  StringReader r(data, size);
+std::string decompress_dinopark_tycoon_lzss(const void* data, size_t size) {
+  phosg::StringReader r(data, size);
   if (r.get_u32b() != 0x4C5A5353) { // 'LZSS'
-    throw runtime_error("data is not DinoPark Tycoon LZSS");
+    throw std::runtime_error("data is not DinoPark Tycoon LZSS");
   }
   size_t compressed_size = r.get_u32b();
   size_t decompressed_size = r.get_u32b();
   r.skip(4); // Unknown field; seems to always be zero?
 
   if (r.remaining() < compressed_size) {
-    throw runtime_error("not all compressed data is present");
+    throw std::runtime_error("not all compressed data is present");
   }
 
-  StringWriter w;
+  phosg::StringWriter w;
   while (w.size() < decompressed_size) {
     uint8_t control_bits = r.get_u8();
     for (size_t x = 0; (x < 8) && (w.size() < decompressed_size); x++) {
@@ -50,31 +47,31 @@ string decompress_dinopark_tycoon_lzss(const void* data, size_t size) {
   }
 
   if (w.size() != decompressed_size) {
-    throw runtime_error(std::format(
+    throw std::runtime_error(std::format(
         "decompression produced 0x{:X} bytes (expected 0x{:X} bytes)", w.size(), decompressed_size));
   }
 
   return std::move(w.str());
 }
 
-string decompress_dinopark_tycoon_lzss(const string& data) {
+std::string decompress_dinopark_tycoon_lzss(const std::string& data) {
   return decompress_dinopark_tycoon_lzss(data.data(), data.size());
 }
 
-string decompress_dinopark_tycoon_rle(const void* data, size_t size) {
-  StringReader r(data, size);
+std::string decompress_dinopark_tycoon_rle(const void* data, size_t size) {
+  phosg::StringReader r(data, size);
   if (r.get_u32b() != 0x524C4520) { // 'RLE '
-    throw runtime_error("data is not DinoPark Tycoon RLE");
+    throw std::runtime_error("data is not DinoPark Tycoon RLE");
   }
   size_t compressed_size = r.get_u32b();
   size_t decompressed_size = r.get_u32b();
   r.skip(4); // Unknown field; seems to always be zero?
 
   if (r.remaining() < compressed_size) {
-    throw runtime_error("not all compressed data is present");
+    throw std::runtime_error("not all compressed data is present");
   }
 
-  StringWriter w;
+  phosg::StringWriter w;
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
     if (cmd & 0x80) {
@@ -92,30 +89,30 @@ string decompress_dinopark_tycoon_rle(const void* data, size_t size) {
   }
 
   if (w.size() != decompressed_size) {
-    throw runtime_error(std::format(
+    throw std::runtime_error(std::format(
         "decompression produced 0x{:X} bytes (expected 0x{:X} bytes)", w.size(), decompressed_size));
   }
 
   return std::move(w.str());
 }
 
-string decompress_dinopark_tycoon_rle(const string& data) {
+std::string decompress_dinopark_tycoon_rle(const std::string& data) {
   return decompress_dinopark_tycoon_rle(data.data(), data.size());
 }
 
-string decompress_dinopark_tycoon_data(const void* data, size_t size) {
-  StringReader r(data, size);
+std::string decompress_dinopark_tycoon_data(const void* data, size_t size) {
+  phosg::StringReader r(data, size);
   uint32_t format = r.get_u32b();
   if (format == 0x4C5A5353) { // 'LZSS'
     return decompress_dinopark_tycoon_lzss(data, size);
   } else if (r.get_u32b() != 0x524C4520) { // 'RLE '
     return decompress_dinopark_tycoon_rle(data, size);
   } else {
-    return string(reinterpret_cast<const char*>(data), size);
+    return std::string(reinterpret_cast<const char*>(data), size);
   }
 }
 
-string decompress_dinopark_tycoon_data(const string& data) {
+std::string decompress_dinopark_tycoon_data(const std::string& data) {
   return decompress_dinopark_tycoon_data(data.data(), data.size());
 }
 

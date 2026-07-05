@@ -16,8 +16,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 class EmulatorBase {
 public:
   explicit EmulatorBase(std::shared_ptr<MemoryContext> mem);
@@ -168,19 +166,19 @@ private:
     auto& regs = emu.registers();
 
     if (this->state.max_cycles && emu.cycles() >= this->state.max_cycles) {
-      fwrite_fmt(stderr, "reached maximum cycle count\n");
+      phosg::fwrite_fmt(stderr, "reached maximum cycle count\n");
       throw typename EmuT::terminate_emulation();
     }
 
     if (this->state.cycle_breakpoints.erase(emu.cycles())) {
-      fwrite_fmt(stderr, "reached cycle breakpoint at {:08X}\n", emu.cycles());
+      phosg::fwrite_fmt(stderr, "reached cycle breakpoint at {:08X}\n", emu.cycles());
       this->state.mode = DebuggerMode::STEP;
     } else if (this->state.breakpoints.count(regs.pc)) {
-      fwrite_fmt(stderr, "reached execution breakpoint at {:08X}\n", regs.pc);
+      phosg::fwrite_fmt(stderr, "reached execution breakpoint at {:08X}\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     } else if ((this->state.confinement_start_addr != this->state.confinement_end_addr) &&
         ((regs.pc < this->state.confinement_start_addr) || (regs.pc >= this->state.confinement_end_addr))) {
-      fwrite_fmt(stderr, "execution has left confinement to {:08X}\n", regs.pc);
+      phosg::fwrite_fmt(stderr, "execution has left confinement to {:08X}\n", regs.pc);
       this->state.mode = DebuggerMode::STEP;
     }
 
@@ -208,7 +206,7 @@ private:
           } else if (acc.size == 128) {
             type_name = "oword";
           }
-          fwrite_fmt(stderr, "  memory: [{:08X}] {} ({})\n", acc.addr, acc.is_write ? "<=" : "=>", type_name);
+          phosg::fwrite_fmt(stderr, "  memory: [{:08X}] {} ({})\n", acc.addr, acc.is_write ? "<=" : "=>", type_name);
         }
       }
       emu.print_state(stderr);
@@ -220,25 +218,25 @@ private:
 
     bool should_continue = false;
     while ((this->state.mode == DebuggerMode::STEP) && !should_continue) {
-      fwrite_fmt(stderr, "pc={:08X}> ", regs.pc);
+      phosg::fwrite_fmt(stderr, "pc={:08X}> ", regs.pc);
       fflush(stderr);
       std::string input_line(0x400, '\0');
       if (!fgets(input_line.data(), input_line.size(), stdin)) {
-        fwrite_fmt(stderr, "stdin was closed; stopping emulation\n");
+        phosg::fwrite_fmt(stderr, "stdin was closed; stopping emulation\n");
         throw typename EmuT::terminate_emulation();
       }
-      strip_trailing_zeroes(input_line);
-      strip_trailing_whitespace(input_line);
+      phosg::strip_trailing_zeroes(input_line);
+      phosg::strip_trailing_whitespace(input_line);
 
       try {
-        auto input_tokens = split(input_line, ' ', 1);
+        auto input_tokens = phosg::split(input_line, ' ', 1);
         const std::string& cmd = input_tokens.at(0);
         const std::string& args = input_tokens.size() == 2 ? input_tokens.at(1) : "";
         if (cmd.empty()) {
-          fwrite_fmt(stderr, "no command; try \'h\'\n");
+          phosg::fwrite_fmt(stderr, "no command; try \'h\'\n");
 
         } else if ((cmd == "h") || (cmd == "help")) {
-          fwrite_fmt(stderr, "\
+          phosg::fwrite_fmt(stderr, "\
   Commands:\n\
     s\n\
     step\n\
@@ -336,19 +334,20 @@ private:
 ");
 
         } else if ((cmd == "r") || (cmd == "read")) {
-          auto tokens = split(args, ' ', 2);
+          auto tokens = phosg::split(args, ' ', 2);
           uint32_t addr = stoul(tokens.at(0), nullptr, 16);
           uint32_t size = stoul(tokens.at(1), nullptr, 16);
           const void* data = mem->template at<void>(addr, size);
           try {
-            auto f = fopen_unique(tokens.at(2), "wb");
-            fwritex(f.get(), data, size);
+            auto f = phosg::fopen_unique(tokens.at(2), "wb");
+            phosg::fwritex(f.get(), data, size);
           } catch (const std::out_of_range&) {
-            print_data(stderr, data, size, addr, nullptr, FormatDataFlags::PRINT_ASCII | FormatDataFlags::OFFSET_32_BITS);
+            phosg::print_data(stderr, data, size, addr, nullptr,
+                phosg::FormatDataFlags::PRINT_ASCII | phosg::FormatDataFlags::OFFSET_32_BITS);
           }
 
         } else if ((cmd == "d") || (cmd == "disas") || (cmd == "disassemble")) {
-          auto tokens = split(args, ' ', 2);
+          auto tokens = phosg::split(args, ' ', 2);
           uint32_t addr, size;
           if ((tokens.size() == 1) && tokens[0].empty()) {
             addr = regs.pc;
@@ -370,26 +369,26 @@ private:
 
           std::string disassembly = EmuT::disassemble(data, size, addr, &labels);
           if (tokens.size() > 2) {
-            save_file(tokens[2], disassembly);
+            phosg::save_file(tokens[2], disassembly);
           } else {
-            fwritex(stderr, disassembly);
+            phosg::fwritex(stderr, disassembly);
           }
 
         } else if ((cmd == "w") || (cmd == "write")) {
-          auto tokens = split(args, ' ', 1);
+          auto tokens = phosg::split(args, ' ', 1);
           uint32_t addr = stoul(tokens.at(0), nullptr, 16);
-          std::string data = parse_data_string(tokens.at(1));
+          std::string data = phosg::parse_data_string(tokens.at(1));
           mem->memcpy(addr, data.data(), data.size());
 
         } else if ((cmd == "cp") || (cmd == "copy")) {
-          auto tokens = split(args, ' ');
+          auto tokens = phosg::split(args, ' ');
           uint32_t dest_addr = stoul(tokens.at(0), nullptr, 16);
           uint32_t src_addr = stoul(tokens.at(1), nullptr, 16);
           size_t size = stoull(tokens.at(2), nullptr, 16);
           mem->memcpy(dest_addr, src_addr, size);
 
         } else if ((cmd == "a") || (cmd == "alloc") || (cmd == "allocate")) {
-          auto tokens = split(args, ' ');
+          auto tokens = phosg::split(args, ' ');
           uint32_t addr, size;
           if (tokens.size() < 2) {
             size = stoul(tokens.at(0), nullptr, 16);
@@ -399,17 +398,16 @@ private:
             size = stoul(tokens.at(1), nullptr, 16);
             mem->allocate_at(addr, size);
           }
-          fwrite_fmt(stderr, "allocated memory at {:08X}:{:X}\n", addr, size);
+          phosg::fwrite_fmt(stderr, "allocated memory at {:08X}:{:X}\n", addr, size);
 
         } else if ((cmd == "g") || (cmd == "regions") || (cmd == "list-regions")) {
           for (const auto& it : mem->allocated_blocks()) {
-            std::string size_str = format_size(it.second);
-            fwrite_fmt(stderr, "region: {:08X}-{:08X} ({})\n",
-                it.first, it.first + it.second, size_str);
+            phosg::fwrite_fmt(stderr, "region: {:08X}-{:08X} ({})\n",
+                it.first, it.first + it.second, phosg::format_size(it.second));
           }
 
         } else if ((cmd == "t") || (cmd == "f") || (cmd == "find")) {
-          std::string search_data = parse_data_string(args);
+          std::string search_data = phosg::parse_data_string(args);
           for (const auto& it : mem->allocated_blocks()) {
             if (it.second < search_data.size()) {
               continue;
@@ -417,7 +415,7 @@ private:
             auto* mem_data = mem->template at<const char>(it.first, it.second);
             for (size_t z = 0; z <= it.second - search_data.size(); z++) {
               if (!memcmp(&mem_data[z], search_data.data(), search_data.size())) {
-                fwrite_fmt(stderr, "found at {:08X}\n", static_cast<uint32_t>(it.first + z));
+                phosg::fwrite_fmt(stderr, "found at {:08X}\n", static_cast<uint32_t>(it.first + z));
               }
             }
           }
@@ -430,41 +428,41 @@ private:
         } else if ((cmd == "b") || (cmd == "break")) {
           uint32_t addr = stoul(args, nullptr, 16);
           this->state.breakpoints.emplace(addr);
-          fwrite_fmt(stderr, "added breakpoint at {:08X}\n", addr);
+          phosg::fwrite_fmt(stderr, "added breakpoint at {:08X}\n", addr);
 
         } else if ((cmd == "cf") || (cmd == "confine")) {
-          auto tokens = split(args, ' ');
+          auto tokens = phosg::split(args, ' ');
           if (tokens.size() > 2) {
             throw std::runtime_error("excess argument");
           }
           this->state.confinement_start_addr = stoul(tokens.at(0), nullptr, 16);
           this->state.confinement_end_addr = stoul(tokens.at(1), nullptr, 16);
-          fwrite_fmt(stderr, "set confinement to {:08X}-{:08X}\n",
+          phosg::fwrite_fmt(stderr, "set confinement to {:08X}-{:08X}\n",
               this->state.confinement_start_addr, this->state.confinement_end_addr);
 
         } else if ((cmd == "bc") || (cmd == "break-cycles")) {
           uint64_t count = stoull(args, nullptr, 16);
           if (count <= emu.cycles()) {
-            fwrite_fmt(stderr, "cannot add cycle breakpoint at or before current cycle count\n");
+            phosg::fwrite_fmt(stderr, "cannot add cycle breakpoint at or before current cycle count\n");
           } else {
             this->state.cycle_breakpoints.emplace(count);
-            fwrite_fmt(stderr, "added cycle breakpoint at {:08X}\n", count);
+            phosg::fwrite_fmt(stderr, "added cycle breakpoint at {:08X}\n", count);
           }
 
         } else if ((cmd == "u") || (cmd == "unbreak")) {
           uint32_t addr = args.empty() ? regs.pc : stoul(args, nullptr, 16);
           if (!this->state.breakpoints.erase(addr)) {
-            fwrite_fmt(stderr, "no breakpoint existed at {:08X}\n", addr);
+            phosg::fwrite_fmt(stderr, "no breakpoint existed at {:08X}\n", addr);
           } else {
-            fwrite_fmt(stderr, "deleted breakpoint at {:08X}\n", addr);
+            phosg::fwrite_fmt(stderr, "deleted breakpoint at {:08X}\n", addr);
           }
 
         } else if ((cmd == "uc") || (cmd == "unbreak-cycles")) {
           uint64_t count = stoull(args, nullptr, 16);
           if (!this->state.cycle_breakpoints.erase(count)) {
-            fwrite_fmt(stderr, "no cycle breakpoint existed at {:08X}\n", count);
+            phosg::fwrite_fmt(stderr, "no cycle breakpoint existed at {:08X}\n", count);
           } else {
-            fwrite_fmt(stderr, "deleted cycle breakpoint at {:08X}\n", count);
+            phosg::fwrite_fmt(stderr, "deleted cycle breakpoint at {:08X}\n", count);
           }
 
         } else if ((cmd == "ucf") || (cmd == "unconfine")) {
@@ -472,17 +470,17 @@ private:
           this->state.confinement_end_addr = 0;
 
         } else if ((cmd == "sr") || (cmd == "setreg") || (cmd == "set-register")) {
-          auto tokens = split(args, ' ');
+          auto tokens = phosg::split(args, ' ');
           regs.set_by_name(tokens.at(0), stoul(tokens.at(1), nullptr, 16));
           this->print_state_header(emu);
           emu.print_state(stderr);
 
         } else if ((cmd == "ss") || (cmd == "save-state")) {
-          auto f = fopen_unique(args, "wb");
+          auto f = phosg::fopen_unique(args, "wb");
           emu.export_state(f.get());
 
         } else if ((cmd == "ls") || (cmd == "load-state")) {
-          auto f = fopen_unique(args, "rb");
+          auto f = phosg::fopen_unique(args, "rb");
           emu.import_state(f.get());
           this->print_state_header(emu);
           emu.print_state(stderr);
@@ -508,12 +506,12 @@ private:
           throw typename EmuT::terminate_emulation();
 
         } else {
-          fwrite_fmt(stderr, "invalid command\n");
+          phosg::fwrite_fmt(stderr, "invalid command\n");
         }
       } catch (const typename EmuT::terminate_emulation&) {
         throw;
       } catch (const std::exception& e) {
-        fwrite_fmt(stderr, "FAILED: {}\n", e.what());
+        phosg::fwrite_fmt(stderr, "FAILED: {}\n", e.what());
       }
     }
   }

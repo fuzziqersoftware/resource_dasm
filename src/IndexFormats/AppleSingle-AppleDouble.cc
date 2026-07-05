@@ -15,9 +15,6 @@
 
 #include "../ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 struct Entry {
@@ -39,9 +36,9 @@ struct Entry {
     AFP_DIRECTORY_ID = 15,
   };
 
-  be_uint32_t be_type;
-  be_uint32_t offset;
-  be_uint32_t size;
+  phosg::be_uint32_t be_type;
+  phosg::be_uint32_t offset;
+  phosg::be_uint32_t size;
 
   inline Type type() const {
     return static_cast<Type>(this->be_type.load());
@@ -49,31 +46,31 @@ struct Entry {
 } __attribute__((packed));
 
 struct Header {
-  be_uint32_t signature; // 00051600 = AppleSingle, 00051607 = AppleDouble
-  be_uint32_t version; // 00010000 or 00020000, apparently
+  phosg::be_uint32_t signature; // 00051600 = AppleSingle, 00051607 = AppleDouble
+  phosg::be_uint32_t version; // 00010000 or 00020000, apparently
   char home_filesystem[0x10]; // Unused in version 00020000?
-  be_uint16_t num_entries;
+  phosg::be_uint16_t num_entries;
   // Variable-length field:
   // Entry entries[num_entries];
 } __attribute__((packed));
 
-bool maybe_applesingle_appledouble(const StringReader& r) {
+bool maybe_applesingle_appledouble(const phosg::StringReader& r) {
   try {
     const auto& header = r.pget<Header>(0);
     return ((header.signature == 0x00051600 || header.signature == 0x00051607) &&
         (header.version == 0x00010000 || header.version == 0x00020000));
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return false;
   }
 }
 
-DecodedAppleSingle parse_applesingle_appledouble(StringReader& r) {
+DecodedAppleSingle parse_applesingle_appledouble(phosg::StringReader& r) {
   const auto& header = r.get<Header>();
   if (header.signature != 0x00051600 && header.signature != 0x00051607) {
-    throw runtime_error("file is not AppleSingle or AppleDouble");
+    throw std::runtime_error("file is not AppleSingle or AppleDouble");
   }
   if (header.version != 0x00010000 && header.version != 0x00020000) {
-    throw runtime_error("unknown AppleSingle/AppleDouble version");
+    throw std::runtime_error("unknown AppleSingle/AppleDouble version");
   }
 
   DecodedAppleSingle ret;
@@ -120,8 +117,7 @@ DecodedAppleSingle parse_applesingle_appledouble(StringReader& r) {
         break;
       case Entry::Type::FINDER_INFO:
         // TODO: Figure out the format of this and parse it. appledouble.h says:
-        // Finder Information is two 16 byte quantities.
-        // Newly created files have all 0's in both entries.
+        // Finder Information is two 16 byte quantities. Newly created files have all 0's in both entries.
         ret.finder_info = r.preadx(entry.offset, entry.size);
         break;
       case Entry::Type::MAC_FILE_INFO:
@@ -153,29 +149,28 @@ DecodedAppleSingle parse_applesingle_appledouble(StringReader& r) {
   return ret;
 }
 
-DecodedAppleSingle parse_applesingle_appledouble(const string& data) {
-  StringReader r(data.data(), data.size());
+DecodedAppleSingle parse_applesingle_appledouble(const std::string& data) {
+  phosg::StringReader r(data.data(), data.size());
   return parse_applesingle_appledouble(r);
 }
 
-ResourceFile parse_applesingle_appledouble_resource_fork(const string& data) {
+ResourceFile parse_applesingle_appledouble_resource_fork(const std::string& data) {
   auto parsed = parse_applesingle_appledouble(data);
   return std::move(parsed.resource_fork);
 }
 
-string DecodedAppleSingle::serialize() const {
+std::string DecodedAppleSingle::serialize() const {
   size_t offset = 0;
-  vector<pair<Entry, const string*>> entries;
-  auto add_entry = [&](Entry::Type type, const string& data) {
+  std::vector<std::pair<Entry, const std::string*>> entries;
+  auto add_entry = [&](Entry::Type type, const std::string& data) {
     if (!data.empty()) {
-      entries.emplace_back(make_pair(
-          Entry{.be_type = static_cast<uint32_t>(type), .offset = offset, .size = data.size()},
-          &data));
+      entries.emplace_back(std::make_pair(
+          Entry{.be_type = static_cast<uint32_t>(type), .offset = offset, .size = data.size()}, &data));
       offset += data.size();
     }
   };
 
-  string rf_data;
+  std::string rf_data;
   if (!this->resource_fork.empty()) {
     rf_data = serialize_resource_fork(this->resource_fork);
   }
@@ -201,7 +196,7 @@ string DecodedAppleSingle::serialize() const {
     it.first.offset += header_size;
   }
 
-  StringWriter w;
+  phosg::StringWriter w;
   {
     Header header;
     header.signature = 0x00051600;

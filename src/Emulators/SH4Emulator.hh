@@ -17,8 +17,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 // Data addressing modes:
 // Rn => rn
 // @Rn => [rn]
@@ -253,7 +251,7 @@ private:
     bool double_precision;
     const std::multimap<uint32_t, std::string>* labels;
     std::map<uint32_t, bool> branch_target_addresses;
-    StringReader r;
+    phosg::StringReader r;
     std::shared_ptr<const MemoryContext> mem; // May be null
   };
 
@@ -335,7 +333,7 @@ private:
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
 
-    StringWriter code;
+    phosg::StringWriter code;
 
     typedef uint16_t (Assembler::*AssembleFunction)(const StreamItem& si) const;
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;

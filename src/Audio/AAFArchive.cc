@@ -15,8 +15,6 @@
 #include "Instrument.hh"
 #include "WAVFile.hh"
 
-using namespace std;
-
 namespace ResourceDASM {
 namespace Audio {
 
@@ -84,43 +82,43 @@ struct WSYSHeader {
   phosg::be_uint32_t wbct_offset;
 } __attribute__((packed));
 
-pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_directory) {
+std::pair<uint32_t, std::vector<Sound>> wsys_decode(const void* vdata, const char* base_directory) {
   const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
 
   const WSYSHeader* wsys = reinterpret_cast<const WSYSHeader*>(data);
   if (wsys->magic != 0x57535953) {
-    throw invalid_argument("WSYS file not at expected offset");
+    throw std::invalid_argument("WSYS file not at expected offset");
   }
 
   const WINFHeader* winf = reinterpret_cast<const WINFHeader*>(data + wsys->winf_offset);
   if (winf->magic != 0x57494E46) {
-    throw invalid_argument("WINF file not at expected offset");
+    throw std::invalid_argument("WINF file not at expected offset");
   }
 
   // Get all sample IDs before processing aw files. This map is {(aw_file_index, wave_table_entry_index): sound_id}
-  map<pair<size_t, size_t>, size_t> aw_file_and_sound_index_to_cdf_id;
+  std::map<std::pair<size_t, size_t>, size_t> aw_file_and_sound_index_to_cdf_id;
 
   const WBCTHeader* wbct = reinterpret_cast<const WBCTHeader*>(data + wsys->wbct_offset);
   if (wbct->magic != 0x57424354) {
-    throw invalid_argument("WBCT file not at expected offset");
+    throw std::invalid_argument("WBCT file not at expected offset");
   }
 
   for (size_t x = 0; x < wbct->scne_count; x++) {
     const SCNEHeader* scne = reinterpret_cast<const SCNEHeader*>(data + wbct->scne_offsets[x]);
     if (scne->magic != 0x53434E45) {
-      throw invalid_argument("SCNE file not at expected offset");
+      throw std::invalid_argument("SCNE file not at expected offset");
     }
 
     const CDFHeader* cdf = reinterpret_cast<const CDFHeader*>(data + scne->cdf_offset);
     if (cdf->magic != 0x432D4446) {
-      throw invalid_argument("C-DF file not at expected offset");
+      throw std::invalid_argument("C-DF file not at expected offset");
     }
 
     for (size_t y = 0; y < cdf->record_count; y++) {
       const CDFRecord* record = reinterpret_cast<const CDFRecord*>(data + cdf->record_offsets[y]);
       phosg::fwrite_fmt(stderr, "[SoundEnvironment/debug] CDF {} => {},{} => {}\n",
           y, record->aw_file_index.load(), y, record->sound_id.load());
-      if (!aw_file_and_sound_index_to_cdf_id.emplace(make_pair(record->aw_file_index, y), record->sound_id).second) {
+      if (!aw_file_and_sound_index_to_cdf_id.emplace(std::make_pair(record->aw_file_index, y), record->sound_id).second) {
         phosg::fwrite_fmt(stderr, "[SoundEnvironment] warning: duplicate sound ID: {},{} => {}\n",
             record->aw_file_index.load(), y, record->sound_id.load());
       }
@@ -128,7 +126,7 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
   }
 
   // Now process all AW files
-  vector<Sound> ret;
+  std::vector<Sound> ret;
   for (size_t x = 0; x < winf->aw_file_count; x++) {
     const AWFileEntry* entry = reinterpret_cast<const AWFileEntry*>(data + winf->aw_file_entry_offsets[x]);
 
@@ -137,27 +135,27 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
       continue;
     }
 
-    string aw_file_contents;
+    std::string aw_file_contents;
 
     // Try both Banks and Waves subdirectories
-    static const vector<string> directory_names({"Banks", "Waves"});
+    static const std::vector<std::string> directory_names({"Banks", "Waves"});
     for (const auto& directory_name : directory_names) {
-      string aw_filename = format("{}/{}/{}", base_directory, directory_name, entry->filename);
+      auto aw_filename = std::format("{}/{}/{}", base_directory, directory_name, entry->filename);
       try {
-        aw_file_contents = phosg::load_file(aw_filename.c_str());
+        aw_file_contents = phosg::load_file(aw_filename);
         break;
       } catch (const phosg::cannot_open_file&) {
         continue;
       }
     }
     if (aw_file_contents.empty()) {
-      throw runtime_error(format("{} does not exist in any checked subdirectory", entry->filename));
+      throw std::runtime_error(std::format("{} does not exist in any checked subdirectory", entry->filename));
     }
 
     for (size_t y = 0; y < entry->wav_count; y++) {
       const WaveTableEntry* wav_entry = reinterpret_cast<const WaveTableEntry*>(data + entry->wav_entry_offsets[y]);
 
-      uint16_t sound_id = aw_file_and_sound_index_to_cdf_id.at(make_pair(x, y));
+      uint16_t sound_id = aw_file_and_sound_index_to_cdf_id.at(std::make_pair(x, y));
 
       ret.emplace_back();
       Sound& ret_snd = ret.back();
@@ -180,7 +178,7 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
       ret_snd.sound_id = sound_id;
 
       if (wav_entry->type < 2) {
-        ret_snd.afc_data = string(aw_file_contents.data() + wav_entry->offset, wav_entry->size);
+        ret_snd.afc_data = std::string(aw_file_contents.data() + wav_entry->offset, wav_entry->size);
         ret_snd.afc_large_frames = (wav_entry->type == 1);
         ret_snd.num_channels = 1;
 
@@ -188,9 +186,9 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
         // Uncompressed big-endian mono/stereo apparently
         bool is_stereo = (wav_entry->type == 3);
         if (is_stereo && (wav_entry->size & 3)) {
-          throw invalid_argument("stereo data size not a multiple of 4");
+          throw std::invalid_argument("stereo data size not a multiple of 4");
         } else if (!is_stereo && (wav_entry->size & 2)) {
-          throw invalid_argument("mono data size not a multiple of 2");
+          throw std::invalid_argument("mono data size not a multiple of 2");
         }
 
         // Hack: type 2 are too fast, so half their sample rate. I suspect they might be stereo also, but then why are
@@ -210,12 +208,12 @@ pair<uint32_t, vector<Sound>> wsys_decode(const void* vdata, const char* base_di
         }
         ret_snd.num_channels = is_stereo ? 2 : 1;
       } else {
-        throw runtime_error(format("unknown wav entry type: 0x{:02X}", wav_entry->type));
+        throw std::runtime_error(std::format("unknown wav entry type: 0x{:02X}", wav_entry->type));
       }
     }
   }
 
-  return make_pair(wsys->wsys_id, ret);
+  return std::make_pair(wsys->wsys_id, ret);
 }
 
 struct BARCEntry {
@@ -239,31 +237,32 @@ struct BARCHeader {
   }
 };
 
-unordered_map<string, SequenceProgram> barc_decode(const void* vdata, size_t size, const char* base_directory) {
+std::unordered_map<std::string, SequenceProgram> barc_decode(
+    const void* vdata, size_t size, const char* base_directory) {
   if (size < sizeof(BARCHeader)) {
-    throw invalid_argument("BARC data too small for header");
+    throw std::invalid_argument("BARC data too small for header");
   }
 
   const BARCHeader* barc = reinterpret_cast<const BARCHeader*>(vdata);
   if (barc->magic != 0x42415243) {
-    throw invalid_argument("BARC file not at expected offset");
+    throw std::invalid_argument("BARC file not at expected offset");
   }
   if (size < barc->bytes()) {
-    throw invalid_argument("BARC data too small for header");
+    throw std::invalid_argument("BARC data too small for header");
   }
 
-  string sequence_archive_filename = format("{}/Seqs/{}", base_directory, barc->archive_filename);
+  auto sequence_archive_filename = std::format("{}/Seqs/{}", base_directory, barc->archive_filename);
   auto f = phosg::fopen_unique(sequence_archive_filename, "rb");
 
-  unordered_map<string, SequenceProgram> ret;
+  std::unordered_map<std::string, SequenceProgram> ret;
   for (uint32_t x = 0; x < barc->entry_count; x++) {
     const auto& e = barc->entries[x];
     fseek(f.get(), e.offset, SEEK_SET);
-    string data = freadx(f.get(), e.size);
+    std::string data = phosg::freadx(f.get(), e.size);
     size_t suffix = 0;
-    string effective_name = e.name;
+    std::string effective_name = e.name;
     while (ret.count(effective_name)) {
-      effective_name = format("{}@{}", e.name, ++suffix);
+      effective_name = std::format("{}@{}", e.name, ++suffix);
     }
     ret.emplace(effective_name, SequenceProgram{x, std::move(data)});
   }
@@ -271,15 +270,13 @@ unordered_map<string, SequenceProgram> barc_decode(const void* vdata, size_t siz
   return ret;
 }
 
-SequenceProgram::SequenceProgram(uint32_t index, std::string&& data)
-    : index(index),
-      data(std::move(data)) {}
+SequenceProgram::SequenceProgram(uint32_t index, std::string&& data) : index(index), data(std::move(data)) {}
 
 void SoundEnvironment::resolve_pointers() {
   // Postprocessing: resolve all sample bank pointers
 
   // Build an index of {wsys_id: {sound_id: index_within_wsys}}
-  unordered_map<uint32_t, unordered_map<int64_t, size_t>> sound_id_to_index;
+  std::unordered_map<uint32_t, std::unordered_map<int64_t, size_t>> sound_id_to_index;
   for (const auto& wsys_it : this->sample_banks) {
     for (size_t x = 0; x < wsys_it.second.size(); x++) {
       const auto& sound = wsys_it.second[x];
@@ -339,14 +336,14 @@ void SoundEnvironment::resolve_pointers() {
       for (auto& key_region : instrument_it.second.key_regions) {
         for (auto& vel_region : key_region.vel_regions) {
           // Try to resolve first using the sample bank id, then using the instrument bank id
-          vector<uint32_t> wsys_ids({vel_region.sample_bank_id, bank.chunk_id});
+          std::vector<uint32_t> wsys_ids({vel_region.sample_bank_id, bank.chunk_id});
           for (uint32_t wsys_id : wsys_ids) {
             try {
               const auto& wsys_bank = this->sample_banks.at(wsys_id);
               const auto& wsys_indexes = sound_id_to_index.at(wsys_id);
               vel_region.sound = &wsys_bank[wsys_indexes.at(vel_region.sound_id)];
               break;
-            } catch (const out_of_range&) {
+            } catch (const std::out_of_range&) {
             }
           }
 
@@ -443,8 +440,8 @@ SoundEnvironment aaf_decode(const void* vdata, size_t size, const char* base_dir
         break;
 
       default:
-        throw invalid_argument(format("unknown chunk type {} ({:08X})",
-            string_view(reinterpret_cast<char*>(&chunk_type), 4), chunk_type));
+        throw std::invalid_argument(std::format("unknown chunk type {} ({:08X})",
+            std::string_view(reinterpret_cast<char*>(&chunk_type), 4), chunk_type));
     }
   }
 
@@ -458,10 +455,10 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
   size_t field_offset = 1;
 
   if (size < 8) {
-    throw runtime_error("baa file is too small for header");
+    throw std::runtime_error("baa file is too small for header");
   }
   if (data_fields[0] != 0x41415F3C) { // 'AA_<'
-    throw runtime_error("baa file does not appear to be an audio archive");
+    throw std::runtime_error("baa file does not appear to be an audio archive");
   }
 
   SoundEnvironment ret;
@@ -510,8 +507,8 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
         uint32_t id = data_fields[field_offset++] & 0x0000FFFF;
         uint32_t offset = data_fields[field_offset++];
         uint32_t end_offset = data_fields[field_offset++];
-        ret.sequence_programs.emplace(format("seq{}", id),
-            SequenceProgram{id, string(reinterpret_cast<const char*>(data + offset), end_offset - offset)});
+        ret.sequence_programs.emplace(std::format("seq{}", id),
+            SequenceProgram{id, std::string(reinterpret_cast<const char*>(data + offset), end_offset - offset)});
         break;
       }
 
@@ -519,7 +516,7 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
         uint32_t offset = data_fields[field_offset++];
         uint32_t end_offset = data_fields[field_offset++];
         if (end_offset - offset < 0x18) {
-          throw invalid_argument("embedded baa is too small for header");
+          throw std::invalid_argument("embedded baa is too small for header");
         }
         // There are 4 4-byte fields before the BAA apparently
         ret.merge_from(baa_decode(data + offset + 0x10, end_offset - offset - 0x10, base_directory));
@@ -532,8 +529,8 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
 
       default:
         phosg::be_uint32_t chunk_type_be = chunk_type;
-        throw invalid_argument(format("unknown chunk type {} ({:08X})",
-            string_view(reinterpret_cast<char*>(&chunk_type_be), 4), chunk_type));
+        throw std::invalid_argument(std::format("unknown chunk type {} ({:08X})",
+            std::string_view(reinterpret_cast<char*>(&chunk_type_be), 4), chunk_type));
     }
   }
 
@@ -563,7 +560,7 @@ SoundEnvironment bx_decode(const void* vdata, size_t, const char* base_directory
   const BXTableEntry* entry = reinterpret_cast<const BXTableEntry*>(data + header->wsys_table_offset);
   for (size_t x = 0; x < header->wsys_count; x++) {
     if (entry->size == 0) {
-      ret.sample_banks.emplace(ret.sample_banks.size(), vector<Sound>());
+      ret.sample_banks.emplace(ret.sample_banks.size(), std::vector<Sound>{});
     } else {
       auto wsys_pair = wsys_decode(data + entry->offset, base_directory);
       uint32_t wsys_id = wsys_pair.first ? wsys_pair.first : ret.sample_banks.size();
@@ -595,12 +592,12 @@ SoundEnvironment load_sound_environment(const char* base_directory) {
   // manually extracted. Search for 'BARC' in default.dol in a hex editor and copy the resulting data (through the end
   // of the sequence names) to sequence.barc in the Seqs directory
   {
-    string filename = format("{}/Banks/pikibank.bx", base_directory);
-    if (filesystem::is_regular_file(filename)) {
-      string data = phosg::load_file(filename);
+    std::string filename = std::format("{}/Banks/pikibank.bx", base_directory);
+    if (std::filesystem::is_regular_file(filename)) {
+      std::string data = phosg::load_file(filename);
       auto env = bx_decode(data.data(), data.size(), base_directory);
 
-      data = phosg::load_file(format("{}/Seqs/sequence.barc", base_directory));
+      data = phosg::load_file(std::format("{}/Seqs/sequence.barc", base_directory));
       env.sequence_programs = barc_decode(data.data(), data.size(), base_directory);
 
       return env;
@@ -608,9 +605,9 @@ SoundEnvironment load_sound_environment(const char* base_directory) {
   }
 
   {
-    static const vector<string> filenames = {"/JaiInit.aaf", "/msound.aaf"};
+    static const std::vector<std::string> filenames = {"/JaiInit.aaf", "/msound.aaf"};
     for (const auto& filename : filenames) {
-      string data;
+      std::string data;
       try {
         data = phosg::load_file(base_directory + filename);
       } catch (const phosg::cannot_open_file&) {
@@ -621,9 +618,9 @@ SoundEnvironment load_sound_environment(const char* base_directory) {
   }
 
   {
-    static const vector<string> filenames = {"/GCKart.baa", "/Z2Sound.baa", "/SMR.baa"};
+    static const std::vector<std::string> filenames = {"/GCKart.baa", "/Z2Sound.baa", "/SMR.baa"};
     for (const auto& filename : filenames) {
-      string data;
+      std::string data;
       try {
         data = phosg::load_file(base_directory + filename);
       } catch (const phosg::cannot_open_file&) {
@@ -633,10 +630,11 @@ SoundEnvironment load_sound_environment(const char* base_directory) {
     }
   }
 
-  throw runtime_error("no index file found");
+  throw std::runtime_error("no index file found");
 }
 
-SoundEnvironment create_midi_sound_environment(const unordered_map<int16_t, InstrumentMetadata>& instrument_metadata) {
+SoundEnvironment create_midi_sound_environment(
+    const std::unordered_map<int16_t, InstrumentMetadata>& instrument_metadata) {
   SoundEnvironment env;
 
   // Create instrument bank 0
@@ -686,7 +684,7 @@ SoundEnvironment create_midi_sound_environment(const unordered_map<int16_t, Inst
   return env;
 }
 
-SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_json, const string& directory) {
+SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_json, const std::string& directory) {
   SoundEnvironment env;
 
   // Create instrument bank 0 and sample bank 0
@@ -703,7 +701,7 @@ SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_js
       int64_t key_low = rgn_json->at("key_low").as_int();
       int64_t key_high = rgn_json->at("key_high").as_int();
       int64_t base_note = rgn_json->at("base_note").as_int();
-      string filename = directory + "/" + rgn_json->at("filename").as_string();
+      std::string filename = directory + "/" + rgn_json->at("filename").as_string();
 
       double freq_mult = rgn_json->get_float("freq_mult", 1.0);
       bool constant_pitch = rgn_json->get_bool("constant_pitch", false);
@@ -712,7 +710,7 @@ SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_js
       try {
         auto f = phosg::fopen_unique(filename);
         wav = load_wav(f.get());
-      } catch (const exception& e) {
+      } catch (const std::exception& e) {
         phosg::fwrite_fmt(stderr,
             "[create_json_sound_environment] creating region {:02X}:{:02X}@{:02X} -> {} ({}) for instrument {} failed: {}\n",
             key_low, key_high, base_note, filename.c_str(), sound_id, id, e.what());

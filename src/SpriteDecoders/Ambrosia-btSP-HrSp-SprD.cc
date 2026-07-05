@@ -5,22 +5,18 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-ImageRGBA8888N decode_btSP(const string& data, const vector<ColorTableEntry>& clut) {
+phosg::ImageRGBA8888N decode_btSP(const std::string& data, const std::vector<ColorTableEntry>& clut) {
   if (data.size() < 8) {
-    throw invalid_argument("not enough data");
+    throw std::invalid_argument("not enough data");
   }
   if (data.size() & 3) {
-    throw invalid_argument("size must be a multiple of 4");
+    throw std::invalid_argument("size must be a multiple of 4");
   }
 
-  // Height doesn't appear to be stored anywhere, so precompute it by reading
-  // the stream
-  StringReader r(data.data(), data.size());
+  // Height doesn't appear to be stored anywhere, so precompute it by reading the stream
+  phosg::StringReader r(data.data(), data.size());
   uint16_t height = 1;
   uint16_t width = r.get_u16b();
   r.skip(2); // Unknown what this field does
@@ -46,14 +42,14 @@ ImageRGBA8888N decode_btSP(const string& data, const vector<ColorTableEntry>& cl
         r.skip(3);
         break;
       default:
-        throw runtime_error(std::format("unknown command: {:02X}", cmd));
+        throw std::runtime_error(std::format("unknown command: {:02X}", cmd));
     }
   }
 
   // Go back to the beginning to actually execute the commands
   r.go(4);
 
-  ImageRGBA8888N ret(width, height);
+  phosg::ImageRGBA8888N ret(width, height);
   size_t x = 0, y = 0;
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
@@ -88,7 +84,7 @@ ImageRGBA8888N decode_btSP(const string& data, const vector<ColorTableEntry>& cl
       case 3:
         // 03 00 00 00: Move to beginning of next row
         if (r.get_u24b() != 0) {
-          throw runtime_error("newline command with nonzero argument");
+          throw std::runtime_error("newline command with nonzero argument");
         }
         x = 0;
         y++;
@@ -97,27 +93,24 @@ ImageRGBA8888N decode_btSP(const string& data, const vector<ColorTableEntry>& cl
       case 4:
         // 04 00 00 00: End sprite data
         if (r.get_u24b() != 0) {
-          throw runtime_error("end-of-stream command with nonzero argument");
+          throw std::runtime_error("end-of-stream command with nonzero argument");
         }
         if (!r.eof()) {
-          throw runtime_error("end-of-stream command not at end of stream");
+          throw std::runtime_error("end-of-stream command not at end of stream");
         }
         break;
 
       default:
-        throw runtime_error(std::format("unknown command: {:02X}", cmd));
+        throw std::runtime_error(std::format("unknown command: {:02X}", cmd));
     }
   }
 
   return ret;
 }
 
-static ImageRGBA8888N decode_HrSp_commands(
-    StringReader& r,
-    size_t width,
-    size_t height,
-    const vector<ColorTableEntry>& clut) {
-  ImageRGBA8888N ret(width, height);
+static phosg::ImageRGBA8888N decode_HrSp_commands(
+    phosg::StringReader& r, size_t width, size_t height, const std::vector<ColorTableEntry>& clut) {
+  phosg::ImageRGBA8888N ret(width, height);
   size_t x = 0, y = 0;
   size_t next_row_begin_offset = static_cast<size_t>(-1);
   while (!r.eof()) {
@@ -132,17 +125,16 @@ static ImageRGBA8888N decode_HrSp_commands(
       case 0:
         // 00 00 00 00: End sprite data
         if (r.get_u24b() != 0) {
-          throw runtime_error("end-of-stream command with nonzero argument");
+          throw std::runtime_error("end-of-stream command with nonzero argument");
         }
         if (!r.eof()) {
-          throw runtime_error("end-of-stream command not at end of stream");
+          throw std::runtime_error("end-of-stream command not at end of stream");
         }
         break;
 
       case 1:
-        // 01 XX XX XX: Start row frame (the next row begins when we've executed
-        //   this many more bytes from the input, measured from the end of the
-        //   XX bytes)
+        // 01 XX XX XX: Start row frame (the next row begins when we've executed this many more bytes from the input,
+        //   measured from the end of the XX bytes)
         next_row_begin_offset = r.get_u24b();
         next_row_begin_offset += r.where();
         break;
@@ -174,28 +166,29 @@ static ImageRGBA8888N decode_HrSp_commands(
       }
 
       default:
-        throw runtime_error(std::format("unknown command: {:02X}", cmd));
+        throw std::runtime_error(std::format("unknown command: {:02X}", cmd));
     }
   }
 
   return ret;
 }
 
-ImageRGBA8888N decode_HrSp(const string& data, const vector<ColorTableEntry>& clut, size_t header_size) {
+phosg::ImageRGBA8888N decode_HrSp(
+    const std::string& data, const std::vector<ColorTableEntry>& clut, size_t header_size) {
   if (header_size < 8) {
-    throw logic_error("header size is too small");
+    throw std::logic_error("header size is too small");
   }
   if (header_size & 3) {
-    throw logic_error("header size must be a multiple of 4");
+    throw std::logic_error("header size must be a multiple of 4");
   }
   if (data.size() < header_size + 4) {
-    throw invalid_argument("not enough data");
+    throw std::invalid_argument("not enough data");
   }
   if (data.size() & 3) {
-    throw invalid_argument("size must be a multiple of 4");
+    throw std::invalid_argument("size must be a multiple of 4");
   }
 
-  StringReader r(data.data(), data.size());
+  phosg::StringReader r(data.data(), data.size());
   r.go(4);
   uint16_t height = r.get_u16b();
   uint16_t width = r.get_u16b();
@@ -204,10 +197,10 @@ ImageRGBA8888N decode_HrSp(const string& data, const vector<ColorTableEntry>& cl
   return decode_HrSp_commands(r, width, height, clut);
 }
 
-vector<ImageRGBA8888N> decode_SprD(const string& data, const vector<ColorTableEntry>& clut) {
-  StringReader r(data.data(), data.size());
+std::vector<phosg::ImageRGBA8888N> decode_SprD(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+  phosg::StringReader r(data.data(), data.size());
 
-  vector<ImageRGBA8888N> ret;
+  std::vector<phosg::ImageRGBA8888N> ret;
   while (!r.eof()) {
     r.skip(4);
     uint16_t height = r.get_u16b();
@@ -215,7 +208,7 @@ vector<ImageRGBA8888N> decode_SprD(const string& data, const vector<ColorTableEn
     uint32_t command_bytes = r.get_u32b();
     size_t end_offset = r.where() + command_bytes;
     r.skip(8);
-    StringReader sub_r = r.sub(r.where(), end_offset - r.where());
+    phosg::StringReader sub_r = r.sub(r.where(), end_offset - r.where());
     ret.emplace_back(decode_HrSp_commands(sub_r, width, height, clut));
     r.go(end_offset);
   }

@@ -11,12 +11,10 @@
 
 #include "../AudioCodecs.hh"
 
-using namespace std;
-
 namespace ResourceDASM {
 namespace Audio {
 
-const vector<float>& Sound::samples() const {
+const std::vector<float>& Sound::samples() const {
   if (this->decoded_samples.empty()) {
     this->decoded_samples = decode_afc(this->afc_data.data(), this->afc_data.size(), this->afc_large_frames);
     this->afc_data.clear();
@@ -30,7 +28,7 @@ const VelocityRegion& KeyRegion::region_for_velocity(uint8_t velocity) const {
       return r;
     }
   }
-  throw out_of_range("no such velocity");
+  throw std::out_of_range("no such velocity");
 }
 
 const KeyRegion& Instrument::region_for_key(uint8_t key) const {
@@ -39,7 +37,7 @@ const KeyRegion& Instrument::region_for_key(uint8_t key) const {
       return r;
     }
   }
-  throw out_of_range("no such key");
+  throw std::out_of_range("no such key");
 }
 
 struct ibnk_inst_inst_vel_region {
@@ -241,7 +239,7 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
     result_inst.id = instnew_header->inst_id;
 
     if (instnew_header->key_region_count > 0x7F) {
-      throw runtime_error("key region count is too large");
+      throw std::runtime_error("key region count is too large");
     }
 
     // Sigh... why did they specify these structs inline and use offsets everywhere else? Just for maximum tedium?
@@ -298,8 +296,8 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
     count = 0x64;
 
   } else {
-    throw invalid_argument(format("unknown instrument format at {:08X}: {:.4} ({:08X})",
-        offset, string_view(reinterpret_cast<const char*>(inst_data), 4),
+    throw std::invalid_argument(std::format("unknown instrument format at {:08X}: {:.4} ({:08X})",
+        offset, std::string_view(reinterpret_cast<const char*>(inst_data), 4),
         *reinterpret_cast<const uint32_t*>(inst_data)));
   }
 
@@ -334,7 +332,7 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
 
 InstrumentBank ibnk_decode(const void* vdata) {
   if (memcmp(vdata, "IBNK", 4)) {
-    throw invalid_argument("IBNK file not at expected offset");
+    throw std::invalid_argument("IBNK file not at expected offset");
   }
 
   const ibnk_header* ibnk = reinterpret_cast<const ibnk_header*>(vdata);
@@ -355,7 +353,7 @@ InstrumentBank ibnk_decode(const void* vdata) {
         try {
           auto inst = ibnk_inst_decode(vdata, bank_header->inst_offsets[z], z);
           result_bank.id_to_instrument.emplace(z, inst);
-        } catch (const exception& e) {
+        } catch (const std::exception& e) {
           phosg::fwrite_fmt(stderr, "warning: failed to decode instrument: {}\n", e.what());
         }
       }
@@ -395,18 +393,17 @@ InstrumentBank ibnk_decode(const void* vdata) {
         try {
           auto inst = ibnk_inst_decode(vdata, list_header->inst_offsets[z], z);
           result_bank.id_to_instrument.emplace(z, inst);
-        } catch (const exception& e) {
+        } catch (const std::exception& e) {
           phosg::fwrite_fmt(stderr, "warning: failed to decode instrument: {}\n", e.what());
         }
       }
       offset += list_header->size + sizeof(ibnk_list_header);
 
     } else if (!memcmp(&chunk_header->magic, "BANK", 4)) {
-      throw runtime_error(format("IBNK contains BANK at {:08X} but it is not first",
-          offset));
+      throw std::runtime_error(std::format("IBNK contains BANK at {:08X} but it is not first", offset));
 
     } else {
-      throw runtime_error(format("unknown IBNK chunk type at {:08X}: {:.4}",
+      throw std::runtime_error(std::format("unknown IBNK chunk type at {:08X}: {:.4}",
           offset, reinterpret_cast<const char*>(&chunk_header->magic)));
     }
   }

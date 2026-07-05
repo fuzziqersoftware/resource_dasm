@@ -13,8 +13,6 @@
 #include <phosg/Strings.hh>
 #include <string>
 
-using namespace std;
-
 struct GVMFileEntry {
   phosg::be_uint16_t file_num;
   char name[28];
@@ -23,16 +21,14 @@ struct GVMFileEntry {
 
 struct GVMFileHeader {
   phosg::be_uint32_t magic; // 'GVMH'
-  // Note: Add 8 to this value (it doesn't include magic and size). Also, yes,
-  // it really is little-endian.
+  // Note: Add 8 to this value (it doesn't include magic and size). Also, yes, it really is little-endian.
   phosg::le_uint32_t header_size;
   phosg::be_uint16_t flags;
   phosg::be_uint16_t num_files;
   GVMFileEntry entries[0];
 } __attribute__((packed));
 
-// Note: most of these formats are named after those in puyotools but are
-// currently unimplemented here
+// Note: most of these formats are named after those in puyotools but are currently unimplemented here
 enum GVRColorTablePixelFormat {
   INTENSITY_A8 = 0x00,
   RGB565 = 0x10,
@@ -62,8 +58,7 @@ enum class GVRDataFormat : uint8_t {
 
 struct GVRHeader {
   phosg::be_uint32_t magic; // 'GVRT'
-  // See comment in GVMFileHeader about header_size - data_size behaves the same
-  // way here.
+  // See comment in GVMFileHeader about header_size - data_size behaves the same way here.
   phosg::le_uint32_t data_size;
   phosg::be_uint16_t unknown;
   uint8_t format_flags; // High 4 bits are pixel format, low 4 are data flags
@@ -74,8 +69,7 @@ struct GVRHeader {
 
 struct GVPHeader {
   phosg::be_uint32_t magic; // 'GVPL'
-  // See comment in GVMFileHeader about header_size - data_size behaves the same
-  // way here.
+  // See comment in GVMFileHeader about header_size - data_size behaves the same way here.
   phosg::le_uint32_t data_size;
   uint8_t unknown_a1;
   uint8_t entry_format; // 0 = A8, 1 = RGB565, 2 = RGB5A3
@@ -85,15 +79,15 @@ struct GVPHeader {
 
 uint32_t decode_rgb5a3(uint16_t c) {
   if (c & 0x8000) { // RGB555
-    //                 1rrrrrgggggbbbbb
-    // rrrrrrrrggggggggbbbbbbbbaaaaaaaa
+    // In:                  1rrrrrgggggbbbbb
+    // Out: rrrrrrrrggggggggbbbbbbbbaaaaaaaa
     return ((c << 17) & 0xF8000000) | ((c << 12) & 0x07000000) | // R
         ((c << 14) & 0x00F80000) | ((c << 9) & 0x00070000) | // G
         ((c << 11) & 0x0000F800) | ((c << 6) & 0x00000700) | // B
         0x000000FF; // A
   } else { // ARGB3444
-    //                 0aaarrrrggggbbbb
-    // rrrrrrrrggggggggbbbbbbbbaaaaaaaa
+    // In:                  0aaarrrrggggbbbb
+    // Out: rrrrrrrrggggggggbbbbbbbbaaaaaaaa
     return ((c << 20) & 0xF0000000) | // R high
         ((c << 16) & 0x0FF00000) | // R low and G high
         ((c << 12) & 0x000FF000) | // G low and B high
@@ -103,22 +97,22 @@ uint32_t decode_rgb5a3(uint16_t c) {
 }
 
 uint32_t decode_rgb565(uint16_t c) {
-  //                 rrrrrggggggbbbbb
-  // rrrrrrrrggggggggbbbbbbbbaaaaaaaa
+  // In:                  rrrrrggggggbbbbb
+  // Out: rrrrrrrrggggggggbbbbbbbbaaaaaaaa
   return ((c << 16) & 0xF8000000) | ((c << 11) & 0x07000000) | // R
       ((c << 13) & 0x00FC0000) | ((c << 7) & 0x00030000) | // G
       ((c << 11) & 0x0000F800) | ((c << 6) & 0x00000700) | // B
       0x000000FF; // A
 }
 
-vector<uint32_t> decode_gvp(const string& data) {
+std::vector<uint32_t> decode_gvp(const std::string& data) {
   phosg::StringReader r(data.data(), data.size());
   auto header = r.get<GVPHeader>();
   if (header.magic != 0x4756504C) {
-    throw runtime_error("GVPL signature is missing");
+    throw std::runtime_error("GVPL signature is missing");
   }
 
-  vector<uint32_t> ret;
+  std::vector<uint32_t> ret;
   ret.reserve(header.num_entries);
   while (ret.size() < header.num_entries) {
     switch (header.entry_format) {
@@ -134,39 +128,38 @@ vector<uint32_t> decode_gvp(const string& data) {
         ret.emplace_back(decode_rgb5a3(r.get_u16b()));
         break;
       default:
-        throw runtime_error("unknown color table entry format");
+        throw std::runtime_error("unknown color table entry format");
     }
   }
 
   return ret;
 }
 
-phosg::ImageRGBA8888N decode_gvr(const string& data, const vector<uint32_t>* clut = nullptr) {
+phosg::ImageRGBA8888N decode_gvr(const std::string& data, const std::vector<uint32_t>* clut = nullptr) {
   if (data.size() < sizeof(GVRHeader)) {
-    throw runtime_error("data too small for header");
+    throw std::runtime_error("data too small for header");
   }
 
   phosg::StringReader r(data.data(), data.size());
   GVRHeader header = r.get<GVRHeader>();
   if (header.magic != 0x47565254) {
-    throw runtime_error("GVRT signature is missing");
+    throw std::runtime_error("GVRT signature is missing");
   }
   if (data.size() < header.data_size + 8) {
-    throw runtime_error("data size is too small");
+    throw std::runtime_error("data size is too small");
   }
 
   // TODO: deal with GBIX if needed
 
-  // TODO: deal with color table if needed. If present, the color table
-  // immediately follows the header and precedes the data
-  if ((header.data_format == GVRDataFormat::INDEXED_4) ||
-      (header.data_format == GVRDataFormat::INDEXED_8)) {
+  // TODO: deal with color table if needed. If present, the color table immediately follows the header and precedes the
+  // data
+  if ((header.data_format == GVRDataFormat::INDEXED_4) || (header.data_format == GVRDataFormat::INDEXED_8)) {
     if (header.format_flags & GVRDataFlag::HAS_EXTERNAL_COLOR_TABLE) {
       if (!clut) {
-        throw runtime_error("a color table is required");
+        throw std::runtime_error("a color table is required");
       }
     } else if (header.format_flags & GVRDataFlag::HAS_INTERNAL_COLOR_TABLE) {
-      throw logic_error("internal color tables not implemented");
+      throw std::logic_error("internal color tables not implemented");
     }
   }
 
@@ -175,13 +168,13 @@ phosg::ImageRGBA8888N decode_gvr(const string& data, const vector<uint32_t>* clu
 
     /* TODO: deal with mipmaps properly
     if (header.width != header.height) {
-      throw runtime_error("mipmapped texture is not square");
+      throw std::runtime_error("mipmapped texture is not square");
     }
     if (header.width & (header.width - 1) == 0) {
-      throw runtime_error("mipmapped texture has non-power-of-two dimensions")
+      throw std::runtime_error("mipmapped texture has non-power-of-two dimensions")
     }
 
-    vector<size_t> image_offsets;
+    std::vector<size_t> image_offsets;
     image_offsets.emplace_back(sizeof(GVRHeader));
 
     size_t offset = sizeof(GVMHeader); // this will be wrong if there's a color table
@@ -194,9 +187,8 @@ phosg::ImageRGBA8888N decode_gvr(const string& data, const vector<uint32_t>* clu
   }
 
   // For DXT1, w/h must be multiples of 4
-  if ((header.data_format == GVRDataFormat::DXT1) &&
-      ((header.width & 3) || (header.height & 3))) {
-    throw runtime_error("width/height must be multiples of 4 for dxt1 format");
+  if ((header.data_format == GVRDataFormat::DXT1) && ((header.width & 3) || (header.height & 3))) {
+    throw std::runtime_error("width/height must be multiples of 4 for dxt1 format");
   }
 
   phosg::ImageRGBA8888N result(header.width, header.height, true);
@@ -216,7 +208,7 @@ phosg::ImageRGBA8888N decode_gvr(const string& data, const vector<uint32_t>* clu
 
     case GVRDataFormat::INDEXED_4:
       if (!clut) {
-        throw runtime_error("a color table is required");
+        throw std::runtime_error("a color table is required");
       }
       // 4x4 blocks of pixels
       for (size_t y = 0; y < header.height; y += 8) {
@@ -234,7 +226,7 @@ phosg::ImageRGBA8888N decode_gvr(const string& data, const vector<uint32_t>* clu
 
     case GVRDataFormat::INDEXED_8:
       if (!clut) {
-        throw runtime_error("a color table is required");
+        throw std::runtime_error("a color table is required");
       }
       // 4x4 blocks of pixels
       for (size_t y = 0; y < header.height; y += 4) {
@@ -334,7 +326,7 @@ phosg::ImageRGBA8888N decode_gvr(const string& data, const vector<uint32_t>* clu
       break;
 
     default:
-      throw logic_error(std::format("unimplemented data format: {:02X}", static_cast<uint8_t>(header.data_format)));
+      throw std::logic_error(std::format("unimplemented data format: {:02X}", static_cast<uint8_t>(header.data_format)));
   }
 
   return result;
@@ -346,16 +338,15 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  string data = phosg::load_file(argv[1]);
+  std::string data = phosg::load_file(argv[1]);
   if (data.size() < 8) {
     phosg::fwrite_fmt(stderr, "file is too small\n");
     return 2;
   }
 
-  vector<uint32_t> clut;
+  std::vector<uint32_t> clut;
   if (argc == 3) {
-    string clut_data = phosg::load_file(argv[2]);
-    clut = decode_gvp(clut_data);
+    clut = decode_gvp(phosg::load_file(argv[2]));
   }
 
   uint32_t magic = *reinterpret_cast<const phosg::be_uint32_t*>(data.data());
@@ -366,8 +357,8 @@ int main(int argc, char** argv) {
     }
     try {
       auto decoded = decode_gvr(data, clut.empty() ? nullptr : &clut);
-      phosg::save_file(string(argv[1]) + ".bmp", decoded.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
-    } catch (const exception& e) {
+      phosg::save_file(std::string(argv[1]) + ".bmp", decoded.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
+    } catch (const std::exception& e) {
       phosg::fwrite_fmt(stderr, "failed to decode gvr: {}\n", e.what());
       return 2;
     }
@@ -385,7 +376,7 @@ int main(int argc, char** argv) {
     phosg::fwrite_fmt(stderr, "{}: {} files\n", argv[1], gvm->num_files.load());
     size_t offset = gvm->header_size + 8;
     for (size_t x = 0; x < gvm->num_files; x++) {
-      string filename = argv[1];
+      std::string filename = argv[1];
       filename += '_';
       for (const char* ch = gvm->entries[x].name; *ch; ch++) {
         if (*ch < 0x20 || *ch > 0x7E) {
@@ -401,12 +392,12 @@ int main(int argc, char** argv) {
         phosg::fwrite_fmt(stderr, "warning: gvr header may be corrupt\n");
       }
 
-      string gvr_contents = data.substr(offset, gvr->data_size + 8);
+      std::string gvr_contents = data.substr(offset, gvr->data_size + 8);
       try {
         auto decoded = decode_gvr(gvr_contents, clut.empty() ? nullptr : &clut);
         phosg::save_file(filename + ".bmp", decoded.serialize(phosg::ImageFormat::WINDOWS_BITMAP));
         phosg::fwrite_fmt(stdout, "> {:04} = {:08X}:{:08X} => {}.bmp\n", x + 1, offset, gvr->data_size + 8, filename);
-      } catch (const exception& e) {
+      } catch (const std::exception& e) {
         phosg::fwrite_fmt(stderr, "failed to decode gvr: {}\n", e.what());
       }
 

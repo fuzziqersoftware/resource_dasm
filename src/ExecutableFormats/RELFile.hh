@@ -10,36 +10,34 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 struct RELHeader {
-  be_uint32_t module_id;
-  be_uint32_t next_module; // Used at runtime only (unused in file)
-  be_uint32_t prev_module; // Used at runtime only (unused in file)
-  be_uint32_t num_sections;
-  be_uint32_t section_headers_offset;
-  be_uint32_t module_name_offset; // Can be 0 if module is internally unnamed
-  be_uint32_t module_name_size;
-  be_uint32_t format_version; // 1, 2, or 3
-  be_uint32_t bss_size;
-  be_uint32_t relocation_table_offset;
-  be_uint32_t import_table_offset;
-  be_uint32_t import_table_size;
+  phosg::be_uint32_t module_id;
+  phosg::be_uint32_t next_module; // Used at runtime only (unused in file)
+  phosg::be_uint32_t prev_module; // Used at runtime only (unused in file)
+  phosg::be_uint32_t num_sections;
+  phosg::be_uint32_t section_headers_offset;
+  phosg::be_uint32_t module_name_offset; // Can be 0 if module is internally unnamed
+  phosg::be_uint32_t module_name_size;
+  phosg::be_uint32_t format_version; // 1, 2, or 3
+  phosg::be_uint32_t bss_size;
+  phosg::be_uint32_t relocation_table_offset;
+  phosg::be_uint32_t import_table_offset;
+  phosg::be_uint32_t import_table_size;
   uint8_t on_load_section; // 0 = no on_load function
   uint8_t on_unload_section; // 0 = no on_unload function
   uint8_t on_missing_section; // 0 = no on_missing function
   uint8_t unused;
-  be_uint32_t on_load_offset; // Offset within on_load_section
-  be_uint32_t on_unload_offset; // Offset within on_load_section
-  be_uint32_t on_missing_offset; // Offset within on_load_section
-  be_uint32_t alignment; // Not present if format_version == 1
-  be_uint32_t bss_alignment; // Not present if format_version == 1
-  be_uint32_t unknown_a1; // Only present if format_version == 3
+  phosg::be_uint32_t on_load_offset; // Offset within on_load_section
+  phosg::be_uint32_t on_unload_offset; // Offset within on_load_section
+  phosg::be_uint32_t on_missing_offset; // Offset within on_load_section
+  phosg::be_uint32_t alignment; // Not present if format_version == 1
+  phosg::be_uint32_t bss_alignment; // Not present if format_version == 1
+  phosg::be_uint32_t unknown_a1; // Only present if format_version == 3
 } __attribute__((packed));
 
 struct RELSectionHeader {
-  be_uint32_t type_offset; // Low bit is set if section contains code
-  be_uint32_t size;
+  phosg::be_uint32_t type_offset; // Low bit is set if section contains code
+  phosg::be_uint32_t size;
 
   inline bool has_code() const {
     return this->type_offset & 1;
@@ -50,8 +48,8 @@ struct RELSectionHeader {
 } __attribute__((packed));
 
 struct RELImportEntry {
-  be_uint32_t from_module_id;
-  be_uint32_t relocations_offset;
+  phosg::be_uint32_t from_module_id;
+  phosg::be_uint32_t relocations_offset;
 } __attribute__((packed));
 
 struct RELRelocationInstruction {
@@ -73,13 +71,13 @@ struct RELRelocationInstruction {
     STOP = 0xCB, // Stop executing relocation instructions
   };
 
-  be_uint16_t offset; // Bytes after previous relocation entry
+  phosg::be_uint16_t offset; // Bytes after previous relocation entry
   Type type;
   // These fields describe where the target symbol is in the impoted module. So
   // the target address is computed by adding the imported module's base address
   // and the appropriate section offset to this offset.
   uint8_t section_index;
-  be_uint32_t symbol_offset;
+  phosg::be_uint32_t symbol_offset;
 
   static const char* name_for_type(Type type);
 } __attribute__((packed));

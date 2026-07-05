@@ -15,17 +15,13 @@
 #include "ResourceFile.hh"
 #include "SpriteDecoders/Decoders.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 struct SpriteEntry {
   uint8_t valid;
   uint8_t unused;
-  be_int16_t type;
-  be_int16_t params[4];
-  be_int16_t y;
-  be_int16_t x;
+  phosg::be_int16_t type;
+  phosg::be_int16_t params[4];
+  phosg::be_int16_t y;
+  phosg::be_int16_t x;
 } __attribute__((packed));
 
 struct ForegroundTile {
@@ -51,40 +47,40 @@ struct HarryLevel {
   // 115C0
   uint8_t unknown1[0x0AB4];
   // 12074
-  be_int16_t player_tint_index;
-  be_int16_t fall_respawn_x;
-  be_int16_t fall_respawn_y;
-  be_int16_t fall_damage; // can be negative
-  be_int16_t level_tint_index;
-  be_int16_t post_level_scroll_pict_id;
-  be_int16_t pre_level_scroll_pict_id;
-  be_int16_t post_level_pict_id;
-  be_int16_t pre_level_pict_id;
-  be_int16_t scroll_music_id;
-  be_int16_t ripple_length;
-  be_int16_t ripple_width;
-  be_int16_t ripple_speed;
-  be_int16_t unused1;
-  be_int16_t unused2;
-  be_int16_t unused3;
+  phosg::be_int16_t player_tint_index;
+  phosg::be_int16_t fall_respawn_x;
+  phosg::be_int16_t fall_respawn_y;
+  phosg::be_int16_t fall_damage; // can be negative
+  phosg::be_int16_t level_tint_index;
+  phosg::be_int16_t post_level_scroll_pict_id;
+  phosg::be_int16_t pre_level_scroll_pict_id;
+  phosg::be_int16_t post_level_pict_id;
+  phosg::be_int16_t pre_level_pict_id;
+  phosg::be_int16_t scroll_music_id;
+  phosg::be_int16_t ripple_length;
+  phosg::be_int16_t ripple_width;
+  phosg::be_int16_t ripple_speed;
+  phosg::be_int16_t unused1;
+  phosg::be_int16_t unused2;
+  phosg::be_int16_t unused3;
   // 12094
   uint8_t unknown2[0x68];
   // 120FC
-  be_int16_t foreground_pict_id;
-  be_int16_t background_pict_id;
+  phosg::be_int16_t foreground_pict_id;
+  phosg::be_int16_t background_pict_id;
   // 12100
   // There appears to be some unused space here; the levels are larger than this
   // but just have a bunch of 00 bytes
 
   ForegroundTile foreground_tile_at(size_t x, size_t y) const {
     if (x >= 128 || y >= 128) {
-      throw out_of_range("invalid tile coordinates");
+      throw std::out_of_range("invalid tile coordinates");
     }
     return this->foreground_tiles[x * 128 + y];
   }
   BackgroundTile background_tile_at(size_t x, size_t y) const {
     if (x >= 128 || y >= 128) {
-      throw out_of_range("invalid tile coordinates");
+      throw std::out_of_range("invalid tile coordinates");
     }
     return this->background_tiles[x * 128 + y];
   }
@@ -94,14 +90,14 @@ struct HarryWorld {
   // 0000
   char name[0x100]; // p-string
   // 0100
-  be_uint32_t unknown1[17];
+  phosg::be_uint32_t unknown1[17];
   // 0144
-  be_int16_t default_scroll_music_id;
-  be_int16_t win_scroll_pict_id;
-  be_int16_t win_pict_id;
-  be_int16_t win_pict_seconds;
-  be_int16_t win_music_id;
-  be_int16_t unused1[11];
+  phosg::be_int16_t default_scroll_music_id;
+  phosg::be_int16_t win_scroll_pict_id;
+  phosg::be_int16_t win_pict_id;
+  phosg::be_int16_t win_pict_seconds;
+  phosg::be_int16_t win_music_id;
+  phosg::be_int16_t unused1[11];
   // 0164
   uint8_t unknown2[613];
   // 03C9
@@ -114,19 +110,19 @@ struct HarryWorld {
 struct SpriteDefinition {
   int16_t hrsp_id;
   const char* overlay_text;
-  vector<string> (*get_extra_info)(const SpriteEntry&);
+  std::vector<std::string> (*get_extra_info)(const SpriteEntry&);
 
   SpriteDefinition(
       int16_t hrsp_id,
       const char* overlay_text = nullptr,
-      vector<string> (*get_extra_info)(const SpriteEntry&) = nullptr)
+      std::vector<std::string> (*get_extra_info)(const SpriteEntry&) = nullptr)
       : hrsp_id(hrsp_id),
         overlay_text(overlay_text),
         get_extra_info(get_extra_info) {}
 };
 
-static vector<string> get_default_extra_info(const SpriteEntry& sprite) {
-  vector<string> ret;
+static std::vector<std::string> get_default_extra_info(const SpriteEntry& sprite) {
+  std::vector<std::string> ret;
   for (size_t z = 0; z < 4; z++) {
     if (sprite.params[z]) {
       ret.emplace_back(std::format("{}/{}", z, sprite.params[z]));
@@ -136,19 +132,19 @@ static vector<string> get_default_extra_info(const SpriteEntry& sprite) {
 }
 __attribute__((unused))
 
-static vector<string>
+static std::vector<std::string>
 get_extra_info_debug(const SpriteEntry& sprite) {
   static size_t sprite_index = 0;
-  fwrite_fmt(stderr, "[sprite debug] type={:05} [0]={:05} [1]={:05} [2]={:05} [3]={:05} x={} y={} idx={}\n",
+  phosg::fwrite_fmt(stderr, "[sprite debug] type={:05} [0]={:05} [1]={:05} [2]={:05} [3]={:05} x={} y={} idx={}\n",
       sprite.type, sprite.params[0], sprite.params[1],
       sprite.params[2], sprite.params[3], sprite.x,
       sprite.y, sprite_index);
-  vector<string> ret = get_default_extra_info(sprite);
+  std::vector<std::string> ret = get_default_extra_info(sprite);
   ret.emplace_back(std::format("dbg index {}", sprite_index++));
   return ret;
 }
 
-static vector<string> get_locked_door_extra_info(const SpriteEntry& sprite) {
+static std::vector<std::string> get_locked_door_extra_info(const SpriteEntry& sprite) {
   if (sprite.params[0] == 0) {
     return {"blue key"};
   } else if (sprite.params[0] == 1) {
@@ -160,7 +156,7 @@ static vector<string> get_locked_door_extra_info(const SpriteEntry& sprite) {
   }
 }
 
-static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
+static const std::unordered_map<int16_t, SpriteDefinition> sprite_defs({
     {500, SpriteDefinition(2001)}, // water cooler
     {501, SpriteDefinition(2001)}, // water cooler
     {550, SpriteDefinition(1301)}, // exploding toxic waste barrel
@@ -345,33 +341,33 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
     {21000, SpriteDefinition(3801)}, // note
 });
 
-static shared_ptr<ImageRGBA8888N> decode_PICT_with_transparency_cached(
+static std::shared_ptr<phosg::ImageRGBA8888N> decode_PICT_with_transparency_cached(
     int16_t id,
-    unordered_map<int16_t, shared_ptr<ImageRGBA8888N>>& cache,
-    ResourceFile& rf) {
+    std::unordered_map<int16_t, std::shared_ptr<phosg::ImageRGBA8888N>>& cache,
+    ResourceDASM::ResourceFile& rf) {
   try {
     return cache.at(id);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     try {
       auto decode_result = rf.decode_PICT(id);
       if (!decode_result.embedded_image_format.empty()) {
-        throw runtime_error(std::format("PICT {} is an embedded image", id));
+        throw std::runtime_error(std::format("PICT {} is an embedded image", id));
       }
 
       // Convert white pixels to transparent pixels
       decode_result.image.set_alpha_from_mask_color(0xFFFFFFFF);
 
-      auto emplace_ret = cache.emplace(id, make_shared<ImageRGBA8888N>(std::move(decode_result.image)));
+      auto emplace_ret = cache.emplace(id, std::make_shared<phosg::ImageRGBA8888N>(std::move(decode_result.image)));
       return emplace_ret.first->second;
 
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       return nullptr;
     }
   }
 }
 
 void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: harry_render [options]\n\
 \n\
 Options:\n\
@@ -395,15 +391,15 @@ Options:\n\
 }
 
 int main(int argc, char** argv) {
-  unordered_set<int16_t> target_levels;
+  std::unordered_set<int16_t> target_levels;
   uint8_t foreground_opacity = 0xFF;
   bool render_background_tiles = true;
   bool render_sprites = true;
-  ImageSaver image_saver;
+  ResourceDASM::ImageSaver image_saver;
 
-  string levels_filename = "Episode 1";
-  string sprites_filename = "Harry Graphics";
-  string clut_filename;
+  std::string levels_filename = "Episode 1";
+  std::string sprites_filename = "Harry Graphics";
+  std::string clut_filename;
 
   for (int z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
@@ -418,55 +414,55 @@ int main(int argc, char** argv) {
     } else if (!strncmp(argv[z], "--clut-file=", 12)) {
       clut_filename = &argv[z][12];
     } else if (!strncmp(argv[z], "--foreground-opacity=", 21)) {
-      foreground_opacity = stoul(&argv[z][21], nullptr, 0);
+      foreground_opacity = std::stoul(&argv[z][21], nullptr, 0);
     } else if (!strcmp(argv[z], "--skip-render-background")) {
       render_background_tiles = false;
     } else if (!strcmp(argv[z], "--skip-render-sprites")) {
       render_sprites = false;
     } else if (!image_saver.process_cli_arg(argv[z])) {
-      fwrite_fmt(stderr, "invalid option: {}\n", argv[z]);
+      phosg::fwrite_fmt(stderr, "invalid option: {}\n", argv[z]);
       print_usage();
       return 2;
     }
   }
 
   if (clut_filename.empty()) {
-    fwrite_fmt(stderr, "--clut-file is required\n");
+    phosg::fwrite_fmt(stderr, "--clut-file is required\n");
     print_usage();
     return 2;
   }
 
-  string clut_data = load_file(clut_filename);
-  auto clut = ResourceFile::decode_clut(clut_data.data(), clut_data.size());
+  std::string clut_data = phosg::load_file(clut_filename);
+  auto clut = ResourceDASM::ResourceFile::decode_clut(clut_data.data(), clut_data.size());
 
-  const string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
-  const string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
+  const std::string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
+  const std::string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
 
-  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename)));
-  ResourceFile sprites(parse_resource_fork(load_file(sprites_resource_filename)));
+  auto levels = ResourceDASM::parse_resource_fork(phosg::load_file(levels_resource_filename));
+  auto sprites = ResourceDASM::parse_resource_fork(phosg::load_file(sprites_resource_filename));
 
   uint32_t level_resource_type = 0x486C766C; // Hlvl
   auto level_resources = levels.all_resources_of_type(level_resource_type);
   sort(level_resources.begin(), level_resources.end());
 
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> world_pict_cache;
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> sprites_cache;
+  std::unordered_map<int16_t, std::shared_ptr<phosg::ImageRGBA8888N>> world_pict_cache;
+  std::unordered_map<int16_t, std::shared_ptr<phosg::ImageRGBA8888N>> sprites_cache;
 
   for (int16_t level_id : level_resources) {
     if (!target_levels.empty() && !target_levels.count(level_id)) {
       continue;
     }
 
-    string level_data = levels.get_resource(level_resource_type, level_id)->data;
+    std::string level_data = levels.get_resource(level_resource_type, level_id)->data;
     const auto* level = reinterpret_cast<const HarryLevel*>(level_data.data());
 
-    ImageRGBA8888N result(128 * 32, 128 * 32);
+    phosg::ImageRGBA8888N result(128 * 32, 128 * 32);
 
     if ((foreground_opacity != 0) || render_background_tiles) {
-      shared_ptr<ImageRGBA8888N> foreground_pict = level->foreground_pict_id
+      std::shared_ptr<phosg::ImageRGBA8888N> foreground_pict = level->foreground_pict_id
           ? decode_PICT_with_transparency_cached(level->foreground_pict_id, world_pict_cache, levels)
           : decode_PICT_with_transparency_cached(181, sprites_cache, sprites);
-      shared_ptr<ImageRGBA8888N> background_pict = level->background_pict_id
+      std::shared_ptr<phosg::ImageRGBA8888N> background_pict = level->background_pict_id
           ? decode_PICT_with_transparency_cached(level->background_pict_id, world_pict_cache, levels)
           : decode_PICT_with_transparency_cached(180, sprites_cache, sprites);
       for (size_t y = 0; y < 128; y++) {
@@ -500,7 +496,7 @@ int main(int argc, char** argv) {
                 } else {
                   result.copy_from_with_custom(*foreground_pict, x * 32, y * 32, 32, 32, src_x, src_y,
                       [foreground_opacity](uint32_t d, uint32_t s) -> uint32_t {
-                        return phosg::alpha_blend(d, phosg::replace_alpha(s, (get_a(s) * foreground_opacity) / 0xFF));
+                        return phosg::alpha_blend(d, phosg::replace_alpha(s, (phosg::get_a(s) * foreground_opacity) / 0xFF));
                       });
                 }
               }
@@ -525,20 +521,20 @@ int main(int argc, char** argv) {
         const SpriteDefinition* sprite_def = nullptr;
         try {
           sprite_def = &sprite_defs.at(sprite.type);
-        } catch (const out_of_range&) {
+        } catch (const std::out_of_range&) {
           render_text_as_unknown = true;
         }
 
-        shared_ptr<ImageRGBA8888N> sprite_pict;
+        std::shared_ptr<phosg::ImageRGBA8888N> sprite_pict;
         if (sprite_def && sprite_def->hrsp_id) {
           try {
             sprite_pict = sprites_cache.at(sprite_def->hrsp_id);
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
             try {
               const auto& data = sprites.get_resource(0x48725370, sprite_def->hrsp_id)->data; // HrSp
-              sprite_pict = make_shared<ImageRGBA8888N>(decode_HrSp(data, clut, 16));
+              sprite_pict = std::make_shared<phosg::ImageRGBA8888N>(decode_HrSp(data, clut, 16));
               sprites_cache.emplace(sprite_def->hrsp_id, sprite_pict);
-            } catch (const out_of_range&) {
+            } catch (const std::out_of_range&) {
             }
           }
         }
@@ -563,10 +559,10 @@ int main(int argc, char** argv) {
           y_offset += 10;
         }
 
-        vector<string> extra_info = (sprite_def && sprite_def->get_extra_info)
+        std::vector<std::string> extra_info = (sprite_def && sprite_def->get_extra_info)
             ? sprite_def->get_extra_info(sprite)
             : get_default_extra_info(sprite);
-        for (const string& line : extra_info) {
+        for (const std::string& line : extra_info) {
           result.draw_text(sprite_x, sprite_y + y_offset, 0xFFFFFF80, 0x00000040, "{}", line);
           y_offset += 10;
         }
@@ -577,7 +573,7 @@ int main(int argc, char** argv) {
       //     level->player_faces_left_at_start ? "<- START" : "START ->");
     }
 
-    string sanitized_name;
+    std::string sanitized_name;
     for (ssize_t x = 0; x < level->name[0]; x++) {
       char ch = level->name[x + 1];
       if (ch > 0x20 && ch <= 0x7E) {
@@ -587,10 +583,10 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = std::format("Harry_Level_{}_{}",
+    std::string result_filename = std::format("Harry_Level_{}_{}",
         level_id, sanitized_name);
     result_filename = image_saver.save_image(result, result_filename);
-    fwrite_fmt(stderr, "... {}\n", result_filename);
+    phosg::fwrite_fmt(stderr, "... {}\n", result_filename);
   }
 
   return 0;

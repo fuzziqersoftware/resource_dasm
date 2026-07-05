@@ -15,8 +15,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 // See RealmzGlobalData.hh for a description of what each file contains.
 // TODO: Add disassembly for Data Race and Data Caste here. It seems they were never fully implemented in Realmz
 // anyway, so there may not be any useful examples of them in scenario data in the wild.
@@ -29,11 +27,11 @@ struct RealmzScenarioData {
   // <SCENARIO NAME>
 
   struct ScenarioMetadata {
-    be_int32_t recommended_starting_levels;
-    be_int32_t unknown_a1;
-    be_int32_t start_level;
-    be_int32_t start_x;
-    be_int32_t start_y;
+    phosg::be_int32_t recommended_starting_levels;
+    phosg::be_int32_t unknown_a1;
+    phosg::be_int32_t start_level;
+    phosg::be_int32_t start_x;
+    phosg::be_int32_t start_y;
     uint8_t unknown_a2[0x28];
     uint8_t author_name_bytes;
     char author_name[0xFF];
@@ -48,12 +46,12 @@ struct RealmzScenarioData {
   struct BattleDefinition {
     // monster_ids defines the tilemap for the battle. Presumably monsters placed with "force friends" have negative
     // IDs here. The map is column-major (that is, it's indexed as [x][y]).
-    /* 0000 */ be_int16_t monster_ids[13][13];
+    /* 0000 */ phosg::be_int16_t monster_ids[13][13];
     /* 0152 */ uint8_t bonus_distance; // "Distance 1 to" in Divinity
     /* 0153 */ uint8_t unknown_a1;
-    /* 0154 */ be_uint16_t before_string;
-    /* 0156 */ be_uint16_t after_string;
-    /* 0158 */ be_int16_t macro_number; // Negative for some reason
+    /* 0154 */ phosg::be_uint16_t before_string;
+    /* 0156 */ phosg::be_uint16_t after_string;
+    /* 0158 */ phosg::be_int16_t macro_number; // Negative for some reason
   } __attribute__((packed));
 
   static std::vector<BattleDefinition> load_battle_index(const std::string& filename);
@@ -65,13 +63,13 @@ struct RealmzScenarioData {
 
   struct RandomRect;
   struct APInfo {
-    be_int32_t location_code;
+    phosg::be_int32_t location_code;
     uint8_t to_level;
     uint8_t to_x;
     uint8_t to_y;
     uint8_t percent_chance;
-    be_int16_t command_codes[8];
-    be_int16_t argument_codes[8];
+    phosg::be_int16_t command_codes[8];
+    phosg::be_int16_t argument_codes[8];
 
     inline int8_t get_x() const {
       return (this->location_code < 0) ? -1 : (this->location_code % 100);
@@ -144,29 +142,29 @@ struct RealmzScenarioData {
 
   struct MapMetadataFile {
     struct Coords {
-      be_int16_t top;
-      be_int16_t left;
-      be_int16_t bottom;
-      be_int16_t right;
+      phosg::be_int16_t top;
+      phosg::be_int16_t left;
+      phosg::be_int16_t bottom;
+      phosg::be_int16_t right;
     } __attribute__((packed));
     struct BattleRange {
-      be_int16_t low;
-      be_int16_t high;
+      phosg::be_int16_t low;
+      phosg::be_int16_t high;
     } __attribute__((packed));
 
     Coords coords[20];
-    be_int16_t times_in_10k[20];
+    phosg::be_int16_t times_in_10k[20];
     BattleRange battle_range[20];
-    be_int16_t xap_num[20][3];
-    be_int16_t xap_chance[20][3];
+    phosg::be_int16_t xap_num[20][3];
+    phosg::be_int16_t xap_chance[20][3];
     int8_t land_type;
     int8_t is_dark;
     int8_t use_los;
     int8_t only[20];
     int8_t percent_option[20];
     int8_t unused;
-    be_int16_t sound[20];
-    be_int16_t text[20];
+    phosg::be_int16_t sound[20];
+    phosg::be_int16_t text[20];
 
     MapMetadata parse() const;
     std::vector<RandomRect> parse_random_rects() const;
@@ -178,14 +176,14 @@ struct RealmzScenarioData {
   // DATA DL
 
   struct MapData {
-    be_int16_t data[90][90];
+    phosg::be_int16_t data[90][90];
 
     void transpose();
   } __attribute__((packed));
 
   static std::vector<MapData> load_dungeon_map_index(const std::string& filename);
   std::string generate_dungeon_map_json(int16_t level_num) const;
-  ImageRGB888 generate_dungeon_map(
+  phosg::ImageRGB888 generate_dungeon_map(
       int16_t level_num,
       uint8_t x0,
       uint8_t y0,
@@ -202,12 +200,12 @@ struct RealmzScenarioData {
 
   struct SimpleEncounter {
     int8_t choice_codes[4][8];
-    be_int16_t choice_args[4][8];
+    phosg::be_int16_t choice_args[4][8];
     int8_t choice_result_index[4];
     int8_t can_backout;
     int8_t max_times;
-    be_int16_t unknown;
-    be_int16_t prompt;
+    phosg::be_int16_t unknown;
+    phosg::be_int16_t prompt;
     struct {
       uint8_t valid_chars;
       char text[79];
@@ -223,21 +221,21 @@ struct RealmzScenarioData {
 
   struct ComplexEncounter {
     int8_t choice_codes[4][8];
-    be_int16_t choice_args[4][8];
+    phosg::be_int16_t choice_args[4][8];
     int8_t action_result;
     int8_t speak_result;
     int8_t actions_selected[8];
-    be_int16_t spell_codes[10];
+    phosg::be_int16_t spell_codes[10];
     int8_t spell_result_codes[10];
-    be_int16_t item_codes[5];
+    phosg::be_int16_t item_codes[5];
     int8_t item_result_codes[5];
     int8_t can_backout;
     int8_t has_rogue_encounter;
     int8_t max_times;
-    be_int16_t rogue_encounter_id;
+    phosg::be_int16_t rogue_encounter_id;
     int8_t rogue_reset_flag;
     int8_t unknown;
-    be_int16_t prompt;
+    phosg::be_int16_t prompt;
     struct {
       uint8_t valid_chars;
       char text[39];
@@ -256,7 +254,7 @@ struct RealmzScenarioData {
   // DATA EDCD
 
   struct ECodes {
-    be_int16_t data[5];
+    phosg::be_int16_t data[5];
   } __attribute__((packed));
 
   static std::vector<ECodes> load_ecodes_index(const std::string& filename);
@@ -269,9 +267,9 @@ struct RealmzScenarioData {
   void populate_custom_tileset_configuration(
       const std::string& land_type, const RealmzGlobalData::TileSetDefinition& def);
   void populate_image_caches(ResourceFile& the_family_jewels_rsf);
-  void add_custom_pattern(const std::string& land_type, ImageRGB888& img);
+  void add_custom_pattern(const std::string& land_type, phosg::ImageRGB888& img);
   std::string generate_land_map_json(int16_t level_num) const;
-  ImageRGB888 generate_land_map(
+  phosg::ImageRGB888 generate_land_map(
       int16_t level_num,
       uint8_t x0,
       uint8_t y0,
@@ -369,18 +367,18 @@ struct RealmzScenarioData {
     /* 37 */ int8_t immune_to_electric; // Realmz: monster::immunities[3]
     /* 38 */ int8_t immune_to_chemical; // Realmz: monster::immunities[4]
     /* 39 */ int8_t immune_to_mental; // Realmz: monster::immunities[5]
-    /* 3A */ be_int16_t gold;
-    /* 3C */ be_int16_t gems;
-    /* 3E */ be_int16_t jewelry;
-    /* 40 */ be_int16_t spells[10];
-    /* 54 */ be_int16_t held_items[6]; // Realmz: monster::items
-    /* 60 */ be_int16_t weapon;
-    /* 62 */ be_int16_t icon; // Realmz: monster::iconid
-    /* 64 */ be_int16_t spell_points; // Realmz: monster::spellpoints
-    /* 66 */ be_int16_t experience; // Realmz: monster::exp
-    /* 68 */ be_int16_t current_hp; // Realmz: monster::stamina
-    /* 6A */ be_int16_t max_hp; // Realmz: monster::staminamax
-    /* 6C */ be_int16_t underneath[2][2];
+    /* 3A */ phosg::be_int16_t gold;
+    /* 3C */ phosg::be_int16_t gems;
+    /* 3E */ phosg::be_int16_t jewelry;
+    /* 40 */ phosg::be_int16_t spells[10];
+    /* 54 */ phosg::be_int16_t held_items[6]; // Realmz: monster::items
+    /* 60 */ phosg::be_int16_t weapon;
+    /* 62 */ phosg::be_int16_t icon; // Realmz: monster::iconid
+    /* 64 */ phosg::be_int16_t spell_points; // Realmz: monster::spellpoints
+    /* 66 */ phosg::be_int16_t experience; // Realmz: monster::exp
+    /* 68 */ phosg::be_int16_t current_hp; // Realmz: monster::stamina
+    /* 6A */ phosg::be_int16_t max_hp; // Realmz: monster::staminamax
+    /* 6C */ phosg::be_int16_t underneath[2][2];
     /* 74 */ int8_t target;
     /* 75 */ int8_t guarding;
     /* 76 */ int8_t hide_in_bestiary_menu;
@@ -392,8 +390,8 @@ struct RealmzScenarioData {
     /* A3 */ int8_t up;
     /* A4 */ int8_t attacknum;
     /* A5 */ int8_t bonusattack;
-    /* A6 */ be_int16_t death_xap_num; // Realmz: monster::todoondeath
-    /* A8 */ be_int16_t max_sp; // Realmz: monster::maxspellpoints
+    /* A6 */ phosg::be_int16_t death_xap_num; // Realmz: monster::todoondeath
+    /* A8 */ phosg::be_int16_t max_sp; // Realmz: monster::maxspellpoints
     /* AA */ char name[40];
     /* D2 */
   } __attribute__((packed));
@@ -408,18 +406,18 @@ struct RealmzScenarioData {
 
   struct PartyMap {
     struct {
-      be_int16_t icon_id;
-      be_int16_t x;
-      be_int16_t y;
+      phosg::be_int16_t icon_id;
+      phosg::be_int16_t x;
+      phosg::be_int16_t y;
     } __attribute__((packed)) annotations[10];
-    be_int16_t x;
-    be_int16_t y;
-    be_int16_t level_num;
-    be_int16_t picture_id;
-    be_int16_t tile_size;
-    be_int16_t text_id;
-    be_int16_t is_dungeon;
-    be_int16_t unknown[5];
+    phosg::be_int16_t x;
+    phosg::be_int16_t y;
+    phosg::be_int16_t level_num;
+    phosg::be_int16_t picture_id;
+    phosg::be_int16_t tile_size;
+    phosg::be_int16_t text_id;
+    phosg::be_int16_t is_dungeon;
+    phosg::be_int16_t unknown[5];
 
     uint8_t description_valid_chars;
     char description[0xFF];
@@ -427,7 +425,7 @@ struct RealmzScenarioData {
 
   static std::vector<PartyMap> load_party_map_index(const std::string& filename);
   std::string disassemble_party_map(size_t index) const;
-  ImageRGB888 render_party_map(size_t index) const;
+  phosg::ImageRGB888 render_party_map(size_t index) const;
   std::string disassemble_all_party_maps() const;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -447,8 +445,8 @@ struct RealmzScenarioData {
   struct Restrictions {
     uint8_t description_bytes;
     char description[0xFF];
-    be_int16_t max_characters;
-    be_int16_t max_level_per_character;
+    phosg::be_int16_t max_characters;
+    phosg::be_int16_t max_level_per_character;
     uint8_t forbidden_races[30];
     uint8_t forbidden_castes[30];
   } __attribute__((packed));
@@ -460,9 +458,9 @@ struct RealmzScenarioData {
   // DATA SD
 
   struct Shop {
-    /* 0000 */ be_uint16_t item_ids[1000];
+    /* 0000 */ phosg::be_uint16_t item_ids[1000];
     /* 07D0 */ uint8_t item_counts[1000];
-    /* 0BB8 */ be_uint16_t inflation_percent;
+    /* 0BB8 */ phosg::be_uint16_t inflation_percent;
     /* 0BBA */
   } __attribute__((packed));
 
@@ -485,11 +483,11 @@ struct RealmzScenarioData {
   // DATA TD
 
   struct Treasure {
-    be_int16_t item_ids[20];
-    be_int16_t victory_points;
-    be_int16_t gold;
-    be_int16_t gems;
-    be_int16_t jewelry;
+    phosg::be_int16_t item_ids[20];
+    phosg::be_int16_t victory_points;
+    phosg::be_int16_t gold;
+    phosg::be_int16_t gems;
+    phosg::be_int16_t jewelry;
   } __attribute__((packed));
 
   static std::vector<Treasure> load_treasure_index(const std::string& filename);
@@ -506,21 +504,21 @@ struct RealmzScenarioData {
     int8_t percent_modify[8];
     int8_t success_result_codes[8];
     int8_t failure_result_codes[8];
-    be_int16_t success_string_ids[8];
-    be_int16_t failure_string_ids[8];
-    be_int16_t success_sound_ids[8];
-    be_int16_t failure_sound_ids[8];
+    phosg::be_int16_t success_string_ids[8];
+    phosg::be_int16_t failure_string_ids[8];
+    phosg::be_int16_t success_sound_ids[8];
+    phosg::be_int16_t failure_sound_ids[8];
 
-    be_int16_t trap_spell;
-    be_int16_t trap_damage_low;
-    be_int16_t trap_damage_high;
-    be_int16_t num_lock_tumblers;
-    be_int16_t prompt_string;
-    be_int16_t trap_sound;
-    be_int16_t trap_spell_power_level;
-    be_int16_t prompt_sound;
-    be_int16_t percent_per_level_to_open;
-    be_int16_t percent_per_level_to_disable;
+    phosg::be_int16_t trap_spell;
+    phosg::be_int16_t trap_damage_low;
+    phosg::be_int16_t trap_damage_high;
+    phosg::be_int16_t num_lock_tumblers;
+    phosg::be_int16_t prompt_string;
+    phosg::be_int16_t trap_sound;
+    phosg::be_int16_t trap_spell_power_level;
+    phosg::be_int16_t prompt_sound;
+    phosg::be_int16_t percent_per_level_to_open;
+    phosg::be_int16_t percent_per_level_to_disable;
   } __attribute__((packed));
 
   static std::vector<RogueEncounter> load_rogue_encounter_index(const std::string& filename);
@@ -531,17 +529,17 @@ struct RealmzScenarioData {
   // DATA TD3
 
   struct TimeEncounter {
-    be_int16_t day;
-    be_int16_t increment;
-    be_int16_t percent_chance;
-    be_int16_t xap_id;
-    be_int16_t required_level;
-    be_int16_t required_rect;
-    be_int16_t required_x;
-    be_int16_t required_y;
-    be_int16_t required_item_id;
-    be_int16_t required_quest;
-    be_int16_t land_or_dungeon; // 1 = land, 2 = dungeon
+    phosg::be_int16_t day;
+    phosg::be_int16_t increment;
+    phosg::be_int16_t percent_chance;
+    phosg::be_int16_t xap_id;
+    phosg::be_int16_t required_level;
+    phosg::be_int16_t required_rect;
+    phosg::be_int16_t required_x;
+    phosg::be_int16_t required_y;
+    phosg::be_int16_t required_item_id;
+    phosg::be_int16_t required_quest;
+    phosg::be_int16_t land_or_dungeon; // 1 = land, 2 = dungeon
     int8_t unknown[0x12];
   } __attribute__((packed));
 
@@ -553,14 +551,14 @@ struct RealmzScenarioData {
   // GLOBAL
 
   struct GlobalMetadata {
-    be_int16_t start_xap;
-    be_int16_t death_xap;
-    be_int16_t quit_xap;
-    be_int16_t reserved1_xap;
-    be_int16_t shop_xap;
-    be_int16_t temple_xap;
-    be_int16_t reserved2_xap;
-    be_int16_t unknown[23];
+    phosg::be_int16_t start_xap;
+    phosg::be_int16_t death_xap;
+    phosg::be_int16_t quit_xap;
+    phosg::be_int16_t reserved1_xap;
+    phosg::be_int16_t shop_xap;
+    phosg::be_int16_t temple_xap;
+    phosg::be_int16_t reserved2_xap;
+    phosg::be_int16_t unknown[23];
   } __attribute__((packed));
 
   static GlobalMetadata load_global_metadata(const std::string& filename);
@@ -581,7 +579,7 @@ struct RealmzScenarioData {
   };
 
   struct LandLayout {
-    be_int16_t layout[8][16];
+    phosg::be_int16_t layout[8][16];
 
     LandLayout();
     LandLayout(const LandLayout& l);
@@ -593,10 +591,10 @@ struct RealmzScenarioData {
   } __attribute__((packed));
 
   static LandLayout load_land_layout(const std::string& filename);
-  ImageRGB888 generate_layout_map(
+  phosg::ImageRGB888 generate_layout_map(
       const LandLayout& l,
       bool show_random_rects = true,
-      std::function<ImageRGB888(int16_t, uint8_t, uint8_t, uint8_t, uint8_t, bool)> generate_level_map = nullptr) const;
+      std::function<phosg::ImageRGB888(int16_t, uint8_t, uint8_t, uint8_t, uint8_t, bool)> generate_level_map = nullptr) const;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -609,7 +607,7 @@ struct RealmzScenarioData {
   std::string scenario_dir;
   std::string name;
   std::unordered_map<std::string, RealmzGlobalData::TileSetDefinition> land_type_to_tileset_definition;
-  std::unordered_map<std::string, ImageRGB888> positive_pattern_cache;
+  std::unordered_map<std::string, phosg::ImageRGB888> positive_pattern_cache;
   ResourceFile scenario_rsf;
   LandLayout layout;
   GlobalMetadata global_metadata;

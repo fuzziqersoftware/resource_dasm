@@ -12,34 +12,29 @@
 #include "DataCodecs/Codecs.hh"
 #include "ImageSaver.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
-ImageRGB888 render_Blev(const string& data, const ImageRGB888& tile_sheet) {
-  StringReader r(data);
-  string header_data = r.read(0x0E); // Format unknown
+phosg::ImageRGB888 render_Blev(const std::string& data, const phosg::ImageRGB888& tile_sheet) {
+  phosg::StringReader r(data);
+  std::string header_data = r.read(0x0E); // Format unknown
   uint16_t key = r.get_u16b();
 
-  string decoded;
+  std::string decoded;
   while (!r.eof()) {
     uint8_t ch = r.get_u8();
     decoded.push_back(key ^ ch);
     key = ch;
   }
 
-  decoded = unpack_bits(decoded);
+  decoded = ResourceDASM::unpack_bits(decoded);
   if (decoded.size() != 0x280) {
-    throw runtime_error("incorrect decompressed level size");
+    throw std::runtime_error("incorrect decompressed level size");
   }
 
-  ImageRGB888 ret(512, 320);
+  phosg::ImageRGB888 ret(512, 320);
   for (size_t y = 0; y < 0x14; y++) {
     for (size_t x = 0; x < 0x20; x++) {
       // Levels are stored in column-major order, hence the weird index here
       uint8_t tile_id = decoded[x * 0x14 + y];
-      // Convert non-editor tiles into annotated tiles (e.g. show boat direction
-      // on water tiles)
+      // Convert non-editor tiles into annotated tiles (e.g. show boat direction on water tiles)
       if (tile_id >= 0x51 && tile_id <= 0x55) { // Directional water tiles
         tile_id += 0x50;
       }
@@ -60,7 +55,7 @@ ImageRGB888 render_Blev(const string& data, const ImageRGB888& tile_sheet) {
 }
 
 static void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: blobbo_render [options] <Blev-file.bin> PMP8-128.bmp [output-filename]\n\
 \n\
 You can get Blev files by using resource_dasm on the Blobbo game itself.\n\
@@ -72,10 +67,10 @@ If no output filename is given, the output is written to <Blev-file>.<image ext>
 }
 
 int main(int argc, char** argv) {
-  ImageSaver image_saver;
-  string input_filename;
-  string tile_sheet_filename;
-  string output_filename;
+  ResourceDASM::ImageSaver image_saver;
+  std::string input_filename;
+  std::string tile_sheet_filename;
+  std::string output_filename;
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
       // Nothing
@@ -86,14 +81,14 @@ int main(int argc, char** argv) {
     } else if (output_filename.empty()) {
       output_filename = argv[x];
     } else {
-      fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
+      phosg::fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
   }
 
   if (input_filename.empty() || tile_sheet_filename.empty()) {
-    fwrite_fmt(stderr, "input filename and tile sheet filename must be given\n");
+    phosg::fwrite_fmt(stderr, "input filename and tile sheet filename must be given\n");
     print_usage();
     return 2;
   }
@@ -102,19 +97,19 @@ int main(int argc, char** argv) {
     output_filename = input_filename;
   }
 
-  string input_data = load_file(input_filename);
+  std::string input_data = phosg::load_file(input_filename);
 
-  auto tile_sheet = ImageRGB888::from_file_data(load_file(tile_sheet_filename));
+  auto tile_sheet = phosg::ImageRGB888::from_file_data(phosg::load_file(tile_sheet_filename));
   if (tile_sheet.get_width() < 16 * 16) {
-    throw runtime_error("tile sheet is too narrow");
+    throw std::runtime_error("tile sheet is too narrow");
   }
   if (tile_sheet.get_height() < 16 * 16) {
-    throw runtime_error("tile sheet is too short");
+    throw std::runtime_error("tile sheet is too short");
   }
 
-  ImageRGB888 map = render_Blev(input_data, tile_sheet);
+  phosg::ImageRGB888 map = render_Blev(input_data, tile_sheet);
   output_filename = image_saver.save_image(map, output_filename);
 
-  fwrite_fmt(stderr, "... {}\n", output_filename);
+  phosg::fwrite_fmt(stderr, "... {}\n", output_filename);
   return 0;
 }

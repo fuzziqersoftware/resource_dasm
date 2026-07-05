@@ -8,45 +8,35 @@
 #include <phosg/Strings.hh>
 #include <stdexcept>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-// These appear to be just directly saved out of the memory of whatever program
-// created them. The bitmap pointers are even still present in the reserved
-// fields.
+// These appear to be just directly saved out of the memory of whatever program created them. The bitmap pointers are
+// even still present in the reserved fields.
 
-ImageG1 decode_BTMP(const string& data) {
-  StringReader r(data);
+phosg::ImageG1 decode_BTMP(const std::string& data) {
+  phosg::StringReader r(data);
   r.skip(4); // Buffer pointer in memory, reserved in file
   const auto& header = r.get<BitMapHeader>();
   if (header.flags_row_bytes & 0xC000) {
-    throw runtime_error("monochrome bitmap has flags set");
+    throw std::runtime_error("monochrome bitmap has flags set");
   }
 
-  size_t image_bytes = header.bytes();
-  const void* bits = r.getv(image_bytes);
+  size_t data_bytes = header.bytes();
   return decode_monochrome_image(
-      bits,
-      image_bytes,
-      header.bounds.width(),
-      header.bounds.height(),
-      header.flags_row_bytes & 0x3FFF);
+      r.getv(data_bytes), data_bytes, header.bounds.width(), header.bounds.height(), header.flags_row_bytes & 0x3FFF);
 }
 
-ImageRGB888 decode_PMP8(const string& data, const vector<ColorTableEntry>& clut) {
+phosg::ImageRGB888 decode_PMP8(const std::string& data, const std::vector<ColorTableEntry>& clut) {
   auto ctable = ColorTable::from_entries(clut);
-  // TODO: This is not always correct behavior. Refactor render_sprite (and
-  // probably also ResourceFile::decode_clut) to preserve the flags from the
-  // input file.
+  // TODO: This is not always correct behavior. Refactor render_sprite (and probably also ResourceFile::decode_clut) to
+  // preserve the flags from the input file.
   ctable->flags |= 0x8000;
 
-  StringReader r(data);
+  phosg::StringReader r(data);
   r.skip(4); // Buffer pointer in memory, reserved in file
   const auto& header = r.get<PixelMapHeader>();
   if ((header.flags_row_bytes & 0x8000) == 0) {
-    throw runtime_error("color pixel map is missing color flag");
+    throw std::runtime_error("color pixel map is missing color flag");
   }
 
   size_t image_bytes = PixelMapData::size(header.flags_row_bytes & 0x3FFF, header.bounds.height());

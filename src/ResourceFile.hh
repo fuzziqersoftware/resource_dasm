@@ -19,8 +19,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 enum class IndexFormat {
   NONE = 0, // For ResourceFiles constructed in memory
   RESOURCE_FORK,
@@ -34,8 +32,7 @@ enum class IndexFormat {
 };
 
 enum ResourceFlag {
-  // The low 8 bits come from the resource itself; the high 8 bits are reserved
-  // for resource_dasm
+  // The low 8 bits come from the resource itself; the high 8 bits are reserved for resource_dasm
   FLAG_DECOMPRESSED = 0x0200, // decompressor ran successfully
   FLAG_DECOMPRESSION_FAILED = 0x0100, // so we don't try to decompress again
   FLAG_LOAD_IN_SYSTEM_HEAP = 0x0040,
@@ -49,11 +46,10 @@ enum ResourceFlag {
 
 class ResourceFile {
 public:
-  // This class defines the loaded representation of a resource archive, and
-  // includes functions to decode resources and add/remove/change the archive
-  // contents. To parse an existing archive and get a ResourceFile object, use a
-  // function defined in one of the headers in the IndexFormats directory. The
-  // constructors defined in this class will only create an empty ResourceFile.
+  // This class defines the loaded representation of a resource archive, and includes functions to decode resources and
+  // add/remove/change the archive contents. To parse an existing archive and get a ResourceFile object, use a function
+  // defined in one of the headers in the IndexFormats directory. The constructors defined in this class will only
+  // create an empty ResourceFile.
 
   ResourceFile();
   explicit ResourceFile(IndexFormat format);
@@ -82,10 +78,9 @@ public:
     Resource(uint32_t type, int16_t id, uint16_t flags, std::string&& name, std::string&& data);
   };
 
-  // add() does not overwrite a resource if one already exists with the same
-  // name. To replace an existing resource, remove() it first. (Note that
-  // remove() will invalidate all references to the deleted resource that were
-  // previously returned by get_resource().)
+  // add() does not overwrite a resource if one already exists with the same name. To replace an existing resource,
+  // remove() it first. (Note that remove() will invalidate all references to the deleted resource that were previously
+  // returned by get_resource().)
   bool add(const Resource& res);
   bool add(Resource&& res);
   bool add(std::shared_ptr<Resource> res);
@@ -152,23 +147,22 @@ public:
   };
 
   struct DecodedColorIconResource {
-    ImageRGBA8888N image;
-    ImageGA11 bitmap;
+    phosg::ImageRGBA8888N image;
+    phosg::ImageGA11 bitmap;
   };
 
   struct DecodedIconListResource {
-    // .empty() will be true for exactly one of these in all cases.
-    // Specifically, if there are two icons in the resource, it is assumed that
-    // they are a bitmap and mask (respectively) and they are combined into
-    // .composite; for any other number of images, no compositing is done and
-    // the images are decoded individually and put into .images.
-    ImageGA11 composite;
-    std::vector<ImageG1> images;
+    // .empty() will be true for exactly one of these in all cases. Specifically, if there are two icons in the
+    // resource, it is assumed that they are a bitmap and mask (respectively) and they are combined into .composite;
+    // for any other number of images, no compositing is done and the images are decoded individually and put into
+    // .images.
+    phosg::ImageGA11 composite;
+    std::vector<phosg::ImageG1> images;
   };
 
   struct DecodedIconImagesResource {
-    std::unordered_multimap<uint32_t, ImageRGBA8888N> type_to_image;
-    std::unordered_multimap<uint32_t, ImageRGBA8888N> type_to_composite_image;
+    std::unordered_multimap<uint32_t, phosg::ImageRGBA8888N> type_to_image;
+    std::unordered_multimap<uint32_t, phosg::ImageRGBA8888N> type_to_composite_image;
     std::unordered_multimap<uint32_t, std::string> type_to_jpeg2000_data;
     std::unordered_multimap<uint32_t, std::string> type_to_png_data;
     std::string toc_data;
@@ -183,14 +177,14 @@ public:
   };
 
   struct DecodedCursorResource {
-    ImageGA11 bitmap;
+    phosg::ImageGA11 bitmap;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
   };
 
   struct DecodedColorCursorResource {
-    ImageRGBA8888N image;
-    ImageGA11 bitmap;
+    phosg::ImageRGBA8888N image;
+    phosg::ImageGA11 bitmap;
     uint16_t hotspot_x;
     uint16_t hotspot_y;
   };
@@ -213,9 +207,8 @@ public:
     };
     LoopType loop_type = LoopType::NORMAL;
 
-    // This string contains a raw WAV or MP3 file (determined by is_mp3); in
-    // the WAV case, the actual samples start at sample_start_offset within the
-    // data string
+    // This string contains a raw WAV or MP3 file (determined by is_mp3); in the WAV case, the actual samples start at
+    // sample_start_offset within the data string
     size_t sample_start_offset = 0;
     std::string data;
   };
@@ -257,8 +250,7 @@ public:
     std::string copyright_text;
     std::string composer; // Called "author" in SMS-format songs
 
-    // The following fields are only present in RMF-format songs, and all are
-    // optional.
+    // The following fields are only present in RMF-format songs, and all are optional
     std::vector<uint16_t> velocity_override_map;
     std::string title;
     std::string performer;
@@ -275,8 +267,8 @@ public:
   };
 
   struct DecodedPattern {
-    ImageRGB888 pattern;
-    ImageG1 monochrome_pattern;
+    phosg::ImageRGB888 pattern;
+    phosg::ImageG1 monochrome_pattern;
     uint64_t raw_monochrome_pattern; // MSB is top-left, bits proceed in English reading order
   };
 
@@ -342,8 +334,7 @@ public:
   };
 
   struct DecodedRSSCResource {
-    // Note: The start offset of the code is 0x16, so function_offsets will be
-    // either 0 (no function) or >= 0x16
+    // Note: The start offset of the code is 0x16, so function_offsets will be either 0 (no function) or >= 0x16
     uint16_t function_offsets[9];
     std::string code;
   };
@@ -385,7 +376,7 @@ public:
   };
 
   struct DecodedPICTResource {
-    ImageRGBA8888N image;
+    phosg::ImageRGBA8888N image;
     std::string embedded_image_format;
     std::string embedded_image_data;
   };
@@ -407,7 +398,7 @@ public:
     int16_t max_descent;
     int16_t leading; // Space between bottom of bitmap (descent) and top of next line
 
-    ImageG1 full_bitmap;
+    phosg::ImageG1 full_bitmap;
 
     struct Glyph {
       int16_t ch;
@@ -415,7 +406,7 @@ public:
       uint16_t bitmap_width;
       int8_t offset;
       uint8_t width;
-      ImageGA11 img;
+      phosg::ImageGA11 img;
     };
     Glyph missing_glyph;
     std::vector<Glyph> glyphs;
@@ -441,8 +432,8 @@ public:
   };
 
   struct DecodedROMOverride {
-    be_uint32_t type;
-    be_int16_t id;
+    phosg::be_uint32_t type;
+    phosg::be_int16_t id;
   } __attribute__((packed));
 
   struct DecodedROMOverridesResource {
@@ -593,9 +584,7 @@ public:
         uint8_t align_offset = 0,
         bool is_signed = true,
         std::map<int64_t, std::string> case_names = {});
-    TemplateEntry(std::string&& name,
-        Type type,
-        std::vector<std::unique_ptr<TemplateEntry>>&& list_entries);
+    TemplateEntry(std::string&& name, Type type, std::vector<std::unique_ptr<TemplateEntry>>&& list_entries);
   };
   using TemplateEntryList = std::vector<std::unique_ptr<ResourceFile::TemplateEntry>>;
 
@@ -665,42 +654,42 @@ public:
   std::vector<DecodedPattern> decode_pptN(int16_t id, uint32_t type = RESOURCE_TYPE_pptN) const;
   static std::vector<DecodedPattern> decode_pptN(std::shared_ptr<const Resource> res);
   static std::vector<DecodedPattern> decode_pptN(const void* data, size_t size);
-  ImageG1 decode_PAT(int16_t id, uint32_t type = RESOURCE_TYPE_PAT) const;
-  static ImageG1 decode_PAT(std::shared_ptr<const Resource> res);
-  static ImageG1 decode_PAT(const void* data, size_t size);
-  std::vector<ImageG1> decode_PATN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN) const;
-  static std::vector<ImageG1> decode_PATN(std::shared_ptr<const Resource> res);
-  static std::vector<ImageG1> decode_PATN(const void* data, size_t size);
-  std::vector<ImageG1> decode_SICN(int16_t id, uint32_t type = RESOURCE_TYPE_SICN) const;
-  static std::vector<ImageG1> decode_SICN(std::shared_ptr<const Resource> res);
-  static std::vector<ImageG1> decode_SICN(const void* data, size_t size);
-  ImageRGBA8888N decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8) const;
-  ImageRGBA8888N decode_icl8(std::shared_ptr<const Resource> res) const;
-  static ImageRGB888 decode_icl8_without_alpha(const void* data, size_t size);
-  ImageRGBA8888N decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8) const;
-  ImageRGBA8888N decode_icm8(std::shared_ptr<const Resource> res) const;
-  static ImageRGB888 decode_icm8_without_alpha(const void* data, size_t size);
-  ImageRGBA8888N decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8) const;
-  ImageRGBA8888N decode_ics8(std::shared_ptr<const Resource> res) const;
-  static ImageRGB888 decode_ics8_without_alpha(const void* data, size_t size);
-  ImageRGBA8888N decode_kcs8(int16_t id, uint32_t type = RESOURCE_TYPE_kcs8) const;
-  ImageRGBA8888N decode_kcs8(std::shared_ptr<const Resource> res) const;
-  static ImageRGB888 decode_kcs8_without_alpha(const void* data, size_t size);
-  ImageRGBA8888N decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4) const;
-  ImageRGBA8888N decode_icl4(std::shared_ptr<const Resource> res) const;
-  static ImageRGB888 decode_icl4_without_alpha(const void* data, size_t size);
-  ImageRGBA8888N decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4) const;
-  ImageRGBA8888N decode_icm4(std::shared_ptr<const Resource> res) const;
-  static ImageRGB888 decode_icm4_without_alpha(const void* data, size_t size);
-  ImageRGBA8888N decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4) const;
-  ImageRGBA8888N decode_ics4(std::shared_ptr<const Resource> res) const;
-  static ImageRGB888 decode_ics4_without_alpha(const void* data, size_t size);
-  ImageRGBA8888N decode_kcs4(int16_t id, uint32_t type = RESOURCE_TYPE_kcs4) const;
-  ImageRGBA8888N decode_kcs4(std::shared_ptr<const Resource> res) const;
-  static ImageRGB888 decode_kcs4_without_alpha(const void* data, size_t size);
-  ImageG1 decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON) const;
-  static ImageG1 decode_ICON(std::shared_ptr<const Resource> res);
-  static ImageG1 decode_ICON(const void* data, size_t size);
+  phosg::ImageG1 decode_PAT(int16_t id, uint32_t type = RESOURCE_TYPE_PAT) const;
+  static phosg::ImageG1 decode_PAT(std::shared_ptr<const Resource> res);
+  static phosg::ImageG1 decode_PAT(const void* data, size_t size);
+  std::vector<phosg::ImageG1> decode_PATN(int16_t id, uint32_t type = RESOURCE_TYPE_PATN) const;
+  static std::vector<phosg::ImageG1> decode_PATN(std::shared_ptr<const Resource> res);
+  static std::vector<phosg::ImageG1> decode_PATN(const void* data, size_t size);
+  std::vector<phosg::ImageG1> decode_SICN(int16_t id, uint32_t type = RESOURCE_TYPE_SICN) const;
+  static std::vector<phosg::ImageG1> decode_SICN(std::shared_ptr<const Resource> res);
+  static std::vector<phosg::ImageG1> decode_SICN(const void* data, size_t size);
+  phosg::ImageRGBA8888N decode_icl8(int16_t id, uint32_t type = RESOURCE_TYPE_icl8) const;
+  phosg::ImageRGBA8888N decode_icl8(std::shared_ptr<const Resource> res) const;
+  static phosg::ImageRGB888 decode_icl8_without_alpha(const void* data, size_t size);
+  phosg::ImageRGBA8888N decode_icm8(int16_t id, uint32_t type = RESOURCE_TYPE_icm8) const;
+  phosg::ImageRGBA8888N decode_icm8(std::shared_ptr<const Resource> res) const;
+  static phosg::ImageRGB888 decode_icm8_without_alpha(const void* data, size_t size);
+  phosg::ImageRGBA8888N decode_ics8(int16_t id, uint32_t type = RESOURCE_TYPE_ics8) const;
+  phosg::ImageRGBA8888N decode_ics8(std::shared_ptr<const Resource> res) const;
+  static phosg::ImageRGB888 decode_ics8_without_alpha(const void* data, size_t size);
+  phosg::ImageRGBA8888N decode_kcs8(int16_t id, uint32_t type = RESOURCE_TYPE_kcs8) const;
+  phosg::ImageRGBA8888N decode_kcs8(std::shared_ptr<const Resource> res) const;
+  static phosg::ImageRGB888 decode_kcs8_without_alpha(const void* data, size_t size);
+  phosg::ImageRGBA8888N decode_icl4(int16_t id, uint32_t type = RESOURCE_TYPE_icl4) const;
+  phosg::ImageRGBA8888N decode_icl4(std::shared_ptr<const Resource> res) const;
+  static phosg::ImageRGB888 decode_icl4_without_alpha(const void* data, size_t size);
+  phosg::ImageRGBA8888N decode_icm4(int16_t id, uint32_t type = RESOURCE_TYPE_icm4) const;
+  phosg::ImageRGBA8888N decode_icm4(std::shared_ptr<const Resource> res) const;
+  static phosg::ImageRGB888 decode_icm4_without_alpha(const void* data, size_t size);
+  phosg::ImageRGBA8888N decode_ics4(int16_t id, uint32_t type = RESOURCE_TYPE_ics4) const;
+  phosg::ImageRGBA8888N decode_ics4(std::shared_ptr<const Resource> res) const;
+  static phosg::ImageRGB888 decode_ics4_without_alpha(const void* data, size_t size);
+  phosg::ImageRGBA8888N decode_kcs4(int16_t id, uint32_t type = RESOURCE_TYPE_kcs4) const;
+  phosg::ImageRGBA8888N decode_kcs4(std::shared_ptr<const Resource> res) const;
+  static phosg::ImageRGB888 decode_kcs4_without_alpha(const void* data, size_t size);
+  phosg::ImageG1 decode_ICON(int16_t id, uint32_t type = RESOURCE_TYPE_ICON) const;
+  static phosg::ImageG1 decode_ICON(std::shared_ptr<const Resource> res);
+  static phosg::ImageG1 decode_ICON(const void* data, size_t size);
   DecodedIconListResource decode_ICNN(int16_t id, uint32_t type = RESOURCE_TYPE_ICNN) const;
   static DecodedIconListResource decode_ICNN(std::shared_ptr<const Resource> res);
   static DecodedIconListResource decode_ICNN(const void* data, size_t size);
@@ -747,18 +736,16 @@ public:
   static std::vector<ColorTableEntry> decode_CTBL(const void* data, size_t size);
 
   // Sound resources
-  // Note: return types may change here in the future to improve structuring and
-  // to make it easier for callers of the library to use the returned data in
-  // any way other than just saving it to WAV/MIDI files
+  // Note: return types may change here in the future to improve structuring and to make it easier for callers of the
+  // library to use the returned data in any way other than just saving it to WAV/MIDI files
   DecodedInstrumentResource decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST) const;
   DecodedInstrumentResource decode_INST(std::shared_ptr<const Resource> res) const;
-  // Note: The SONG format depends on the resource index format, so there are no
-  // static versions of this function.
+  // Note: The SONG format depends on the resource index format, so there are no static versions of this function.
   DecodedSongResource decode_SONG(int16_t id, uint32_t type = RESOURCE_TYPE_SONG) const;
   DecodedSongResource decode_SONG(std::shared_ptr<const Resource> res) const;
   DecodedSongResource decode_SONG(const void* data, size_t size) const;
-  // If metadata_only is true, the .data field in the returned struct will be
-  // empty. This saves time when generating SONG JSONs, for example.
+  // If metadata_only is true, the .data field in the returned struct will be empty. This saves time when generating
+  // SONG JSONs, for example.
   static DecodedSoundResource decode_snd_data(
       const void* vdata, size_t size, bool metadata_only = false, bool hirf_semantics = false, bool decompress_ysnd = false);
   DecodedSoundResource decode_snd(int16_t id, uint32_t type = RESOURCE_TYPE_snd, bool metadata_only = false) const;
@@ -776,7 +763,7 @@ public:
   DecodedSoundResource decode_Ysnd(int16_t id, uint32_t type, bool metadata_only = false) const;
   DecodedSoundResource decode_Ysnd(std::shared_ptr<const Resource> res, bool metadata_only = false) const;
   DecodedSoundResource decode_Ysnd(const void* vdata, size_t size, bool metadata_only = false) const;
-  // These function return a string containing a raw WAV file.
+  // These functions return a string containing a raw WAV file.
   std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD) const;
   static std::string decode_SMSD(std::shared_ptr<const Resource> res);
   static std::string decode_SMSD(const void* data, size_t size);
@@ -858,9 +845,8 @@ public:
 
 private:
   IndexFormat format;
-  // Note: It's important that this is not an unordered_map because we expect
-  // all_resources to always return resources of the same type contiguously
-  // ordered by their ID
+  // Note: It's important that this is not an unordered_map because we expect all_resources to always return resources
+  // of the same type contiguously ordered by their ID
   std::map<uint64_t, std::shared_ptr<Resource>> key_to_resource;
   mutable std::map<uint64_t, std::shared_ptr<Resource>> key_to_decompressed_resource;
   std::multimap<std::string, std::shared_ptr<Resource>> name_to_resource;
@@ -869,8 +855,7 @@ private:
   std::shared_ptr<const Resource> decompress_if_requested(std::shared_ptr<Resource> res, uint64_t decompress_flags) const;
 
   DecodedInstrumentResource decode_INST_recursive(
-      std::shared_ptr<const Resource> res,
-      std::unordered_set<int16_t>& ids_in_progress) const;
+      std::shared_ptr<const Resource> res, std::unordered_set<int16_t>& ids_in_progress) const;
 
   static DecodedFontResource decode_FONT_data(const void* data, size_t size, const ResourceFile* rf, int16_t res_id);
   static DecodedPICTResource decode_PICT_data(const void* data, size_t size, const ResourceFile* rf, bool allow_external);
@@ -882,8 +867,7 @@ private:
   static uint32_t type_from_resource_key(uint64_t key);
   static int16_t id_from_resource_key(uint64_t key);
 
-  static const std::vector<std::shared_ptr<TemplateEntry>>& get_system_template(
-      uint32_t type);
+  static const std::vector<std::shared_ptr<TemplateEntry>>& get_system_template(uint32_t type);
 };
 
 } // namespace ResourceDASM

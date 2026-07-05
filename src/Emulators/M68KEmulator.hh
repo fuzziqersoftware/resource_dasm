@@ -15,8 +15,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 struct JumpTableEntry {
   int16_t code_resource_id; // Entry not valid if this is zero
   uint16_t offset; // Offset from end of CODE resource header
@@ -101,7 +99,7 @@ public:
   virtual void print_state(FILE* stream) const;
 
   struct DisassemblyState {
-    StringReader r;
+    phosg::StringReader r;
     uint32_t start_address;
     uint32_t opcode_start_address;
     std::map<uint32_t, bool> branch_target_addresses;
@@ -198,7 +196,7 @@ private:
   ResolvedAddress resolve_address(uint8_t M, uint8_t Xn, uint8_t size);
 
   static std::string dasm_reg_mask(uint16_t mask, bool reverse);
-  static std::string dasm_address_extension(StringReader& r, uint16_t ext, int8_t An);
+  static std::string dasm_address_extension(phosg::StringReader& r, uint16_t ext, int8_t An);
 
   enum class AddressDisassemblyType {
     DATA = 0,

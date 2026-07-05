@@ -16,8 +16,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 /**
  * Data Files contents:
  *   Combat Data BD: Same format as tileset definitions
@@ -125,28 +123,29 @@ struct RealmzGlobalData {
   // DATA * BD (tileset definitions)
 
   struct TileDefinition {
-    be_int16_t sound_id;
-    be_uint16_t time_per_move;
-    be_uint16_t solid_type; // 0 = not solid, 1 = solid to 1-box chars, 2 = solid
-    be_uint16_t is_shore;
-    be_uint16_t is_need_boat; // 1 = is boat, 2 = need boat
-    be_uint16_t is_path;
-    be_uint16_t blocks_los;
-    be_uint16_t need_fly_float;
-    be_uint16_t special_type; // 1 = trees, 2 = desert, 3 = shrooms, 4 = swamp, 5 = snow
-    be_int16_t unknown5;
-    be_int16_t battle_expansion[3][3]; // Indexed as [y][x]
-    be_int16_t unknown6;
+    phosg::be_int16_t sound_id;
+    phosg::be_uint16_t time_per_move;
+    phosg::be_uint16_t solid_type; // 0 = not solid, 1 = solid to 1-box chars, 2 = solid
+    phosg::be_uint16_t is_shore;
+    phosg::be_uint16_t is_need_boat; // 1 = is boat, 2 = need boat
+    phosg::be_uint16_t is_path;
+    phosg::be_uint16_t blocks_los;
+    phosg::be_uint16_t need_fly_float;
+    phosg::be_uint16_t special_type; // 1 = trees, 2 = desert, 3 = shrooms, 4 = swamp, 5 = snow
+    phosg::be_int16_t unknown5;
+    phosg::be_int16_t battle_expansion[3][3]; // Indexed as [y][x]
+    phosg::be_int16_t unknown6;
   } __attribute__((packed));
 
   struct TileSetDefinition {
     TileDefinition tiles[201];
-    be_int16_t base_tile_id;
+    phosg::be_int16_t base_tile_id;
   } __attribute__((packed));
 
   static TileSetDefinition load_tileset_definition(const std::string& filename);
   static int16_t pict_resource_id_for_land_type(const std::string& land_type);
-  static ImageRGB888 generate_tileset_definition_legend(const TileSetDefinition& ts, const ImageRGBA8888N& positive_pattern);
+  static phosg::ImageRGB888 generate_tileset_definition_legend(
+      const TileSetDefinition& ts, const phosg::ImageRGBA8888N& positive_pattern);
   static std::string disassemble_tileset_definition(const TileSetDefinition& ts, const char* name);
 
   //////////////////////////////////////////////////////////////////////////////
@@ -161,35 +160,35 @@ struct RealmzGlobalData {
   // DATA CASTE
 
   struct SpecialAbilities {
-    /* 00 */ be_int16_t sneak_attack;
-    /* 02 */ be_int16_t unknown_a1[2];
-    /* 06 */ be_int16_t major_wound;
-    /* 08 */ be_int16_t detect_secret;
-    /* 0A */ be_int16_t acrobatic_act;
-    /* 0C */ be_int16_t detect_trap;
-    /* 0E */ be_int16_t disarm_trap;
-    /* 10 */ be_int16_t unknown_a2;
-    /* 12 */ be_int16_t force_lock;
-    /* 14 */ be_int16_t unknown_a3;
-    /* 16 */ be_int16_t pick_lock;
-    /* 18 */ be_int16_t unknown_a4;
-    /* 1A */ be_int16_t turn_undead;
+    /* 00 */ phosg::be_int16_t sneak_attack;
+    /* 02 */ phosg::be_int16_t unknown_a1[2];
+    /* 06 */ phosg::be_int16_t major_wound;
+    /* 08 */ phosg::be_int16_t detect_secret;
+    /* 0A */ phosg::be_int16_t acrobatic_act;
+    /* 0C */ phosg::be_int16_t detect_trap;
+    /* 0E */ phosg::be_int16_t disarm_trap;
+    /* 10 */ phosg::be_int16_t unknown_a2;
+    /* 12 */ phosg::be_int16_t force_lock;
+    /* 14 */ phosg::be_int16_t unknown_a3;
+    /* 16 */ phosg::be_int16_t pick_lock;
+    /* 18 */ phosg::be_int16_t unknown_a4;
+    /* 1A */ phosg::be_int16_t turn_undead;
     /* 1C */
   } __attribute__((packed));
 
   struct Range {
-    be_int16_t low;
-    be_int16_t high;
+    phosg::be_int16_t low;
+    phosg::be_int16_t high;
   } __attribute__((packed));
 
   struct DRVsAbilities {
-    /* 00 */ be_int16_t charm;
-    /* 02 */ be_int16_t heat;
-    /* 04 */ be_int16_t cold;
-    /* 06 */ be_int16_t electric;
-    /* 08 */ be_int16_t chemical;
-    /* 0A */ be_int16_t mental;
-    /* 0C */ be_int16_t magical;
+    /* 00 */ phosg::be_int16_t charm;
+    /* 02 */ phosg::be_int16_t heat;
+    /* 04 */ phosg::be_int16_t cold;
+    /* 06 */ phosg::be_int16_t electric;
+    /* 08 */ phosg::be_int16_t chemical;
+    /* 0A */ phosg::be_int16_t mental;
+    /* 0C */ phosg::be_int16_t magical;
     /* 0E */
   } __attribute__((packed));
 
@@ -197,17 +196,17 @@ struct RealmzGlobalData {
     /* 0000 */ SpecialAbilities special_abilities_start;
     /* 001C */ SpecialAbilities special_abilities_level_up_delta;
     /* 0038 */ DRVsAbilities drv_adjust;
-    /* 0046 */ be_int16_t unknown_a1;
-    /* 0048 */ be_int16_t brawn_adjust;
-    /* 004A */ be_int16_t knowledge_adjust;
-    /* 004C */ be_int16_t judgment_adjust;
-    /* 004E */ be_int16_t agility_adjust;
-    /* 0050 */ be_int16_t vitality_adjust;
-    /* 0052 */ be_int16_t luck_adjust;
+    /* 0046 */ phosg::be_int16_t unknown_a1;
+    /* 0048 */ phosg::be_int16_t brawn_adjust;
+    /* 004A */ phosg::be_int16_t knowledge_adjust;
+    /* 004C */ phosg::be_int16_t judgment_adjust;
+    /* 004E */ phosg::be_int16_t agility_adjust;
+    /* 0050 */ phosg::be_int16_t vitality_adjust;
+    /* 0052 */ phosg::be_int16_t luck_adjust;
     struct SpellTypeCapability {
-      be_uint16_t enabled;
-      be_uint16_t start_skill_level;
-      be_uint16_t max_spell_level;
+      phosg::be_uint16_t enabled;
+      phosg::be_uint16_t start_skill_level;
+      phosg::be_uint16_t max_spell_level;
     } __attribute__((packed));
     /* 0054 */ SpellTypeCapability sorcerer_spell_capability;
     /* 005A */ SpellTypeCapability priest_spell_capability;
@@ -222,42 +221,42 @@ struct RealmzGlobalData {
     // Note: Conditions are indexed in the same order as in the Divinity
     // conditions window, in column-major order like everything else.
     // (In Retreat/Running is first, then Helpless, then Hindered, etc.)
-    /* 0084 */ be_int16_t condition_levels[0x28];
-    /* 00D4 */ be_uint16_t missile_capable;
-    /* 00D6 */ be_int16_t missile_bonus_damage;
-    /* 00D8 */ be_int16_t stamina_start;
-    /* 00DA */ be_int16_t stamina_level_up_delta;
-    /* 00DC */ be_int16_t strength_damage_bonus;
-    /* 00DE */ be_int16_t strength_damage_bonus_max;
-    /* 00E0 */ be_int16_t dodge_missile_chance_start;
-    /* 00E2 */ be_int16_t dodge_missile_chance_level_up_delta;
-    /* 00E4 */ be_int16_t melee_hit_chance_start;
-    /* 00E6 */ be_int16_t melee_hit_chance_level_up_bonus;
-    /* 00E8 */ be_int16_t missile_hit_chance_start;
-    /* 00EA */ be_int16_t missile_hit_chance_level_up_bonus;
-    /* 00EC */ be_int16_t hand_to_hand_damage_start;
-    /* 00EE */ be_int16_t hand_to_hand_damage_level_up_bonus;
+    /* 0084 */ phosg::be_int16_t condition_levels[0x28];
+    /* 00D4 */ phosg::be_uint16_t missile_capable;
+    /* 00D6 */ phosg::be_int16_t missile_bonus_damage;
+    /* 00D8 */ phosg::be_int16_t stamina_start;
+    /* 00DA */ phosg::be_int16_t stamina_level_up_delta;
+    /* 00DC */ phosg::be_int16_t strength_damage_bonus;
+    /* 00DE */ phosg::be_int16_t strength_damage_bonus_max;
+    /* 00E0 */ phosg::be_int16_t dodge_missile_chance_start;
+    /* 00E2 */ phosg::be_int16_t dodge_missile_chance_level_up_delta;
+    /* 00E4 */ phosg::be_int16_t melee_hit_chance_start;
+    /* 00E6 */ phosg::be_int16_t melee_hit_chance_level_up_bonus;
+    /* 00E8 */ phosg::be_int16_t missile_hit_chance_start;
+    /* 00EA */ phosg::be_int16_t missile_hit_chance_level_up_bonus;
+    /* 00EC */ phosg::be_int16_t hand_to_hand_damage_start;
+    /* 00EE */ phosg::be_int16_t hand_to_hand_damage_level_up_bonus;
     /* 00F0 */ uint8_t unknown_a3[8];
-    /* 00F8 */ be_int16_t caste_category;
-    /* 00FA */ be_uint16_t min_age_group; // 1 = Youth, 5 = Senior
-    /* 00FC */ be_int16_t movement_adjust;
-    /* 00FE */ be_int16_t magic_resistance_mult;
-    /* 0100 */ be_int16_t two_handed_weapon_adjust;
-    /* 0102 */ be_int16_t max_stamina_bonus;
-    /* 0104 */ be_int16_t bonus_half_attacks_per_round;
-    /* 0106 */ be_int16_t max_attacks_per_round;
+    /* 00F8 */ phosg::be_int16_t caste_category;
+    /* 00FA */ phosg::be_uint16_t min_age_group; // 1 = Youth, 5 = Senior
+    /* 00FC */ phosg::be_int16_t movement_adjust;
+    /* 00FE */ phosg::be_int16_t magic_resistance_mult;
+    /* 0100 */ phosg::be_int16_t two_handed_weapon_adjust;
+    /* 0102 */ phosg::be_int16_t max_stamina_bonus;
+    /* 0104 */ phosg::be_int16_t bonus_half_attacks_per_round;
+    /* 0106 */ phosg::be_int16_t max_attacks_per_round;
     // Note: These are NOT cumulative - that is, each value in this array
     // specifies how many VPs beyond the previous level's threshold are required
     // to achieve the following level.
-    /* 0108 */ be_uint32_t victory_points_per_level[30];
-    /* 0180 */ be_uint16_t starting_gold;
-    /* 0182 */ be_uint16_t starting_items[20];
+    /* 0108 */ phosg::be_uint32_t victory_points_per_level[30];
+    /* 0180 */ phosg::be_uint16_t starting_gold;
+    /* 0182 */ phosg::be_uint16_t starting_items[20];
     // [0] in this array specifies at which level the character should have 3/2
     // attacks/round, [1] is for 2/1, [2] is for 5/2, etc.
     /* 01AA */ uint8_t attacks_per_round_level_thresholds[10];
-    /* 01B4 */ be_uint64_t can_use_item_categories;
-    /* 01BC */ be_int16_t portrait_id;
-    /* 01BE */ be_uint16_t max_spells_per_round;
+    /* 01B4 */ phosg::be_uint64_t can_use_item_categories;
+    /* 01BC */ phosg::be_int16_t portrait_id;
+    /* 01BE */ phosg::be_uint16_t max_spells_per_round;
     /* 01C0 */ uint8_t unknown_a4[0x80]; // Possibly actually unused
     /* 0240 */
   } __attribute__((packed));
@@ -270,48 +269,48 @@ struct RealmzGlobalData {
   // DATA ID
 
   struct ItemDefinition {
-    /* 00 */ be_int16_t strength_bonus;
-    /* 02 */ be_uint16_t item_id; // Could also be string index (they're sequential anyway)
-    /* 04 */ be_int16_t icon_id;
-    /* 06 */ be_uint16_t weapon_type;
-    /* 08 */ be_int16_t blade_type; // 0 = non-weapon, -1 = blunt, -2 = sharp
-    /* 0A */ be_int16_t required_hands;
-    /* 0C */ be_int16_t luck_bonus;
-    /* 0E */ be_int16_t movement;
-    /* 10 */ be_int16_t armor_rating;
-    /* 12 */ be_int16_t magic_resist;
-    /* 14 */ be_int16_t magic_plus;
-    /* 16 */ be_int16_t spell_points;
-    /* 18 */ be_int16_t sound_id;
-    /* 1A */ be_int16_t weight;
-    /* 1C */ be_int16_t cost; // If negative, item is unique
-    /* 1E */ be_int16_t charge_count; // -1 = no charges
-    /* 20 */ be_uint16_t disguise_item_id; // ID of item that cursed item appears to be
-    /* 22 */ be_uint16_t wear_class;
+    /* 00 */ phosg::be_int16_t strength_bonus;
+    /* 02 */ phosg::be_uint16_t item_id; // Could also be string index (they're sequential anyway)
+    /* 04 */ phosg::be_int16_t icon_id;
+    /* 06 */ phosg::be_uint16_t weapon_type;
+    /* 08 */ phosg::be_int16_t blade_type; // 0 = non-weapon, -1 = blunt, -2 = sharp
+    /* 0A */ phosg::be_int16_t required_hands;
+    /* 0C */ phosg::be_int16_t luck_bonus;
+    /* 0E */ phosg::be_int16_t movement;
+    /* 10 */ phosg::be_int16_t armor_rating;
+    /* 12 */ phosg::be_int16_t magic_resist;
+    /* 14 */ phosg::be_int16_t magic_plus;
+    /* 16 */ phosg::be_int16_t spell_points;
+    /* 18 */ phosg::be_int16_t sound_id;
+    /* 1A */ phosg::be_int16_t weight;
+    /* 1C */ phosg::be_int16_t cost; // If negative, item is unique
+    /* 1E */ phosg::be_int16_t charge_count; // -1 = no charges
+    /* 20 */ phosg::be_uint16_t disguise_item_id; // ID of item that cursed item appears to be
+    /* 22 */ phosg::be_uint16_t wear_class;
     // item_category_flags is one bit per flag, arranged in column-major order
     // as listed in Divinity (that is, Small Blunt Weapons is 800000000000000,
     // Medium Blunt Weapons is 4000000000000000, etc.)
-    /* 24 */ be_uint64_t category_flags;
+    /* 24 */ phosg::be_uint64_t category_flags;
     // Race/caste flags are also listed in the same order as in Divinity,
     // starting with the high bit (8000) at the top of each group
-    /* 2C */ be_uint16_t not_usable_by_race_flags;
-    /* 2E */ be_uint16_t not_usable_by_caste_flags;
-    /* 30 */ be_uint16_t specific_race; // For item category flag
-    /* 32 */ be_uint16_t specific_caste; // For item category flag
-    /* 34 */ be_uint16_t usable_by_race_flags;
-    /* 36 */ be_uint16_t usable_by_caste_flags;
+    /* 2C */ phosg::be_uint16_t not_usable_by_race_flags;
+    /* 2E */ phosg::be_uint16_t not_usable_by_caste_flags;
+    /* 30 */ phosg::be_uint16_t specific_race; // For item category flag
+    /* 32 */ phosg::be_uint16_t specific_caste; // For item category flag
+    /* 34 */ phosg::be_uint16_t usable_by_race_flags;
+    /* 36 */ phosg::be_uint16_t usable_by_caste_flags;
     /* 38 */ uint8_t unknown_a2[0x0E];
-    /* 46 */ be_int16_t damage;
+    /* 46 */ phosg::be_int16_t damage;
     /* 48 */ uint8_t unknown_a3[2];
-    /* 4A */ be_int16_t heat_bonus_damage;
-    /* 4C */ be_int16_t cold_bonus_damage;
-    /* 4E */ be_int16_t electric_bonus_damage;
-    /* 50 */ be_int16_t undead_bonus_damage;
-    /* 52 */ be_int16_t demon_bonus_damage;
-    /* 54 */ be_int16_t evil_bonus_damage;
-    /* 56 */ be_int16_t specials[5];
-    /* 60 */ be_int16_t weight_per_charge;
-    /* 62 */ be_uint16_t drop_on_empty;
+    /* 4A */ phosg::be_int16_t heat_bonus_damage;
+    /* 4C */ phosg::be_int16_t cold_bonus_damage;
+    /* 4E */ phosg::be_int16_t electric_bonus_damage;
+    /* 50 */ phosg::be_int16_t undead_bonus_damage;
+    /* 52 */ phosg::be_int16_t demon_bonus_damage;
+    /* 54 */ phosg::be_int16_t evil_bonus_damage;
+    /* 56 */ phosg::be_int16_t specials[5];
+    /* 60 */ phosg::be_int16_t weight_per_charge;
+    /* 62 */ phosg::be_uint16_t drop_on_empty;
     /* 64 */
   } __attribute__((packed));
 
@@ -339,38 +338,38 @@ struct RealmzGlobalData {
   // DATA RACE
 
   struct RaceDefinition {
-    /* 0000 */ be_int16_t magic_using_hit_chance_adjust;
-    /* 0002 */ be_int16_t undead_hit_chance_adjust;
-    /* 0004 */ be_int16_t demon_hit_chance_adjust;
-    /* 0006 */ be_int16_t reptilian_hit_chance_adjust;
-    /* 0008 */ be_int16_t evil_hit_chance_adjust;
-    /* 000A */ be_int16_t intelligent_hit_chance_adjust;
-    /* 000C */ be_int16_t giant_hit_chance_adjust;
-    /* 000E */ be_int16_t non_humanoid_hit_chance_adjust;
+    /* 0000 */ phosg::be_int16_t magic_using_hit_chance_adjust;
+    /* 0002 */ phosg::be_int16_t undead_hit_chance_adjust;
+    /* 0004 */ phosg::be_int16_t demon_hit_chance_adjust;
+    /* 0006 */ phosg::be_int16_t reptilian_hit_chance_adjust;
+    /* 0008 */ phosg::be_int16_t evil_hit_chance_adjust;
+    /* 000A */ phosg::be_int16_t intelligent_hit_chance_adjust;
+    /* 000C */ phosg::be_int16_t giant_hit_chance_adjust;
+    /* 000E */ phosg::be_int16_t non_humanoid_hit_chance_adjust;
     /* 0010 */ SpecialAbilities special_ability_adjust;
     /* 002C */ DRVsAbilities drv_adjust;
     /* 003A */ uint8_t unknown_a1[2];
-    /* 003C */ be_int16_t brawn_adjust;
-    /* 003E */ be_int16_t knowledge_adjust;
-    /* 0040 */ be_int16_t judgment_adjust;
-    /* 0042 */ be_int16_t agility_adjust;
-    /* 0044 */ be_int16_t vitality_adjust;
-    /* 0046 */ be_int16_t luck_adjust;
+    /* 003C */ phosg::be_int16_t brawn_adjust;
+    /* 003E */ phosg::be_int16_t knowledge_adjust;
+    /* 0040 */ phosg::be_int16_t judgment_adjust;
+    /* 0042 */ phosg::be_int16_t agility_adjust;
+    /* 0044 */ phosg::be_int16_t vitality_adjust;
+    /* 0046 */ phosg::be_int16_t luck_adjust;
     /* 0048 */ Range brawn_range;
     /* 004C */ Range knowledge_range;
     /* 0050 */ Range judgment_range;
     /* 0054 */ Range agility_range;
     /* 0058 */ Range vitality_range;
     /* 005C */ Range luck_range;
-    /* 0060 */ be_uint16_t unknown_a2[8];
-    /* 0070 */ be_int16_t condition_levels[0x28];
+    /* 0060 */ phosg::be_uint16_t unknown_a2[8];
+    /* 0070 */ phosg::be_int16_t condition_levels[0x28];
     /* 00C0 */ uint8_t unknown_a3[4];
-    /* 00C4 */ be_int16_t base_movement;
-    /* 00C6 */ be_int16_t magic_resistance_adjust;
-    /* 00C8 */ be_int16_t two_handed_weapon_adjust;
-    /* 00CA */ be_int16_t missile_weapon_adjust;
-    /* 00CC */ be_int16_t base_half_attacks;
-    /* 00CE */ be_int16_t max_attacks_per_round;
+    /* 00C4 */ phosg::be_int16_t base_movement;
+    /* 00C6 */ phosg::be_int16_t magic_resistance_adjust;
+    /* 00C8 */ phosg::be_int16_t two_handed_weapon_adjust;
+    /* 00CA */ phosg::be_int16_t missile_weapon_adjust;
+    /* 00CC */ phosg::be_int16_t base_half_attacks;
+    /* 00CE */ phosg::be_int16_t max_attacks_per_round;
     /* 00D0 */ uint8_t possible_castes[30];
     /* 00EE */ Range age_ranges[5];
     struct AgeAdjustments {
@@ -393,12 +392,12 @@ struct RealmzGlobalData {
     } __attribute__((packed));
     /* 0102 */ AgeAdjustments age_adjust[5];
     /* 014D */ uint8_t can_regenerate;
-    /* 014E */ be_int16_t icon_set_number; // Not the same namespace as icon number
-    /* 0150 */ be_uint64_t can_use_item_categories;
+    /* 014E */ phosg::be_int16_t icon_set_number; // Not the same namespace as icon number
+    /* 0150 */ phosg::be_uint64_t can_use_item_categories;
     // Race flags are in the "possible castes" config window in Divinity,
     // arranged (like everything else) in column-major order, with 8000
     // representing the first flag (short, then elvish, etc.)
-    /* 0158 */ be_uint16_t race_flags;
+    /* 0158 */ phosg::be_uint16_t race_flags;
     /* 015A */ uint8_t unknown_a4[0x3E]; // Possibly actually unused
     /* */
   } __attribute__((packed));

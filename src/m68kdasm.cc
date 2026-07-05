@@ -31,16 +31,12 @@
 #include "ExecutableFormats/RELFile.hh"
 #include "ExecutableFormats/XBEFile.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 template <typename ExecT>
 void disassemble_executable(
     FILE* out_stream,
-    const string& filename,
-    const string& data,
-    const multimap<uint32_t, string>* labels,
+    const std::string& filename,
+    const std::string& data,
+    const std::multimap<uint32_t, std::string>* labels,
     bool print_hex_view_for_code,
     bool all_sections_as_code) {
   ExecT f(filename.c_str(), data);
@@ -160,8 +156,8 @@ int main(int argc, char** argv) {
     TEST_X86_ASSEMBLER,
   };
 
-  string in_filename;
-  string out_filename;
+  std::string in_filename;
+  std::string out_filename;
   Behavior behavior = Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE;
   ParseDataBehavior parse_data_behavior = ParseDataBehavior::UNSPECIFIED;
   bool in_filename_is_data = false;
@@ -174,8 +170,8 @@ int main(int argc, char** argv) {
   size_t test_num_threads = 0;
   bool test_stop_on_failure = false;
   std::string test_expr_str;
-  multimap<uint32_t, string> labels;
-  vector<string> include_directories;
+  std::multimap<uint32_t, std::string> labels;
+  std::vector<std::string> include_directories;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-' && argv[x][1] != '\0') {
       if (!strcmp(argv[x], "--help")) {
@@ -264,10 +260,10 @@ int main(int argc, char** argv) {
         start_address = strtoul(&argv[x][16], nullptr, 16);
 
       } else if (!strncmp(argv[x], "--label=", 8)) {
-        string arg(&argv[x][8]);
-        string addr_str, name_str;
+        std::string arg(&argv[x][8]);
+        std::string addr_str, name_str;
         size_t colon_pos = arg.find(':');
-        if (colon_pos == string::npos) {
+        if (colon_pos == std::string::npos) {
           addr_str = arg;
         } else {
           addr_str = arg.substr(0, colon_pos);
@@ -295,7 +291,7 @@ int main(int argc, char** argv) {
         parse_data_behavior = ParseDataBehavior::PARSE_DATA;
 
       } else {
-        fwrite_fmt(stderr, "unknown option: {}\n", argv[x]);
+        phosg::fwrite_fmt(stderr, "unknown option: {}\n", argv[x]);
         return 1;
       }
     } else {
@@ -311,37 +307,37 @@ int main(int argc, char** argv) {
   }
 
   if (behavior == Behavior::TEST_EXPRESSION) {
-    auto expr = Expression::Node::parse(test_expr_str);
+    auto expr = ResourceDASM::Expression::Node::parse(test_expr_str);
     phosg::fwrite_fmt(stderr, "Expression: {}\n", expr->str());
     phosg::fwrite_fmt(stderr, "Result: {} ({})\n", expr->evaluate().str(), expr->evaluate().str(true));
     return 0;
   } else if (behavior == Behavior::TEST_PPC_ASSEMBLER) {
-    return PPC32Emulator::test_assembler(test_num_threads, start_opcode, test_stop_on_failure, verbose) ? 0 : 4;
+    return ResourceDASM::PPC32Emulator::test_assembler(test_num_threads, start_opcode, test_stop_on_failure, verbose) ? 0 : 4;
   } else if (behavior == Behavior::TEST_SH4_ASSEMBLER) {
-    return SH4Emulator::test_assembler(test_stop_on_failure, verbose) ? 0 : 4;
+    return ResourceDASM::SH4Emulator::test_assembler(test_stop_on_failure, verbose) ? 0 : 4;
   } else if (behavior == Behavior::TEST_X86_ASSEMBLER) {
-    return X86Emulator::test_assembler(start_opcode_str, test_stop_on_failure, verbose) ? 0 : 4;
+    return ResourceDASM::X86Emulator::test_assembler(start_opcode_str, test_stop_on_failure, verbose) ? 0 : 4;
   }
 
-  string data;
+  std::string data;
   if (in_filename_is_data) {
     data = in_filename;
     parse_data_behavior = ParseDataBehavior::PARSE_DATA;
   } else if (in_filename.empty() || in_filename == "-") {
     in_filename = "<stdin>";
-    data = read_all(stdin);
+    data = phosg::read_all(stdin);
     if (parse_data_behavior == ParseDataBehavior::UNSPECIFIED) {
       parse_data_behavior = isatty(fileno(stdin)) ? ParseDataBehavior::PARSE_DATA : ParseDataBehavior::RAW_DATA;
     }
   } else {
-    data = load_file(in_filename);
+    data = phosg::load_file(in_filename);
     if (parse_data_behavior == ParseDataBehavior::UNSPECIFIED) {
       parse_data_behavior = ParseDataBehavior::RAW_DATA;
     }
   }
 
   if (parse_data_behavior == ParseDataBehavior::PARSE_DATA) {
-    data = parse_data_string(data);
+    data = phosg::parse_data_string(data);
   }
 
   FILE* out_stream;
@@ -353,130 +349,136 @@ int main(int argc, char** argv) {
 
   if ((behavior == Behavior::ASSEMBLE_PPC) ||
       (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC)) {
-    auto res = PPC32Emulator::assemble(data, include_directories, start_address);
+    auto res = ResourceDASM::PPC32Emulator::assemble(data, include_directories, start_address);
 
     if (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_PPC) {
-      multimap<uint32_t, string> dasm_labels;
+      std::multimap<uint32_t, std::string> dasm_labels;
       for (const auto& it : res.label_offsets) {
         dasm_labels.emplace(it.second + start_address, it.first);
       }
       for (const auto& it : labels) {
         dasm_labels.emplace(it.first, it.second);
       }
-      string disassembly = PPC32Emulator::disassemble(res.code.data(), res.code.size(), start_address, &dasm_labels);
-      fwritex(out_stream, disassembly);
+      auto disassembly = ResourceDASM::PPC32Emulator::disassemble(
+          res.code.data(), res.code.size(), start_address, &dasm_labels);
+      phosg::fwritex(out_stream, disassembly);
     } else {
       // If writing to stdout and it's a terminal, don't write raw binary
       if (out_stream == stdout && isatty(fileno(stdout))) {
-        print_data(stdout, res.code);
+        phosg::print_data(stdout, res.code);
       } else {
-        fwritex(out_stream, res.code);
+        phosg::fwritex(out_stream, res.code);
       }
     }
 
-  } else if ((behavior == Behavior::ASSEMBLE_X86) ||
-      (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_X86)) {
-    auto res = X86Emulator::assemble(data, include_directories, start_address);
+  } else if ((behavior == Behavior::ASSEMBLE_X86) || (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_X86)) {
+    auto res = ResourceDASM::X86Emulator::assemble(data, include_directories, start_address);
 
     if (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_X86) {
-      multimap<uint32_t, string> dasm_labels;
+      std::multimap<uint32_t, std::string> dasm_labels;
       for (const auto& it : res.label_offsets) {
         dasm_labels.emplace(it.second + start_address, it.first);
       }
       for (const auto& it : labels) {
         dasm_labels.emplace(it.first, it.second);
       }
-      string disassembly = X86Emulator::disassemble(
+      auto disassembly = ResourceDASM::X86Emulator::disassemble(
           res.code.data(), res.code.size(), start_address, &dasm_labels);
-      fwritex(out_stream, disassembly);
+      phosg::fwritex(out_stream, disassembly);
     } else {
       // If writing to stdout and it's a terminal, don't write raw binary
       if (out_stream == stdout && isatty(fileno(stdout))) {
-        print_data(stdout, res.code);
+        phosg::print_data(stdout, res.code);
       } else {
-        fwritex(out_stream, res.code);
+        phosg::fwritex(out_stream, res.code);
       }
     }
 
-  } else if ((behavior == Behavior::ASSEMBLE_SH4) ||
-      (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4)) {
-    auto res = SH4Emulator::assemble(data, include_directories, start_address);
+  } else if ((behavior == Behavior::ASSEMBLE_SH4) || (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4)) {
+    auto res = ResourceDASM::SH4Emulator::assemble(data, include_directories, start_address);
 
     if (behavior == Behavior::ASSEMBLE_AND_DISASSEMBLE_SH4) {
-      multimap<uint32_t, string> dasm_labels;
+      std::multimap<uint32_t, std::string> dasm_labels;
       for (const auto& it : res.label_offsets) {
         dasm_labels.emplace(it.second + start_address, it.first);
       }
       for (const auto& it : labels) {
         dasm_labels.emplace(it.first, it.second);
       }
-      string disassembly = SH4Emulator::disassemble(res.code.data(), res.code.size(), start_address, &dasm_labels);
-      fwritex(out_stream, disassembly);
+      auto disassembly = ResourceDASM::SH4Emulator::disassemble(
+          res.code.data(), res.code.size(), start_address, &dasm_labels);
+      phosg::fwritex(out_stream, disassembly);
     } else {
       // If writing to stdout and it's a terminal, don't write raw binary
       if (out_stream == stdout && isatty(fileno(stdout))) {
-        print_data(stdout, res.code);
+        phosg::print_data(stdout, res.code);
       } else {
-        fwritex(out_stream, res.code);
+        phosg::fwritex(out_stream, res.code);
       }
     }
 
   } else if (behavior == Behavior::DISASSEMBLE_UNSPECIFIED_EXECUTABLE) {
-    using DasmFnT = void (*)(FILE*, const string&, const string&, const multimap<uint32_t, string>*, bool, bool);
-    static const vector<pair<const char*, DasmFnT>> fns({
-        {"Preferred Executable Format (PEF)", disassemble_executable<PEFFile>},
-        {"Portable Executable (PE)", disassemble_executable<PEFile>},
-        {"Executable and Linkable Format (ELF)", disassemble_executable<ELFFile>},
-        {"Nintendo GameCube executable (DOL)", disassemble_executable<DOLFile>},
-        {"Nintendo GameCube library (REL)", disassemble_executable<RELFile>},
-        {"Microsoft Xbox executable (XBE)", disassemble_executable<XBEFile>},
+    using DasmFnT = void (*)(FILE*, const std::string&, const std::string&, const std::multimap<uint32_t, std::string>*, bool, bool);
+    static const std::vector<std::pair<const char*, DasmFnT>> fns({
+        {"Preferred Executable Format (PEF)", disassemble_executable<ResourceDASM::PEFFile>},
+        {"Portable Executable (PE)", disassemble_executable<ResourceDASM::PEFile>},
+        {"Executable and Linkable Format (ELF)", disassemble_executable<ResourceDASM::ELFFile>},
+        {"Nintendo GameCube executable (DOL)", disassemble_executable<ResourceDASM::DOLFile>},
+        {"Nintendo GameCube library (REL)", disassemble_executable<ResourceDASM::RELFile>},
+        {"Microsoft Xbox executable (XBE)", disassemble_executable<ResourceDASM::XBEFile>},
     });
-    vector<const char*> succeeded_format_names;
+    std::vector<const char*> succeeded_format_names;
     for (const auto& it : fns) {
       const char* name = it.first;
       auto fn = it.second;
       try {
         fn(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
         succeeded_format_names.emplace_back(name);
-      } catch (const exception& e) {
+      } catch (const std::exception& e) {
       }
     }
     if (succeeded_format_names.empty()) {
-      throw runtime_error("input is not in a recognized format");
+      throw std::runtime_error("input is not in a recognized format");
     } else if (succeeded_format_names.size() > 1) {
-      fwrite_fmt(stderr, "Warning: multiple disassemblers succeeded; the output will contain multiple representations of the input\n");
+      phosg::fwrite_fmt(stderr, "Warning: multiple disassemblers succeeded; the output will contain multiple representations of the input\n");
       for (size_t z = 0; z < succeeded_format_names.size(); z++) {
-        fwrite_fmt(stderr, "  ({}) {}\n", z + 1, succeeded_format_names[z]);
+        phosg::fwrite_fmt(stderr, "  ({}) {}\n", z + 1, succeeded_format_names[z]);
       }
     }
 
   } else if (behavior == Behavior::DISASSEMBLE_PEF) {
-    disassemble_executable<PEFFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
+    disassemble_executable<ResourceDASM::PEFFile>(
+        out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_DOL) {
-    disassemble_executable<DOLFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
+    disassemble_executable<ResourceDASM::DOLFile>(
+        out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_REL) {
-    disassemble_executable<RELFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
+    disassemble_executable<ResourceDASM::RELFile>(
+        out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_PE) {
-    disassemble_executable<PEFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
+    disassemble_executable<ResourceDASM::PEFile>(
+        out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_ELF) {
-    disassemble_executable<ELFFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
+    disassemble_executable<ResourceDASM::ELFFile>(
+        out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
   } else if (behavior == Behavior::DISASSEMBLE_XBE) {
-    disassemble_executable<XBEFile>(out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
+    disassemble_executable<ResourceDASM::XBEFile>(
+        out_stream, in_filename, data, &labels, print_hex_view_for_code, all_sections_as_code);
 
   } else {
-    string disassembly;
+    std::string disassembly;
     if (behavior == Behavior::DISASSEMBLE_M68K) {
-      disassembly = M68KEmulator::disassemble(data.data(), data.size(), start_address, &labels);
+      disassembly = ResourceDASM::M68KEmulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else if (behavior == Behavior::DISASSEMBLE_PPC) {
-      disassembly = PPC32Emulator::disassemble(data.data(), data.size(), start_address, &labels);
+      disassembly = ResourceDASM::PPC32Emulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else if (behavior == Behavior::DISASSEMBLE_X86) {
-      disassembly = X86Emulator::disassemble(data.data(), data.size(), start_address, &labels);
+      disassembly = ResourceDASM::X86Emulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else if (behavior == Behavior::DISASSEMBLE_SH4) {
-      disassembly = SH4Emulator::disassemble(data.data(), data.size(), start_address, &labels);
+      disassembly = ResourceDASM::SH4Emulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else {
-      throw logic_error("invalid behavior");
+      throw std::logic_error("invalid behavior");
     }
-    fwritex(out_stream, disassembly);
+    phosg::fwritex(out_stream, disassembly);
   }
 
   if (out_stream != stdout) {

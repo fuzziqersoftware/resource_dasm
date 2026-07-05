@@ -10,14 +10,11 @@
 #include <stdexcept>
 #include <string>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-string decompress_soundmusicsys_lzss(const void* vsrc, size_t size) {
-  StringReader r(vsrc, size);
-  string ret;
+std::string decompress_soundmusicsys_lzss(const void* vsrc, size_t size) {
+  phosg::StringReader r(vsrc, size);
+  std::string ret;
 
   for (;;) {
     if (r.eof()) {
@@ -51,7 +48,7 @@ string decompress_soundmusicsys_lzss(const void* vsrc, size_t size) {
   return ret;
 }
 
-string decompress_soundmusicsys_lzss(const string& data) {
+std::string decompress_soundmusicsys_lzss(const std::string& data) {
   return decompress_soundmusicsys_lzss(data.data(), data.size());
 }
 

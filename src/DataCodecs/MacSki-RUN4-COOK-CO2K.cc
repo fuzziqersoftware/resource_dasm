@@ -11,18 +11,15 @@
 #include <stdexcept>
 #include <string>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-string decompress_macski_RUN4(const void* vdata, size_t size) {
-  fwrite_fmt(stderr, "decompressing {} bytes of RUN4\n", size);
+std::string decompress_macski_RUN4(const void* vdata, size_t size) {
+  phosg::fwrite_fmt(stderr, "decompressing {} bytes of RUN4\n", size);
 
-  StringReader r(vdata, size);
+  phosg::StringReader r(vdata, size);
 
   if (r.get_u32b() != 0x52554E34) { // 'RUN4'
-    throw invalid_argument("data is not RUN4 compressed");
+    throw std::invalid_argument("data is not RUN4 compressed");
   }
   uint32_t decompressed_size = r.get_u32b();
 
@@ -31,7 +28,7 @@ string decompress_macski_RUN4(const void* vdata, size_t size) {
   uint8_t repeat_5_command = r.get_u8();
   uint8_t repeat_var_command = r.get_u8();
 
-  string ret;
+  std::string ret;
   while (ret.size() < decompressed_size) {
     uint8_t command = r.get_u8();
     size_t count;
@@ -57,24 +54,24 @@ string decompress_macski_RUN4(const void* vdata, size_t size) {
     }
 
     if (ret.size() > decompressed_size) {
-      throw runtime_error("decompression produced too much data");
+      throw std::runtime_error("decompression produced too much data");
     }
   }
 
   return ret;
 }
 
-string decompress_macski_RUN4(const string& data) {
+std::string decompress_macski_RUN4(const std::string& data) {
   return decompress_macski_RUN4(data.data(), data.size());
 }
 
-string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
-  fwrite_fmt(stderr, "decompressing {} bytes of COOK/CO2K\n", size);
+std::string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
+  phosg::fwrite_fmt(stderr, "decompressing {} bytes of COOK/CO2K\n", size);
 
-  StringReader r(vdata, size);
+  phosg::StringReader r(vdata, size);
   uint32_t type = r.get_u32b();
   if ((type != 0x434F324B) && (type != 0x434F4F4B)) { // 'CO2K' or 'COOK'
-    throw invalid_argument("data is not COOK or CO2K compressed");
+    throw std::invalid_argument("data is not COOK or CO2K compressed");
   }
   bool is_CO2K = (type == 0x434F324B);
 
@@ -91,10 +88,10 @@ string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
   if (is_CO2K) {
     uint8_t version = r.get_u8();
     if (version < 1) {
-      throw invalid_argument("version 0 is not valid");
+      throw std::invalid_argument("version 0 is not valid");
     }
     if (version > 2) {
-      throw invalid_argument("versions beyond 2 not supported");
+      throw std::invalid_argument("versions beyond 2 not supported");
     }
 
     if (version <= 1) {
@@ -115,7 +112,7 @@ string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
     copy_command_far = copy_5_command_far = copy_4_command_far = copy_var_command;
   }
 
-  string ret;
+  std::string ret;
   while (ret.size() < decompressed_size) {
     uint8_t command = r.get_u8();
     uint32_t size;
@@ -158,14 +155,15 @@ string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
     }
 
     uint32_t offset = 0;
-    if (is_CO2K && ((command == copy_4_command_far) || (command == copy_5_command_far) || (command == copy_command_far))) {
+    if (is_CO2K &&
+        ((command == copy_4_command_far) || (command == copy_5_command_far) || (command == copy_command_far))) {
       offset = r.get_u8() << 8;
     }
     offset += r.get_u8();
 
     if (offset != 0) {
       if (offset > ret.size()) {
-        throw runtime_error("backreference out of bounds");
+        throw std::runtime_error("backreference out of bounds");
       }
       const uint8_t* src = reinterpret_cast<const uint8_t*>(ret.data()) + ret.size() - offset;
       for (; size > 0; size--) {
@@ -177,23 +175,23 @@ string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
   }
 
   if (ret.size() > decompressed_size) {
-    throw runtime_error("decompression produced too much data");
+    throw std::runtime_error("decompression produced too much data");
   }
 
   return ret;
 }
 
-string decompress_macski_COOK_CO2K(const string& data) {
+std::string decompress_macski_COOK_CO2K(const std::string& data) {
   return decompress_macski_COOK_CO2K(data.data(), data.size());
 }
 
-typedef string (*decomp_fn_ptr_t)(const void*, size_t);
+typedef std::string (*decomp_fn_ptr_t)(const void*, size_t);
 
 static decomp_fn_ptr_t get_decompressor(const void* data, size_t size) {
   if (size < 4) {
     return nullptr;
   }
-  uint32_t type = *reinterpret_cast<const be_uint32_t*>(data);
+  uint32_t type = *reinterpret_cast<const phosg::be_uint32_t*>(data);
   if (type == 0x52554E34) {
     return decompress_macski_RUN4;
   }
@@ -203,8 +201,8 @@ static decomp_fn_ptr_t get_decompressor(const void* data, size_t size) {
   return nullptr;
 }
 
-string decompress_macski_multi(const void* data, size_t size) {
-  string ret;
+std::string decompress_macski_multi(const void* data, size_t size) {
+  std::string ret;
   bool decompressed = false;
   while (auto decomp = get_decompressor(ret.data(), ret.size())) {
     ret = decomp(data, size);
@@ -215,12 +213,12 @@ string decompress_macski_multi(const void* data, size_t size) {
   if (decompressed) {
     return ret;
   } else {
-    return string(reinterpret_cast<const char*>(data), size);
+    return std::string(reinterpret_cast<const char*>(data), size);
   }
 }
 
-string decompress_macski_multi(const string& data) {
-  string ret = data;
+std::string decompress_macski_multi(const std::string& data) {
+  std::string ret = data;
   while (auto decomp = get_decompressor(ret.data(), ret.size())) {
     ret = decomp(ret.data(), ret.size());
   }

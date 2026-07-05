@@ -5,29 +5,27 @@
 #include <unordered_map>
 #include <vector>
 
-using namespace std;
-
 namespace ResourceDASM {
 
 TrapInfo::TrapInfo(const char* name) : name(name) {}
-TrapInfo::TrapInfo(const char* name,
-    unordered_map<uint8_t, TrapInfo>&& flag_overrides,
-    unordered_map<uint32_t, TrapInfo>&& subtrap_info,
+TrapInfo::TrapInfo(
+    const char* name,
+    std::unordered_map<uint8_t, TrapInfo>&& flag_overrides,
+    std::unordered_map<uint32_t, TrapInfo>&& subtrap_info,
     uint32_t proc_selector_mask)
-    : name(name),
-      proc_selector_mask(proc_selector_mask) {
+    : name(name), proc_selector_mask(proc_selector_mask) {
   for (const auto& it : flag_overrides) {
-    this->flag_overrides.emplace(it.first, make_shared<TrapInfo>(std::move(it.second)));
+    this->flag_overrides.emplace(it.first, std::make_shared<TrapInfo>(std::move(it.second)));
   }
   for (const auto& it : subtrap_info) {
-    this->subtrap_info.emplace(it.first, make_shared<TrapInfo>(std::move(it.second)));
+    this->subtrap_info.emplace(it.first, std::make_shared<TrapInfo>(std::move(it.second)));
   }
 }
 
-const vector<TrapInfo> os_trap_info({
+const std::vector<TrapInfo> os_trap_info({
     // clang-format off
-    // Seems that the H variants of these functions are used when flags=2. Is this
-    // relevant? (Is the behavior different in that case?)
+    // Seems that the H variants of these functions are used when flags=2. Is this relevant? (Is the behavior different
+    // in that case?)
     {"Open/PBHOpen/HOpen", {{2, "OpenSlot"}}, {}}, // 0x00
     "Close", // 0x01
     "Read", // 0x02
@@ -424,10 +422,9 @@ const vector<TrapInfo> os_trap_info({
     "XFindLine/TEFindLine", // 0xFF
   });
 
-  const vector<TrapInfo> toolbox_trap_info({
+  const std::vector<TrapInfo> toolbox_trap_info({
     {"SoundDispatch", {}, { // 0x800
-      // TODO: this trap actually uses the high bits of D0 for the command and the
-      // low bits for the MIDI tool number
+      // TODO: this trap actually uses the high bits of D0 for the command and the low bits for the MIDI tool number
       {0x0004, "MIDISignIn"},
       {0x0008, "MIDISignOut"},
       {0x000C, "MIDIGetClients"},
@@ -904,9 +901,8 @@ const vector<TrapInfo> os_trap_info({
     "PenMode", // 0x89C
     "PenPat", // 0x89D
     "PenNormal", // 0x89E
-    // 89F is also named EnableDogCow, DisableDogCow, InitDogCow, and Moof in some
-    // trap lists (e.g. Executor, Basilisk II). There don't appear to be any other
-    // references to these names online anywhere though.
+    // 89F is also named EnableDogCow, DisableDogCow, InitDogCow, and Moof in some trap lists (e.g. Executor, Basilisk
+    // II). There don't appear to be any other references to these names online anywhere though.
     "Unimplemented", // 0x89F
     "StdRect", // 0x8A0
     "FrameRect", // 0x8A1
@@ -1364,8 +1360,8 @@ const vector<TrapInfo> os_trap_info({
       {0x0008, "CustomGetFile"},
     }},
     {"Pack4/FP68K", {}, { // 0x9EB
-      // Note: higher bits in the (16-bit) subroutine number is used for argument
-      // types; these are just the subroutine nums with high bits cleared
+      // Note: higher bits in the (16-bit) subroutine number is used for argument types; these are just the subroutine
+      // nums with high bits cleared
       {0x0000, "FOADD"},
       {0x0001, "FOSETENV"},
       {0x0002, "FOSUB"},
@@ -1397,8 +1393,7 @@ const vector<TrapInfo> os_trap_info({
       {0x001C, "FOCLASS"},
     }, 0x00FF},
     {"Pack5/Elems68K", {}, { // 0x9EC
-      // This pack has the same type info behavior (passed in subroutine number)
-      // as Pack 4.
+      // This pack has the same type info behavior (passed in subroutine number) as Pack 4.
       {0x0000, "FOLNX"},
       {0x0002, "FOLOG2X"},
       {0x0004, "FOLN1X"},
@@ -2103,18 +2098,16 @@ const vector<TrapInfo> os_trap_info({
 
 const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags) {
   try {
-    const TrapInfo& t = (trap_num >= 0x800)
-        ? toolbox_trap_info.at(trap_num - 0x800)
-        : os_trap_info.at(trap_num);
+    const TrapInfo& t = (trap_num >= 0x800) ? toolbox_trap_info.at(trap_num - 0x800) : os_trap_info.at(trap_num);
     if (!t.name) {
       return nullptr;
     }
     try {
       return t.flag_overrides.at(flags).get();
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       return &t;
     }
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return nullptr;
   }
 }

@@ -7,12 +7,9 @@
 #include <string>
 #include <vector>
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-static const vector<uint16_t> default_const_words({
+static const std::vector<uint16_t> default_const_words({
     // clang-format off
     // 00
     0x0000, 0x0008, 0x4EBA, 0x206E, 0x4E75, 0x000C, 0x0004, 0x7000,
@@ -65,25 +62,19 @@ static const vector<uint16_t> default_const_words({
     // clang-format on
 });
 
-string decompress_system2(
-    const CompressedResourceHeader& header,
-    const void* source,
-    size_t size) {
-  StringReader r(source, size);
-  StringWriter w;
+std::string decompress_system2(const CompressedResourceHeader& header, const void* source, size_t size) {
+  phosg::StringReader r(source, size);
+  phosg::StringWriter w;
   w.str().reserve(header.decompressed_size);
 
-  vector<uint16_t> custom_const_words;
-  const vector<uint16_t>* const_words;
+  std::vector<uint16_t> custom_const_words;
+  const std::vector<uint16_t>* const_words;
   if (header.version.v9.param2 & 1) {
-    // The original implementation copies the const words into the decompressor
-    // itself! They probably did this because the table could be shorter than
-    // 0x100 entries, so the remainder of it defaults to zeroes... but they
-    // don't clear the remainder of the table after copying it, nor do they
-    // clear the table after decompression is done, so it seems that a resource
-    // could technically refer to parts of a previous one's const words table,
-    // depending on the order in which they were decompressed. We don't support
-    // such behavior here, of course.
+    // The original implementation copies the const words into the decompressor itself! They probably did this because
+    // the table could be shorter than 0x100 entries, so the remainder of it defaults to zeroes... but they don't clear
+    // the remainder of the table after copying it, nor do they clear the table after decompression is done, so it
+    // seems that a resource could technically refer to parts of a previous one's const words table, depending on the
+    // order in which they were decompressed. We don't support such behavior here, of course.
     size_t num_const_words = header.version.v9.param1 + 1;
     while (custom_const_words.size() < num_const_words) {
       custom_const_words.emplace_back(r.get_u16b());
@@ -94,9 +85,8 @@ string decompress_system2(
   }
 
   if (header.version.v9.param2 & 2) {
-    // Result is not composed entirely of const words. There's a bitstream
-    // specifying for each word whether it's a const word or not, as well as the
-    // const word indexes and raw data for non-const words.
+    // Result is not composed entirely of const words. There's a bitstream specifying for each word whether it's a
+    // const word or not, as well as the const word indexes and raw data for non-const words.
     uint8_t source_types = 0;
     while (w.str().size() < (header.decompressed_size >> 1)) {
       if ((w.str().size() & 15) == 0) {

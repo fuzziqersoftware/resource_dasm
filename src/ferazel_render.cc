@@ -15,10 +15,6 @@
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 struct SpritePictDefinition {
   size_t x_segments;
   size_t y_segments;
@@ -26,7 +22,7 @@ struct SpritePictDefinition {
 
 static const SpritePictDefinition default_sprite_pict_def = {1, 1};
 
-static const unordered_map<int16_t, SpritePictDefinition> sprite_pict_defs({
+static const std::unordered_map<int16_t, SpritePictDefinition> sprite_pict_defs({
     {328, {1, 6}},
     {428, {4, 2}},
     {528, {7, 1}},
@@ -263,7 +259,7 @@ struct SpriteDefinition {
         is_overlay(is_overlay) {}
 };
 
-static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
+static const std::unordered_map<int16_t, SpriteDefinition> sprite_defs({
     {1055, {1059, 0, false}}, // gold xichron
     {1056, {1058, 0, false}}, // red xichron
     {1081, {1080, 4, false}}, // already-flying carpet
@@ -329,7 +325,7 @@ static const unordered_map<int16_t, SpriteDefinition> sprite_defs({
     {3022, {658, 0, false}}, // hangable chain
 });
 
-static const unordered_set<int16_t> passthrough_sprite_defs({
+static const std::unordered_set<int16_t> passthrough_sprite_defs({
     1060, // gray/blue teleporter
     1061, // yellow teleporter
     1062, // green teleporter
@@ -608,10 +604,10 @@ static const unordered_set<int16_t> passthrough_sprite_defs({
 struct SpriteEntry {
   uint8_t valid;
   uint8_t unused;
-  be_int16_t type;
-  be_int16_t params[4];
-  be_int16_t y;
-  be_int16_t x;
+  phosg::be_int16_t type;
+  phosg::be_int16_t params[4];
+  phosg::be_int16_t y;
+  phosg::be_int16_t x;
 } __attribute__((packed));
 
 struct ForegroundLayerTile {
@@ -630,16 +626,16 @@ struct WindTile {
 } __attribute__((packed));
 
 struct FerazelsWandLevel {
-  be_uint32_t signature; // 0x04277DC9
+  phosg::be_uint32_t signature; // 0x04277DC9
   // 0004
   SpriteEntry sprites[603]; // Probably some space at the end here isn't actually part of the sprite table
   // 25B4
-  be_uint32_t unknown1[3];
+  phosg::be_uint32_t unknown1[3];
   // 25C0
-  be_uint32_t unknown2;
+  phosg::be_uint32_t unknown2;
   char name[0x100]; // p-string, so first byte is the length
   // 26C4
-  be_int16_t unknown3;
+  phosg::be_int16_t unknown3;
   uint8_t tint_underwater_ground;
   uint8_t abstract_background; // 1=rain, 2=magic, 3=secret, 4-9=bosses
   uint8_t player_faces_left_at_start;
@@ -653,72 +649,72 @@ struct FerazelsWandLevel {
   // 26D6
   uint8_t unknown4[0x30];
   // 2706
-  be_int16_t ambient_darkness; // 0=none, 9=max
-  be_int16_t unused_info1;
-  be_int16_t scroll_center_x;
-  be_int16_t scroll_center_y;
-  be_int16_t special_tile_damage;
-  be_int16_t special_tile_slipperiness;
-  be_int16_t unused_info2;
-  be_int16_t water_current;
-  be_int16_t parallax_sprite_pict_id;
-  be_int16_t parallax_sprite_scroll_multiplier;
-  be_int16_t parallax_sprite_y;
-  be_int16_t alt_clut_id;
-  be_int16_t ripple_bg_flag;
-  be_int16_t bg_clut_animation; // last 48 entries (cycle, presumably)
-  be_int16_t fire_bg_info;
-  be_int16_t boss_point_x; // negative if approaching from right
-  be_int16_t autoscroll_x_speed; // fixed-point 8.8 in pixels/frame
-  be_int16_t autoscroll_y_speed; // fixed-point 8.8 in pixels/frame
-  be_int16_t autoscroll_type; // 0=off, 1=fire
-  be_int16_t player_air_push_x; // 8.8 in pixels/frame
-  be_int16_t secondary_boss_point_x;
-  be_int16_t background_clut_animation_type;
-  be_int16_t background_clut_animation_range;
-  be_int16_t background_clut_animation_speed;
-  be_int16_t background_clut_animation_amount_mult;
-  be_int16_t top_scroll_range;
-  be_int16_t scroll_speed;
-  be_int16_t chapter_screen_number;
-  be_int16_t chapter_screen_scroll_info;
-  be_int16_t unused3[3];
+  phosg::be_int16_t ambient_darkness; // 0=none, 9=max
+  phosg::be_int16_t unused_info1;
+  phosg::be_int16_t scroll_center_x;
+  phosg::be_int16_t scroll_center_y;
+  phosg::be_int16_t special_tile_damage;
+  phosg::be_int16_t special_tile_slipperiness;
+  phosg::be_int16_t unused_info2;
+  phosg::be_int16_t water_current;
+  phosg::be_int16_t parallax_sprite_pict_id;
+  phosg::be_int16_t parallax_sprite_scroll_multiplier;
+  phosg::be_int16_t parallax_sprite_y;
+  phosg::be_int16_t alt_clut_id;
+  phosg::be_int16_t ripple_bg_flag;
+  phosg::be_int16_t bg_clut_animation; // last 48 entries (cycle, presumably)
+  phosg::be_int16_t fire_bg_info;
+  phosg::be_int16_t boss_point_x; // negative if approaching from right
+  phosg::be_int16_t autoscroll_x_speed; // fixed-point 8.8 in pixels/frame
+  phosg::be_int16_t autoscroll_y_speed; // fixed-point 8.8 in pixels/frame
+  phosg::be_int16_t autoscroll_type; // 0=off, 1=fire
+  phosg::be_int16_t player_air_push_x; // 8.8 in pixels/frame
+  phosg::be_int16_t secondary_boss_point_x;
+  phosg::be_int16_t background_clut_animation_type;
+  phosg::be_int16_t background_clut_animation_range;
+  phosg::be_int16_t background_clut_animation_speed;
+  phosg::be_int16_t background_clut_animation_amount_mult;
+  phosg::be_int16_t top_scroll_range;
+  phosg::be_int16_t scroll_speed;
+  phosg::be_int16_t chapter_screen_number;
+  phosg::be_int16_t chapter_screen_scroll_info;
+  phosg::be_int16_t unused3[3];
   // 2746
   uint8_t unknown5[0x100];
   // 2846
-  be_int16_t player_start_y;
-  be_int16_t player_start_x;
-  be_int16_t music_id;
+  phosg::be_int16_t player_start_y;
+  phosg::be_int16_t player_start_x;
+  phosg::be_int16_t music_id;
   // 0 = default for most of these
-  be_int16_t parallax_background_pict_id; // "PxBack"
-  be_int16_t parallax_middle_pict_id; // "PxMid"
-  be_int16_t foreground_tile_pict_id;
-  be_int16_t background_tile_pict_id;
-  be_int16_t foreground_overlay_pict_id; // covers the bottom of the level
-  be_int16_t wall_tile_pict_id;
-  be_int16_t layering_type;
-  be_int16_t sprite_clut_id;
-  be_int16_t tile_background_clut;
-  be_int16_t combo_clut;
+  phosg::be_int16_t parallax_background_pict_id; // "PxBack"
+  phosg::be_int16_t parallax_middle_pict_id; // "PxMid"
+  phosg::be_int16_t foreground_tile_pict_id;
+  phosg::be_int16_t background_tile_pict_id;
+  phosg::be_int16_t foreground_overlay_pict_id; // covers the bottom of the level
+  phosg::be_int16_t wall_tile_pict_id;
+  phosg::be_int16_t layering_type;
+  phosg::be_int16_t sprite_clut_id;
+  phosg::be_int16_t tile_background_clut;
+  phosg::be_int16_t combo_clut;
   // 2860
-  be_int16_t unknown7[0x40];
+  phosg::be_int16_t unknown7[0x40];
   // 28E0
-  be_int16_t foreground_tile_behaviors[0x60];
+  phosg::be_int16_t foreground_tile_behaviors[0x60];
   // 29A0
-  be_int16_t background_tile_behaviors[0x60];
+  phosg::be_int16_t background_tile_behaviors[0x60];
   // 2A60
   uint8_t unknown8[0x880C];
   // B26C
-  be_int16_t unknown9[6];
+  phosg::be_int16_t unknown9[6];
   // B278
-  be_int16_t parallax_background_layer_length;
-  be_int16_t parallax_background_layer_count;
-  be_int16_t parallax_middle_layer_length;
-  be_int16_t parallax_middle_layer_count;
+  phosg::be_int16_t parallax_background_layer_length;
+  phosg::be_int16_t parallax_background_layer_count;
+  phosg::be_int16_t parallax_middle_layer_length;
+  phosg::be_int16_t parallax_middle_layer_count;
   // B280
-  be_int16_t width;
-  be_int16_t height;
-  be_int16_t unknown11[12];
+  phosg::be_int16_t width;
+  phosg::be_int16_t height;
+  phosg::be_int16_t unknown11[12];
   // B29C
   uint8_t data[0];
 
@@ -731,11 +727,11 @@ struct FerazelsWandLevel {
         sizeof(int16_t);
   }
 
-  const be_int16_t* parallax_background_tiles(uint16_t layer) const {
-    return reinterpret_cast<const be_int16_t*>(&this->data[layer * this->parallax_background_layer_length * sizeof(int16_t)]);
+  const phosg::be_int16_t* parallax_background_tiles(uint16_t layer) const {
+    return reinterpret_cast<const phosg::be_int16_t*>(&this->data[layer * this->parallax_background_layer_length * sizeof(int16_t)]);
   }
-  const be_int16_t* parallax_middle_tiles(uint16_t layer) const {
-    return reinterpret_cast<const be_int16_t*>(&this->data[this->parallax_background_layers_size() + layer * this->parallax_background_layer_length * sizeof(int16_t)]);
+  const phosg::be_int16_t* parallax_middle_tiles(uint16_t layer) const {
+    return reinterpret_cast<const phosg::be_int16_t*>(&this->data[this->parallax_background_layers_size() + layer * this->parallax_background_layer_length * sizeof(int16_t)]);
   }
   const ForegroundLayerTile* foreground_tiles() const {
     return reinterpret_cast<const ForegroundLayerTile*>(
@@ -752,25 +748,27 @@ struct FerazelsWandLevel {
   }
 } __attribute__((packed));
 
-static shared_ptr<ImageRGBA8888N> decode_PICT_cached(
-    int16_t id, unordered_map<int16_t, shared_ptr<ImageRGBA8888N>>& cache, ResourceFile& rf) {
+static std::shared_ptr<phosg::ImageRGBA8888N> decode_PICT_cached(
+    int16_t id,
+    std::unordered_map<int16_t, std::shared_ptr<phosg::ImageRGBA8888N>>& cache,
+    ResourceDASM::ResourceFile& rf) {
   try {
     return cache.at(id);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     try {
       auto decode_result = rf.decode_PICT(id);
       if (!decode_result.embedded_image_format.empty()) {
-        throw runtime_error(std::format("PICT {} is an embedded image", id));
+        throw std::runtime_error(std::format("PICT {} is an embedded image", id));
       }
-      return cache.emplace(id, make_shared<ImageRGBA8888N>(std::move(decode_result.image))).first->second;
+      return cache.emplace(id, std::make_shared<phosg::ImageRGBA8888N>(std::move(decode_result.image))).first->second;
 
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       return nullptr;
     }
   }
 }
 
-static shared_ptr<ImageRGBA8888N> truncate_whitespace(shared_ptr<ImageRGBA8888N> img) {
+static std::shared_ptr<phosg::ImageRGBA8888N> truncate_whitespace(std::shared_ptr<phosg::ImageRGBA8888N> img) {
   // Top rows
   size_t x, y;
   for (y = 0; y < img->get_height(); y++) {
@@ -787,7 +785,7 @@ static shared_ptr<ImageRGBA8888N> truncate_whitespace(shared_ptr<ImageRGBA8888N>
   size_t top_rows_to_remove = y;
   if (top_rows_to_remove == img->get_height()) {
     // Entire image is white; remove all of it
-    return make_shared<ImageRGBA8888N>();
+    return std::make_shared<phosg::ImageRGBA8888N>();
   }
 
   // Left columns
@@ -804,7 +802,7 @@ static shared_ptr<ImageRGBA8888N> truncate_whitespace(shared_ptr<ImageRGBA8888N>
   }
   size_t left_columns_to_remove = y;
   if (left_columns_to_remove == img->get_width()) {
-    throw logic_error("entire image is white, but did not catch this already");
+    throw std::logic_error("entire image is white, but did not catch this already");
   }
 
   // Bottom rows
@@ -821,7 +819,7 @@ static shared_ptr<ImageRGBA8888N> truncate_whitespace(shared_ptr<ImageRGBA8888N>
   }
   size_t bottom_rows_to_remove = img->get_height() - 1 - y;
   if (bottom_rows_to_remove == img->get_height()) {
-    throw logic_error("entire image is white, but did not catch this already");
+    throw std::logic_error("entire image is white, but did not catch this already");
   }
 
   // Left columns
@@ -838,11 +836,11 @@ static shared_ptr<ImageRGBA8888N> truncate_whitespace(shared_ptr<ImageRGBA8888N>
   }
   size_t right_columns_to_remove = img->get_width() - 1 - x;
   if (right_columns_to_remove == img->get_width()) {
-    throw logic_error("entire image is white, but did not catch this already");
+    throw std::logic_error("entire image is white, but did not catch this already");
   }
 
   if (top_rows_to_remove || bottom_rows_to_remove || left_columns_to_remove || right_columns_to_remove) {
-    auto new_image = make_shared<ImageRGBA8888N>(
+    auto new_image = std::make_shared<phosg::ImageRGBA8888N>(
         img->get_width() - left_columns_to_remove - right_columns_to_remove,
         img->get_height() - top_rows_to_remove - bottom_rows_to_remove);
     new_image->copy_from(
@@ -854,7 +852,7 @@ static shared_ptr<ImageRGBA8888N> truncate_whitespace(shared_ptr<ImageRGBA8888N>
 }
 
 void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: ferazel_render [options]\n\
 \n\
 Options:\n\
@@ -891,7 +889,7 @@ Options:\n\
 }
 
 int main(int argc, char** argv) {
-  unordered_set<int16_t> target_levels;
+  std::unordered_set<int16_t> target_levels;
   bool render_parallax_backgrounds = false;
   uint8_t foreground_opacity = 0xFF;
   uint8_t background_opacity = 0xFF;
@@ -899,11 +897,11 @@ int main(int argc, char** argv) {
   bool render_sprites = true;
   uint8_t parallax_foreground_opacity = 0;
   bool print_unused_pict_ids = false;
-  ImageSaver image_saver;
+  ResourceDASM::ImageSaver image_saver;
 
-  string levels_filename = "Ferazel\'s Wand World Data";
-  string sprites_filename = "Ferazel\'s Wand Sprites";
-  string backgrounds_filename = "Ferazel\'s Wand Backgrounds";
+  std::string levels_filename = "Ferazel\'s Wand World Data";
+  std::string sprites_filename = "Ferazel\'s Wand Sprites";
+  std::string backgrounds_filename = "Ferazel\'s Wand Backgrounds";
 
   for (int z = 1; z < argc; z++) {
     if (!strcmp(argv[z], "--help") || !strcmp(argv[z], "-h")) {
@@ -938,45 +936,45 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[z], "--print-unused-pict-ids")) {
       print_unused_pict_ids = true;
     } else if (!image_saver.process_cli_arg(argv[z])) {
-      fwrite_fmt(stderr, "invalid option: {}\n", argv[z]);
+      phosg::fwrite_fmt(stderr, "invalid option: {}\n", argv[z]);
       print_usage();
       return 2;
     }
   }
 
-  const string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
-  const string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
-  const string backgrounds_resource_filename = backgrounds_filename + "/..namedfork/rsrc";
+  const std::string levels_resource_filename = levels_filename + "/..namedfork/rsrc";
+  const std::string sprites_resource_filename = sprites_filename + "/..namedfork/rsrc";
+  const std::string backgrounds_resource_filename = backgrounds_filename + "/..namedfork/rsrc";
 
-  ResourceFile levels(parse_resource_fork(load_file(levels_resource_filename)));
-  ResourceFile sprites(parse_resource_fork(load_file(sprites_resource_filename)));
-  ResourceFile backgrounds(parse_resource_fork(load_file(backgrounds_resource_filename)));
+  ResourceDASM::ResourceFile levels(ResourceDASM::parse_resource_fork(phosg::load_file(levels_resource_filename)));
+  ResourceDASM::ResourceFile sprites(ResourceDASM::parse_resource_fork(phosg::load_file(sprites_resource_filename)));
+  ResourceDASM::ResourceFile backgrounds(ResourceDASM::parse_resource_fork(phosg::load_file(backgrounds_resource_filename)));
 
   uint32_t level_resource_type = 0x4D6C766C; // Mlvl
   auto level_resources = levels.all_resources_of_type(level_resource_type);
   sort(level_resources.begin(), level_resources.end());
 
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> backgrounds_cache;
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> sprites_cache;
-  unordered_map<int16_t, shared_ptr<ImageRGBA8888N>> reversed_sprites_cache;
+  std::unordered_map<int16_t, std::shared_ptr<phosg::ImageRGBA8888N>> backgrounds_cache;
+  std::unordered_map<int16_t, std::shared_ptr<phosg::ImageRGBA8888N>> sprites_cache;
+  std::unordered_map<int16_t, std::shared_ptr<phosg::ImageRGBA8888N>> reversed_sprites_cache;
 
   for (int16_t level_id : level_resources) {
     if (!target_levels.empty() && !target_levels.count(level_id)) {
       continue;
     }
 
-    string level_data = levels.get_resource(level_resource_type, level_id)->data;
+    std::string level_data = levels.get_resource(level_resource_type, level_id)->data;
     const auto* level = reinterpret_cast<const FerazelsWandLevel*>(level_data.data());
 
     if (level->signature != 0x04277DC9) {
-      fwrite_fmt(stderr, "... {} (incorrect signature: {:08X})\n", level_id, level->signature);
+      phosg::fwrite_fmt(stderr, "... {} (incorrect signature: {:08X})\n", level_id, level->signature);
       continue;
     }
 
     // If we're rendering sprites, find out how much space to reserve for out-of-bounds sprites
     size_t left_space = 0, right_space = 0, top_space = 0, bottom_space = 0;
     if (render_sprites) {
-      fwrite_fmt(stderr, "... (Level {}) boundaries\n", level_id);
+      phosg::fwrite_fmt(stderr, "... (Level {}) boundaries\n", level_id);
 
       static const size_t max_sprites = sizeof(level->sprites) / sizeof(level->sprites[0]);
       for (size_t z = 0; z < max_sprites; z++) {
@@ -996,7 +994,7 @@ int main(int argc, char** argv) {
           const SpriteDefinition* sprite_def = nullptr;
           try {
             sprite_def = &sprite_defs.at(sprite.type);
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
             if (passthrough_sprite_defs.count(sprite.type)) {
               passthrough_sprite_def.pict_id = sprite.type;
               passthrough_sprite_def.segment_number = 0;
@@ -1009,13 +1007,13 @@ int main(int argc, char** argv) {
           if (sprite_def) {
             try {
               sprite_pict_def = &sprite_pict_defs.at(sprite_def->pict_id);
-            } catch (const out_of_range&) {
+            } catch (const std::out_of_range&) {
               sprite_pict_def = &default_sprite_pict_def;
             }
           }
 
           int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type.load();
-          shared_ptr<ImageRGBA8888N> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
+          std::shared_ptr<phosg::ImageRGBA8888N> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
           if (sprite_pict.get()) {
             sprite_right = sprite.x + sprite_pict->get_width();
             sprite_bottom = sprite.y + sprite_pict->get_height();
@@ -1047,7 +1045,7 @@ int main(int argc, char** argv) {
       }
     }
 
-    ImageRGB888 full_result(left_space + level->width * 32 + right_space, top_space + level->height * 32 + bottom_space);
+    phosg::ImageRGB888 full_result(left_space + level->width * 32 + right_space, top_space + level->height * 32 + bottom_space);
     if (left_space > 0) {
       full_result.write_rect(0, 0, left_space, full_result.get_height(), 0x202020FF);
     }
@@ -1060,21 +1058,21 @@ int main(int argc, char** argv) {
     if (bottom_space > 0) {
       full_result.write_rect(left_space, top_space + level->height * 32, level->width * 32, bottom_space, 0x202020FF);
     }
-    ImageRGB888 result = full_result.view(left_space, top_space, level->width * 32, level->height * 32);
+    phosg::ImageRGB888 result = full_result.view(left_space, top_space, level->width * 32, level->height * 32);
 
     if (render_parallax_backgrounds) {
-      shared_ptr<ImageRGBA8888N> pxback_pict;
+      std::shared_ptr<phosg::ImageRGBA8888N> pxback_pict;
 
       if (level->abstract_background) {
-        fwrite_fmt(stderr, "... (Level {}) abstract background\n", level_id);
+        phosg::fwrite_fmt(stderr, "... (Level {}) abstract background\n", level_id);
         if (level->abstract_background == 1) {
           pxback_pict = decode_PICT_cached(6000, sprites_cache, sprites);
         } else if (level->abstract_background == 6) {
           // This one is animated with all frames in one PICT; just pick the
           // first frame
-          shared_ptr<ImageRGBA8888N> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
+          std::shared_ptr<phosg::ImageRGBA8888N> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
           if (loaded.get()) {
-            pxback_pict = make_shared<ImageRGBA8888N>(128, 128);
+            pxback_pict = std::make_shared<phosg::ImageRGBA8888N>(128, 128);
             pxback_pict->copy_from_with_blend(*loaded, 0, 0, 128, 128, 0, 0);
           }
         } else if (level->abstract_background != 0) {
@@ -1082,7 +1080,7 @@ int main(int argc, char** argv) {
           // 3=secret
           // 4-9=bosses
           // the PICTs appear to mostly be around PICT 6000 in the sprites file
-          fwrite_fmt(stderr, "error: this level has an abstract background ({}); skipping rendering parallax background\n",
+          phosg::fwrite_fmt(stderr, "error: this level has an abstract background ({}); skipping rendering parallax background\n",
               level->abstract_background);
         }
         if (pxback_pict.get()) {
@@ -1101,9 +1099,9 @@ int main(int argc, char** argv) {
             backgrounds_cache, backgrounds);
 
         if (pxback_pict.get()) {
-          fwrite_fmt(stderr, "... (Level {}) parallax background\n", level_id);
+          phosg::fwrite_fmt(stderr, "... (Level {}) parallax background\n", level_id);
           // For each row, find the repetition point and truncate the row there
-          vector<vector<uint16_t>> parallax_layers;
+          std::vector<std::vector<uint16_t>> parallax_layers;
           for (ssize_t y = 0; y < level->parallax_background_layer_count; y++) {
             const auto* row_tiles = level->parallax_background_tiles(y);
             parallax_layers.emplace_back();
@@ -1128,7 +1126,7 @@ int main(int argc, char** argv) {
           ssize_t letterbox_height = (level->height * 32 - parallax_height) / 2;
           uint64_t top_r = 0, top_g = 0, top_b = 0, bottom_r = 0, bottom_g = 0, bottom_b = 0;
           if (letterbox_height < 0) {
-            fwrite_fmt(stderr, "warning: parallax background height ({}) exceeds level height ({}); background will be truncated\n",
+            phosg::fwrite_fmt(stderr, "warning: parallax background height ({}) exceeds level height ({}); background will be truncated\n",
                 parallax_height, level->height * 32);
             letterbox_height = 0;
           } else if (letterbox_height > 0 && !parallax_layers.empty()) {
@@ -1145,9 +1143,9 @@ int main(int argc, char** argv) {
                 for (size_t x = 0; x < 128; x++) {
                   if (pxback_pict->check(x_segnum * 128 + x, y_segnum * 128 + y)) {
                     uint32_t c = pxback_pict->read(x_segnum * 128 + x, y_segnum * 128 + y);
-                    top_r += get_r(c);
-                    top_g += get_g(c);
-                    top_b += get_b(c);
+                    top_r += phosg::get_r(c);
+                    top_g += phosg::get_g(c);
+                    top_b += phosg::get_b(c);
                     denominator++;
                   }
                 }
@@ -1167,9 +1165,9 @@ int main(int argc, char** argv) {
                 for (size_t x = 0; x < 128; x++) {
                   if (pxback_pict->check(x_segnum * 128 + x, y_segnum * 128 + y)) {
                     uint32_t c = pxback_pict->read(x_segnum * 128 + x, y_segnum * 128 + y);
-                    bottom_r += get_r(c);
-                    bottom_g += get_g(c);
-                    bottom_b += get_b(c);
+                    bottom_r += phosg::get_r(c);
+                    bottom_g += phosg::get_g(c);
+                    bottom_b += phosg::get_b(c);
                     denominator++;
                   }
                 }
@@ -1179,8 +1177,8 @@ int main(int argc, char** argv) {
               bottom_b /= denominator;
             }
 
-            result.write_rect(0, 0, result.get_width(), letterbox_height, rgba8888(top_r, top_g, top_b));
-            result.write_rect(0, result.get_height() - letterbox_height, result.get_width(), letterbox_height, rgba8888(bottom_r, bottom_g, bottom_b));
+            result.write_rect(0, 0, result.get_width(), letterbox_height, phosg::rgba8888(top_r, top_g, top_b));
+            result.write_rect(0, result.get_height() - letterbox_height, result.get_width(), letterbox_height, phosg::rgba8888(bottom_r, bottom_g, bottom_b));
           }
 
           for (size_t y = 0; y < parallax_layers.size(); y++) {
@@ -1203,25 +1201,25 @@ int main(int argc, char** argv) {
     const auto* foreground_tiles = level->foreground_tiles();
     const auto* background_tiles = level->background_tiles();
     if (foreground_opacity || background_opacity) {
-      shared_ptr<ImageRGBA8888N> foreground_blend_mask_pict = foreground_opacity
+      std::shared_ptr<phosg::ImageRGBA8888N> foreground_blend_mask_pict = foreground_opacity
           ? decode_PICT_cached(185, sprites_cache, sprites)
           : nullptr;
       // TODO: are these the right defaults?
-      shared_ptr<ImageRGBA8888N> foreground_pict = decode_PICT_cached(
+      std::shared_ptr<phosg::ImageRGBA8888N> foreground_pict = decode_PICT_cached(
           level->foreground_tile_pict_id ? level->foreground_tile_pict_id.load() : 200,
           backgrounds_cache, backgrounds);
-      shared_ptr<ImageRGBA8888N> background_pict = decode_PICT_cached(
+      std::shared_ptr<phosg::ImageRGBA8888N> background_pict = decode_PICT_cached(
           level->background_tile_pict_id ? level->background_tile_pict_id.load() : 203,
           backgrounds_cache, backgrounds);
-      shared_ptr<ImageRGBA8888N> orig_wall_tile_pict = decode_PICT_cached(
+      std::shared_ptr<phosg::ImageRGBA8888N> orig_wall_tile_pict = decode_PICT_cached(
           level->wall_tile_pict_id ? level->wall_tile_pict_id.load() : 206,
           backgrounds_cache, backgrounds);
-      shared_ptr<ImageRGBA8888N> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
+      std::shared_ptr<phosg::ImageRGBA8888N> wall_tile_pict = orig_wall_tile_pict.get() ? truncate_whitespace(orig_wall_tile_pict) : nullptr;
 
       if (background_opacity) {
-        fwrite_fmt(stderr, "... (Level {}) background tiles\n", level_id);
+        phosg::fwrite_fmt(stderr, "... (Level {}) background tiles\n", level_id);
         if (!background_pict.get()) {
-          fwrite_fmt(stderr, "warning: background pict {} is missing\n", level->background_tile_pict_id);
+          phosg::fwrite_fmt(stderr, "warning: background pict {} is missing\n", level->background_tile_pict_id);
 
         } else {
           auto alpha_blit_pixel_fn = [&](uint32_t d, uint32_t s) -> uint32_t {
@@ -1230,11 +1228,11 @@ int main(int argc, char** argv) {
             } else if (background_opacity == 0xFF) {
               return s;
             } else {
-              return rgba8888(
-                  ((background_opacity * get_r(s)) + (0xFF - background_opacity) * get_r(d)) / 0xFF,
-                  ((background_opacity * get_g(s)) + (0xFF - background_opacity) * get_g(d)) / 0xFF,
-                  ((background_opacity * get_b(s)) + (0xFF - background_opacity) * get_b(d)) / 0xFF,
-                  ((background_opacity * get_a(s)) + (0xFF - background_opacity) * get_a(d)) / 0xFF);
+              return phosg::rgba8888(
+                  ((background_opacity * phosg::get_r(s)) + (0xFF - background_opacity) * phosg::get_r(d)) / 0xFF,
+                  ((background_opacity * phosg::get_g(s)) + (0xFF - background_opacity) * phosg::get_g(d)) / 0xFF,
+                  ((background_opacity * phosg::get_b(s)) + (0xFF - background_opacity) * phosg::get_b(d)) / 0xFF,
+                  ((background_opacity * phosg::get_a(s)) + (0xFF - background_opacity) * phosg::get_a(d)) / 0xFF);
             }
           };
 
@@ -1257,9 +1255,9 @@ int main(int argc, char** argv) {
       }
 
       if (foreground_opacity) {
-        fwrite_fmt(stderr, "... (Level {}) foreground tiles\n", level_id);
+        phosg::fwrite_fmt(stderr, "... (Level {}) foreground tiles\n", level_id);
         if (!foreground_pict.get()) {
-          fwrite_fmt(stderr, "warning: background pict {} is missing\n",
+          phosg::fwrite_fmt(stderr, "warning: background pict {} is missing\n",
               level->background_tile_pict_id);
 
         } else {
@@ -1269,11 +1267,11 @@ int main(int argc, char** argv) {
             } else if (foreground_opacity == 0xFF) {
               return s;
             } else {
-              return rgba8888(
-                  ((foreground_opacity * get_r(s)) + (0xFF - foreground_opacity) * get_r(d)) / 0xFF,
-                  ((foreground_opacity * get_g(s)) + (0xFF - foreground_opacity) * get_g(d)) / 0xFF,
-                  ((foreground_opacity * get_b(s)) + (0xFF - foreground_opacity) * get_b(d)) / 0xFF,
-                  ((foreground_opacity * get_a(s)) + (0xFF - foreground_opacity) * get_a(d)) / 0xFF);
+              return phosg::rgba8888(
+                  ((foreground_opacity * phosg::get_r(s)) + (0xFF - foreground_opacity) * phosg::get_r(d)) / 0xFF,
+                  ((foreground_opacity * phosg::get_g(s)) + (0xFF - foreground_opacity) * phosg::get_g(d)) / 0xFF,
+                  ((foreground_opacity * phosg::get_b(s)) + (0xFF - foreground_opacity) * phosg::get_b(d)) / 0xFF,
+                  ((foreground_opacity * phosg::get_a(s)) + (0xFF - foreground_opacity) * phosg::get_a(d)) / 0xFF);
             }
           };
 
@@ -1313,17 +1311,17 @@ int main(int argc, char** argv) {
 
                       uint32_t blend_c = foreground_blend_mask_pict->read(mask_src_x + xx, mask_src_y + yy);
                       uint32_t wall_c = wall_tile_pict->read(wall_src_x + xx, wall_src_y + yy);
-                      uint8_t r = (get_r(blend_c) * get_r(tile_c) + (0xFF - get_r(blend_c)) * get_r(wall_c)) / 0xFF;
-                      uint8_t g = (get_g(blend_c) * get_g(tile_c) + (0xFF - get_g(blend_c)) * get_g(wall_c)) / 0xFF;
-                      uint8_t b = (get_b(blend_c) * get_b(tile_c) + (0xFF - get_b(blend_c)) * get_b(wall_c)) / 0xFF;
+                      uint8_t r = (phosg::get_r(blend_c) * phosg::get_r(tile_c) + (0xFF - phosg::get_r(blend_c)) * phosg::get_r(wall_c)) / 0xFF;
+                      uint8_t g = (phosg::get_g(blend_c) * phosg::get_g(tile_c) + (0xFF - phosg::get_g(blend_c)) * phosg::get_g(wall_c)) / 0xFF;
+                      uint8_t b = (phosg::get_b(blend_c) * phosg::get_b(tile_c) + (0xFF - phosg::get_b(blend_c)) * phosg::get_b(wall_c)) / 0xFF;
                       if (foreground_opacity == 0xFF) {
-                        result.write(x * 32 + xx, y * 32 + yy, rgba8888(r, g, b));
+                        result.write(x * 32 + xx, y * 32 + yy, phosg::rgba8888(r, g, b));
                       } else {
                         uint32_t d = result.read(x * 32 + xx, y * 32 + yy);
-                        uint32_t final_c = rgba8888(
-                            ((foreground_opacity * r) + (0xFF - foreground_opacity) * get_r(d)) / 0xFF,
-                            ((foreground_opacity * g) + (0xFF - foreground_opacity) * get_g(d)) / 0xFF,
-                            ((foreground_opacity * b) + (0xFF - foreground_opacity) * get_b(d)) / 0xFF);
+                        uint32_t final_c = phosg::rgba8888(
+                            ((foreground_opacity * r) + (0xFF - foreground_opacity) * phosg::get_r(d)) / 0xFF,
+                            ((foreground_opacity * g) + (0xFF - foreground_opacity) * phosg::get_g(d)) / 0xFF,
+                            ((foreground_opacity * b) + (0xFF - foreground_opacity) * phosg::get_b(d)) / 0xFF);
                         result.write(x * 32 + xx, y * 32 + yy, final_c);
                       }
                     }
@@ -1337,7 +1335,7 @@ int main(int argc, char** argv) {
     }
 
     if (render_wind) {
-      fwrite_fmt(stderr, "... (Level {}) wind tiles\n", level_id);
+      phosg::fwrite_fmt(stderr, "... (Level {}) wind tiles\n", level_id);
 
       const auto* wind_tiles = level->wind_tiles();
       for (ssize_t y = 0; y < level->height; y++) {
@@ -1381,7 +1379,7 @@ int main(int argc, char** argv) {
 
       // Render destructible tiles
       if (foreground_opacity) {
-        fwrite_fmt(stderr, "... (Level {}) destructible tiles\n", level_id);
+        phosg::fwrite_fmt(stderr, "... (Level {}) destructible tiles\n", level_id);
         for (ssize_t y = 0; y < level->height; y++) {
           for (ssize_t x = 0; x < level->width; x++) {
             size_t tile_index = y * level->width + x;
@@ -1424,7 +1422,7 @@ int main(int argc, char** argv) {
 
             for (ssize_t yy = y * 32 + 16; yy < y * 32 + 48; yy++) {
               for (ssize_t xx = x * 32 + 16; xx < x * 32 + 48; xx++) {
-                uint64_t effective_a = get_a(stripe_c);
+                uint64_t effective_a = phosg::get_a(stripe_c);
                 if (highlight_up) {
                   effective_a = (effective_a * (32 - ((yy - 16) % 32))) / 0x20;
                 } else if (highlight_left) {
@@ -1435,15 +1433,15 @@ int main(int argc, char** argv) {
                 if (result.check(xx, yy)) {
                   uint32_t c = result.read(xx, yy);
                   if (((xx + yy) / 8) & 1) {
-                    c = rgba8888(
-                        ((0xFF - effective_a) * get_r(c)) / 0xFF,
-                        ((0xFF - effective_a) * get_g(c)) / 0xFF,
-                        ((0xFF - effective_a) * get_b(c)) / 0xFF);
+                    c = phosg::rgba8888(
+                        ((0xFF - effective_a) * phosg::get_r(c)) / 0xFF,
+                        ((0xFF - effective_a) * phosg::get_g(c)) / 0xFF,
+                        ((0xFF - effective_a) * phosg::get_b(c)) / 0xFF);
                   } else {
-                    c = rgba8888(
-                        (effective_a * get_r(stripe_c) + (0xFF - effective_a) * get_r(c)) / 0xFF,
-                        (effective_a * get_g(stripe_c) + (0xFF - effective_a) * get_g(c)) / 0xFF,
-                        (effective_a * get_b(stripe_c) + (0xFF - effective_a) * get_b(c)) / 0xFF);
+                    c = phosg::rgba8888(
+                        (effective_a * phosg::get_r(stripe_c) + (0xFF - effective_a) * phosg::get_r(c)) / 0xFF,
+                        (effective_a * phosg::get_g(stripe_c) + (0xFF - effective_a) * phosg::get_g(c)) / 0xFF,
+                        (effective_a * phosg::get_b(stripe_c) + (0xFF - effective_a) * phosg::get_b(c)) / 0xFF);
                   }
                   result.write(xx, yy, c);
                 }
@@ -1460,7 +1458,7 @@ int main(int argc, char** argv) {
     }
 
     if (render_sprites) {
-      fwrite_fmt(stderr, "... (Level {}) sprites\n", level_id);
+      phosg::fwrite_fmt(stderr, "... (Level {}) sprites\n", level_id);
 
       static const size_t max_sprites = sizeof(level->sprites) / sizeof(level->sprites[0]);
       for (size_t z = 0; z < max_sprites; z++) {
@@ -1488,7 +1486,7 @@ int main(int argc, char** argv) {
           const SpriteDefinition* sprite_def = nullptr;
           try {
             sprite_def = &sprite_defs.at(sprite.type);
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
             if (passthrough_sprite_defs.count(sprite.type)) {
               passthrough_sprite_def.pict_id = sprite.type;
               passthrough_sprite_def.segment_number = 0;
@@ -1501,19 +1499,19 @@ int main(int argc, char** argv) {
           if (sprite_def) {
             try {
               sprite_pict_def = &sprite_pict_defs.at(sprite_def->pict_id);
-            } catch (const out_of_range&) {
+            } catch (const std::out_of_range&) {
               sprite_pict_def = &default_sprite_pict_def;
             }
           }
 
           int16_t pict_id = sprite_def ? sprite_def->pict_id : sprite.type.load();
-          shared_ptr<ImageRGBA8888N> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
+          std::shared_ptr<phosg::ImageRGBA8888N> sprite_pict = decode_PICT_cached(pict_id, sprites_cache, sprites);
 
           if (sprite_pict.get() && sprite_def && sprite_def->reverse_horizontal) {
             try {
               sprite_pict = reversed_sprites_cache.at(pict_id);
-            } catch (const out_of_range&) {
-              auto reversed_image = make_shared<ImageRGBA8888N>(sprite_pict->copy());
+            } catch (const std::out_of_range&) {
+              auto reversed_image = std::make_shared<phosg::ImageRGBA8888N>(sprite_pict->copy());
               reversed_image->reverse_horizontal();
               reversed_sprites_cache.emplace(pict_id, reversed_image);
               sprite_pict = reversed_image;
@@ -1544,11 +1542,11 @@ int main(int argc, char** argv) {
                     continue;
                   }
                   uint32_t existing_c = full_result.read(sprite_rel_x + xx, sprite_rel_y + yy);
-                  uint8_t sprite_a = (get_r(sprite_c) + get_g(sprite_c) + get_b(sprite_c)) / 3;
-                  uint32_t result_c = rgba8888(
-                      (sprite_a * 0xFF + (0xFF - sprite_a) * get_r(existing_c)) / 0xFF,
-                      (sprite_a * 0xFF + (0xFF - sprite_a) * get_g(existing_c)) / 0xFF,
-                      (sprite_a * 0xFF + (0xFF - sprite_a) * get_b(existing_c)) / 0xFF);
+                  uint8_t sprite_a = (phosg::get_r(sprite_c) + phosg::get_g(sprite_c) + phosg::get_b(sprite_c)) / 3;
+                  uint32_t result_c = phosg::rgba8888(
+                      (sprite_a * 0xFF + (0xFF - sprite_a) * phosg::get_r(existing_c)) / 0xFF,
+                      (sprite_a * 0xFF + (0xFF - sprite_a) * phosg::get_g(existing_c)) / 0xFF,
+                      (sprite_a * 0xFF + (0xFF - sprite_a) * phosg::get_b(existing_c)) / 0xFF);
                   full_result.write(sprite_rel_x + xx, sprite_rel_y + yy, result_c);
                 }
               }
@@ -1646,7 +1644,7 @@ int main(int argc, char** argv) {
           case 1407:
           case 1408:
           case 1409: {
-            static const unordered_map<int16_t, const char*> motion_type_names({
+            static const std::unordered_map<int16_t, const char*> motion_type_names({
                 {1, "vert"},
                 {2, "horiz"},
                 {3, "float"},
@@ -1689,7 +1687,7 @@ int main(int argc, char** argv) {
                 full_result.draw_text(sprite_rel_x, text_y + 30, 0xFFFFFF80, 0x00000040, "offset {}", sprite.params[3]);
               }
 
-            } catch (const out_of_range&) {
+            } catch (const std::out_of_range&) {
               full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}", sprite.params[0]);
             }
             break;
@@ -1710,7 +1708,7 @@ int main(int argc, char** argv) {
           case 1095:
           case 1096:
           case 1097: {
-            static const unordered_map<int16_t, const char*> motion_type_names({
+            static const std::unordered_map<int16_t, const char*> motion_type_names({
                 {101, "spin/cw"},
                 {102, "spin/ccw"},
                 {103, "spin/cw/fast"},
@@ -1733,7 +1731,7 @@ int main(int argc, char** argv) {
                 }
               }
 
-            } catch (const out_of_range&) {
+            } catch (const std::out_of_range&) {
               if (sprite.params[0] != 0) {
                 full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}", sprite.params[0]);
               }
@@ -1824,10 +1822,10 @@ int main(int argc, char** argv) {
     }
 
     if (parallax_foreground_opacity > 0) {
-      shared_ptr<ImageRGBA8888N> pxmid_pict = decode_PICT_cached(level->parallax_middle_pict_id, backgrounds_cache, backgrounds);
+      std::shared_ptr<phosg::ImageRGBA8888N> pxmid_pict = decode_PICT_cached(level->parallax_middle_pict_id, backgrounds_cache, backgrounds);
 
       if (pxmid_pict.get()) {
-        fwrite_fmt(stderr, "... (Level {}) parallax foreground\n", level_id);
+        phosg::fwrite_fmt(stderr, "... (Level {}) parallax foreground\n", level_id);
         const uint64_t& a = parallax_foreground_opacity;
 
         ssize_t start_y = level->height * 32 - pxmid_pict->get_height();
@@ -1838,17 +1836,17 @@ int main(int argc, char** argv) {
             if ((p & 0xFFFFFF00) == 0xFFFFFF00) {
               continue;
             }
-            uint32_t c = rgba8888(
-                (a * get_r(p) + (0xFF - a) * get_r(r)) / 0xFF,
-                (a * get_g(p) + (0xFF - a) * get_g(r)) / 0xFF,
-                (a * get_b(p) + (0xFF - a) * get_b(r)) / 0xFF);
+            uint32_t c = phosg::rgba8888(
+                (a * phosg::get_r(p) + (0xFF - a) * phosg::get_r(r)) / 0xFF,
+                (a * phosg::get_g(p) + (0xFF - a) * phosg::get_g(r)) / 0xFF,
+                (a * phosg::get_b(p) + (0xFF - a) * phosg::get_b(r)) / 0xFF);
             result.write(x, y + start_y, c);
           }
         }
       }
     }
 
-    string sanitized_name;
+    std::string sanitized_name;
     for (ssize_t x = 0; x < level->name[0]; x++) {
       char ch = level->name[x + 1];
       if (ch > 0x20 && ch <= 0x7E && ch != '/') {
@@ -1858,28 +1856,28 @@ int main(int argc, char** argv) {
       }
     }
 
-    string result_filename = std::format("{}_Level_{}_{}", levels_filename, level_id, sanitized_name);
+    std::string result_filename = std::format("{}_Level_{}_{}", levels_filename, level_id, sanitized_name);
     result_filename = image_saver.save_image(full_result, result_filename);
-    fwrite_fmt(stderr, "... (Level {}) -> {}\n", level_id, result_filename);
+    phosg::fwrite_fmt(stderr, "... (Level {}) -> {}\n", level_id, result_filename);
   }
 
   if (print_unused_pict_ids) {
-    auto sprite_pict_ids = sprites.all_resources_of_type(RESOURCE_TYPE_PICT);
+    auto sprite_pict_ids = sprites.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_PICT);
     sort(sprite_pict_ids.begin(), sprite_pict_ids.end());
     for (int16_t pict_id : sprite_pict_ids) {
       if (!sprites_cache.count(pict_id)) {
-        fwrite_fmt(stderr, "sprite pict {} UNUSED\n", pict_id);
+        phosg::fwrite_fmt(stderr, "sprite pict {} UNUSED\n", pict_id);
       } else {
-        fwrite_fmt(stderr, "sprite pict {} used\n", pict_id);
+        phosg::fwrite_fmt(stderr, "sprite pict {} used\n", pict_id);
       }
     }
-    auto background_pict_ids = backgrounds.all_resources_of_type(RESOURCE_TYPE_PICT);
+    auto background_pict_ids = backgrounds.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_PICT);
     sort(background_pict_ids.begin(), background_pict_ids.end());
     for (int16_t pict_id : background_pict_ids) {
       if (!backgrounds_cache.count(pict_id)) {
-        fwrite_fmt(stderr, "background pict {} UNUSED\n", pict_id);
+        phosg::fwrite_fmt(stderr, "background pict {} UNUSED\n", pict_id);
       } else {
-        fwrite_fmt(stderr, "background pict {} used\n", pict_id);
+        phosg::fwrite_fmt(stderr, "background pict {} used\n", pict_id);
       }
     }
   }

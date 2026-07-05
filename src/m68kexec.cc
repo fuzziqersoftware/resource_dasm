@@ -14,21 +14,17 @@
 #include "ExecutableFormats/DOLFile.hh"
 #include "ExecutableFormats/PEFile.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 struct SegmentDefinition {
   uint32_t addr;
   uint32_t size;
-  string data; // may be shorter than size; the rest will be zeroed
-  string filename;
+  std::string data; // may be shorter than size; the rest will be zeroed
+  std::string filename;
   bool assemble;
 
   SegmentDefinition() : addr(0), size(0), assemble(false) {}
 };
 
-SegmentDefinition parse_segment_definition(const string& def_str) {
+SegmentDefinition parse_segment_definition(const std::string& def_str) {
   // Segment definition strings are like:
   // E0000000:4000 (blank space)
   // E0000000+file.bin (initialized memory)
@@ -46,27 +42,27 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
       def.size = strtoul(resume_str, &new_resume_str, 16);
     } else if (*resume_str == '+') {
       def.filename = resume_str + 1;
-      def.data = load_file(def.filename);
+      def.data = phosg::load_file(def.filename);
       if (def.size == 0) {
         def.size = def.data.size();
       }
       new_resume_str = resume_str + strlen(resume_str);
     } else if (*resume_str == '/') {
-      def.data = parse_data_string(resume_str + 1);
+      def.data = phosg::parse_data_string(resume_str + 1);
       if (def.size == 0) {
         def.size = def.data.size();
       }
       new_resume_str = resume_str + strlen(resume_str);
     } else if (*resume_str == '@') {
       def.filename = resume_str + 1;
-      def.data = load_file(def.filename);
+      def.data = phosg::load_file(def.filename);
       def.assemble = true;
       new_resume_str = resume_str + strlen(resume_str);
     } else {
-      throw invalid_argument("invalid field in memory segment definition");
+      throw std::invalid_argument("invalid field in memory segment definition");
     }
     if (new_resume_str == resume_str) {
-      throw invalid_argument("invalid integer field in memory segment definition");
+      throw std::invalid_argument("invalid integer field in memory segment definition");
     }
     resume_str = new_resume_str;
   }
@@ -75,7 +71,7 @@ SegmentDefinition parse_segment_definition(const string& def_str) {
 }
 
 void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: m68kexec <options>\n\
 \n\
 For this program to be useful, --pc and at least one --mem should be given, or\n\
@@ -205,41 +201,40 @@ Debugger options:\n\
 ");
 }
 
-static bool is_ppc32_filename(const string& filename) {
-  string lower = phosg::tolower(filename);
+static bool is_ppc32_filename(const std::string& filename) {
+  std::string lower = phosg::tolower(filename);
   return lower.ends_with(".dol");
 }
 
-static bool is_x86_filename(const string& filename) {
-  string lower = phosg::tolower(filename);
+static bool is_x86_filename(const std::string& filename) {
+  std::string lower = phosg::tolower(filename);
   return lower.ends_with(".exe") || lower.ends_with(".dll") || lower.ends_with(".ocx") || lower.ends_with(".scr");
 }
 
-uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
-  PEFile pe(filename.c_str());
+uint32_t load_pe(std::shared_ptr<ResourceDASM::MemoryContext> mem, const std::string& filename) {
+  ResourceDASM::PEFile pe(filename.c_str());
   uint32_t base = pe.load_into(mem);
 
   // Set the base and exported function address symbols
-  string symbol_prefix = basename(filename) + ":";
+  std::string symbol_prefix = phosg::basename(filename) + ":";
   mem->set_symbol_addr(symbol_prefix + "<base>", base);
   for (const auto& it : pe.labels_for_loaded_exports(base)) {
     mem->set_symbol_addr(symbol_prefix + it.second, it.first);
   }
 
-  // Allocate the syscall stubs. These are tiny bits of code that invoke the
-  // syscall handler; we set the imported function addresses to point to them.
-  // The stubs look like:
+  // Allocate the syscall stubs. These are tiny bits of code that invoke the syscall handler; we set the imported
+  // function addresses to point to them. The stubs look like:
   //   call   do_syscall
   //   .u32   thunk_ptr_addr
   //   .data  "LibraryName.dll:ImportedFunctionName"
   // do_syscall:
   //   int    FF
   const auto& header = pe.unloaded_header();
-  StringWriter stubs_w;
-  unordered_map<uint32_t, uint32_t> addr_addr_to_stub_offset;
+  phosg::StringWriter stubs_w;
+  std::unordered_map<uint32_t, uint32_t> addr_addr_to_stub_offset;
   for (const auto& it : pe.labels_for_loaded_imports(base)) {
     uint32_t addr_addr = it.first;
-    const string& name = it.second;
+    const std::string& name = it.second;
 
     addr_addr_to_stub_offset.emplace(addr_addr, stubs_w.size());
 
@@ -255,7 +250,7 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
   }
 
   if (!stubs_w.size()) {
-    fwrite_fmt(stderr, "note: there are no import stubs\n");
+    phosg::fwrite_fmt(stderr, "note: there are no import stubs\n");
   } else {
     uint32_t stubs_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, stubs_w.size());
     mem->memcpy(stubs_addr, stubs_w.str().data(), stubs_w.size());
@@ -264,27 +259,29 @@ uint32_t load_pe(shared_ptr<MemoryContext> mem, const string& filename) {
       mem->write_u32l(it.first, stub_addr);
       mem->write_u32l(stub_addr + 5, it.first);
     }
-    fwrite_fmt(stderr, "note: generated import stubs at {:08X}\n", stubs_addr);
+    phosg::fwrite_fmt(stderr, "note: generated import stubs at {:08X}\n", stubs_addr);
   }
 
   return header.entrypoint_rva + header.image_base;
 }
 
-uint32_t load_dol(shared_ptr<MemoryContext> mem, const string& filename) {
-  DOLFile dol(filename.c_str());
+uint32_t load_dol(std::shared_ptr<ResourceDASM::MemoryContext> mem, const std::string& filename) {
+  ResourceDASM::DOLFile dol(filename.c_str());
   dol.load_into(mem);
   return dol.entrypoint;
 }
 
 template <typename EmuT>
-void create_syscall_handler_t(EmuT&, shared_ptr<EmulatorDebugger<EmuT>>) {
-  throw logic_error("unspecialized create_syscall_handler_t should never be called");
+void create_syscall_handler_t(EmuT&, std::shared_ptr<ResourceDASM::EmulatorDebugger<EmuT>>) {
+  throw std::logic_error("unspecialized create_syscall_handler_t should never be called");
 }
 
 template <>
-void create_syscall_handler_t<M68KEmulator>(M68KEmulator& emu, shared_ptr<EmulatorDebugger<M68KEmulator>> debugger) {
+void create_syscall_handler_t<ResourceDASM::M68KEmulator>(
+    ResourceDASM::M68KEmulator& emu,
+    std::shared_ptr<ResourceDASM::EmulatorDebugger<ResourceDASM::M68KEmulator>> debugger) {
   // In M68K land, implement basic Mac syscalls
-  emu.set_syscall_handler([debugger](M68KEmulator& emu, uint16_t syscall) -> void {
+  emu.set_syscall_handler([debugger](ResourceDASM::M68KEmulator& emu, uint16_t syscall) -> void {
     auto& regs = emu.registers();
     uint16_t trap_number;
     bool auto_pop = false;
@@ -299,35 +296,34 @@ void create_syscall_handler_t<M68KEmulator>(M68KEmulator& emu, shared_ptr<Emulat
     }
 
     auto mem = emu.memory();
-    bool verbose = debugger->state.mode != DebuggerMode::NONE;
+    bool verbose = debugger->state.mode != ResourceDASM::DebuggerMode::NONE;
 
     if (trap_number == 0x001E) { // NewPtr
       // D0 = size, A0 = returned ptr
       uint32_t addr = mem->allocate(regs.d[0].u);
       if (addr == 0) {
-        throw runtime_error("cannot allocate memory for NewPtr");
+        throw std::runtime_error("cannot allocate memory for NewPtr");
       }
       regs.a[0] = addr; // Ptr
 
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] NewPtr size={:08X} => {:08X}\n", regs.d[0].u, regs.a[0]);
+        phosg::fwrite_fmt(stderr, "[syscall_handler] NewPtr size={:08X} => {:08X}\n", regs.d[0].u, regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
 
     } else if (trap_number == 0x0022) { // NewHandle
       // D0 = size, A0 = returned handle
-      // Note that this must return a HANDLE, not a pointer... we cheat by
-      // allocating the pointer in the same space as the data, immediately
-      // preceding the data
+      // Note that this must return a HANDLE, not a pointer... we cheat by allocating the pointer in the same space as
+      // the data, immediately preceding the data
       uint32_t addr = mem->allocate(regs.d[0].u + 4);
       if (addr == 0) {
-        throw runtime_error("cannot allocate memory for NewHandle");
+        throw std::runtime_error("cannot allocate memory for NewHandle");
       }
       regs.a[0] = addr; // Handle
       mem->write_u32b(addr, addr + 4);
 
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] NewHandle size={:08X} => {:08X}\n", regs.d[0].u, regs.a[0]);
+        phosg::fwrite_fmt(stderr, "[syscall_handler] NewHandle size={:08X} => {:08X}\n", regs.d[0].u, regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
 
@@ -335,19 +331,19 @@ void create_syscall_handler_t<M68KEmulator>(M68KEmulator& emu, shared_ptr<Emulat
       // A0 = handle, D0 = returned size or error code (if <0)
       try {
         regs.d[0].u = mem->get_block_size(mem->read_u32b(regs.a[0]));
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
         regs.d[0].s = -111; // memWZErr
       }
 
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] GetHandleSize handle={:08X} => {:08X}\n", regs.a[0], regs.d[0].s);
+        phosg::fwrite_fmt(stderr, "[syscall_handler] GetHandleSize handle={:08X} => {:08X}\n", regs.a[0], regs.d[0].s);
       }
 
     } else if ((trap_number == 0x0029) || (trap_number == 0x002A)) { // HLock/HUnlock
       // A0 = handle
       // We ignore this; blocks are never moved in our emulated system.
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] {} handle={:08X}\n", (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
+        phosg::fwrite_fmt(stderr, "[syscall_handler] {} handle={:08X}\n", (trap_number == 0x0029) ? "HLock" : "HUnlock", regs.a[0]);
       }
       regs.d[0].u = 0; // Result code (success)
 
@@ -355,18 +351,16 @@ void create_syscall_handler_t<M68KEmulator>(M68KEmulator& emu, shared_ptr<Emulat
       // A0 = src, A1 = dst, D0 = size
       mem->memcpy(regs.a[1], regs.a[0], regs.d[0].u);
       if (verbose) {
-        fwrite_fmt(stderr, "[syscall_handler] BlockMove dst={:08X} src={:08X} size={:X}\n", regs.a[1], regs.a[0], regs.d[0].u);
+        phosg::fwrite_fmt(stderr, "[syscall_handler] BlockMove dst={:08X} src={:08X} size={:X}\n", regs.a[1], regs.a[0], regs.d[0].u);
       }
       regs.d[0].u = 0; // Result code (success)
 
     } else {
       if (trap_number & 0x0800) {
-        throw runtime_error(std::format(
-            "unimplemented toolbox trap (num={:X}, auto_pop={})\n",
+        throw std::runtime_error(std::format("unimplemented toolbox trap (num={:X}, auto_pop={})\n",
             static_cast<uint16_t>(trap_number & 0x0BFF), auto_pop ? "true" : "false"));
       } else {
-        throw runtime_error(std::format(
-            "unimplemented os trap (num={:X}, flags={})\n",
+        throw std::runtime_error(std::format("unimplemented os trap (num={:X}, flags={})\n",
             static_cast<uint16_t>(trap_number & 0x00FF), flags));
       }
     }
@@ -374,10 +368,10 @@ void create_syscall_handler_t<M68KEmulator>(M68KEmulator& emu, shared_ptr<Emulat
 }
 
 template <>
-void create_syscall_handler_t<X86Emulator>(X86Emulator& emu, shared_ptr<EmulatorDebugger<X86Emulator>>) {
-  // In X86 land, we use a syscall to emulate library calls. This little stub is
-  // used to transform the result of LoadLibraryA so it will return the module
-  // handle if the DLL entry point returned nonzero.
+void create_syscall_handler_t<ResourceDASM::X86Emulator>(
+    ResourceDASM::X86Emulator& emu, std::shared_ptr<ResourceDASM::EmulatorDebugger<ResourceDASM::X86Emulator>>) {
+  // In X86 land, we use a syscall to emulate library calls. This little stub is used to transform the result of
+  // LoadLibraryA so it will return the module handle if the DLL entry point returned nonzero.
   //   test eax, eax
   //   je return_null
   //   pop eax
@@ -385,36 +379,34 @@ void create_syscall_handler_t<X86Emulator>(X86Emulator& emu, shared_ptr<Emulator
   // return_null:
   //   add esp, 4
   //   ret
-  static const string load_library_stub_data = "\x85\xC0\x74\x02\x58\xC3\x83\xC4\x04\xC3";
+  static const std::string load_library_stub_data = "\x85\xC0\x74\x02\x58\xC3\x83\xC4\x04\xC3";
   auto mem = emu.memory();
-  uint32_t load_library_return_stub_addr = mem->allocate_within(
-      0xF0000000, 0xFFFFFFFF, load_library_stub_data.size());
+  uint32_t load_library_return_stub_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, load_library_stub_data.size());
   mem->memcpy(load_library_return_stub_addr, load_library_stub_data.data(), load_library_stub_data.size());
 
-  emu.set_syscall_handler([load_library_return_stub_addr](X86Emulator& emu, uint8_t int_num) {
+  emu.set_syscall_handler([load_library_return_stub_addr](ResourceDASM::X86Emulator& emu, uint8_t int_num) {
     if (int_num == 0xFF) {
       auto mem = emu.memory();
       auto& regs = emu.registers();
-      uint32_t descriptor_addr = emu.pop<le_uint32_t>();
-      uint32_t return_addr = emu.pop<le_uint32_t>();
+      uint32_t descriptor_addr = emu.pop<phosg::le_uint32_t>();
+      uint32_t return_addr = emu.pop<phosg::le_uint32_t>();
       uint32_t thunk_ptr_addr = mem->read_u32l(descriptor_addr);
-      string name = mem->read_cstring(descriptor_addr + 4);
+      std::string name = mem->read_cstring(descriptor_addr + 4);
 
       // A few special library calls are implemented separately
       if (name == "kernel32.dll:LoadLibraryA") {
         // Args: [esp+00] = library_name
-        uint32_t lib_name_addr = emu.pop<le_uint32_t>();
-        string name = mem->read_cstring(lib_name_addr);
+        uint32_t lib_name_addr = emu.pop<phosg::le_uint32_t>();
+        std::string name = mem->read_cstring(lib_name_addr);
 
         // Load the library
         uint32_t entrypoint = load_pe(mem, name);
         uint32_t lib_handle = entrypoint; // TODO: We should use something better for library handles
 
-        // Call DllMain (entrypoint), setting up the stack so it will return to
-        // the stub, which will then return to the caller.
-        // TODO: do we need to preseve any regs here? The calling convention is
-        // the same for LoadLibraryA as for DllMain, and the stub only modifies
-        // eax, so it should be ok to not worry about saving regs here?
+        // Call DllMain (entrypoint), setting up the stack so it will return to the stub, which will then return to the
+        // caller.
+        // TODO: do we need to preseve any regs here? The calling convention is the same for LoadLibraryA as for
+        // DllMain, and the stub only modifies eax, so it should be ok to not worry about saving regs here, right?
         emu.push(return_addr);
         emu.push(lib_handle);
         emu.push(0x00000000); // lpReserved (null for dynamic loading)
@@ -428,91 +420,90 @@ void create_syscall_handler_t<X86Emulator>(X86Emulator& emu, shared_ptr<Emulator
         regs.eip = return_addr;
 
       } else {
-        // The library might already be loaded (since we don't prepopulate the
-        // thunk pointers when another call triggers loading), so check for that
-        // first
+        // The library might already be loaded (since we don't prepopulate the thunk pointers when another call
+        // triggers loading), so check for that first
         uint32_t function_addr = 0;
         try {
           function_addr = mem->get_symbol_addr(name);
-        } catch (const out_of_range&) {
+        } catch (const std::out_of_range&) {
           // The library is not loaded, so load it
 
           size_t colon_offset = name.find(':');
-          if (colon_offset == string::npos) {
-            throw runtime_error("invalid library call: " + name);
+          if (colon_offset == std::string::npos) {
+            throw std::runtime_error("invalid library call: " + name);
           }
-          string lib_name = name.substr(0, colon_offset);
+          std::string lib_name = name.substr(0, colon_offset);
 
           load_pe(mem, lib_name);
 
           try {
             function_addr = mem->get_symbol_addr(name);
-          } catch (const out_of_range&) {
-            throw runtime_error("imported module does not export requested symbol: " + name);
+          } catch (const std::out_of_range&) {
+            throw std::runtime_error("imported module does not export requested symbol: " + name);
           }
         }
 
-        // Replace the stub addr with the actual function addr so the stub won't
-        // get called again
+        // Replace the stub addr with the actual function addr so the stub won't get called again
         mem->write_u32l(thunk_ptr_addr, function_addr);
 
-        // Jump directly to the function (since we already popped the stub args
-        // off the stack)
+        // Jump directly to the function (since we already popped the stub args off the stack)
         regs.eip = function_addr;
       }
     } else {
-      throw runtime_error(std::format("unhandled interrupt: {:02X}", int_num));
+      throw std::runtime_error(std::format("unhandled interrupt: {:02X}", int_num));
     }
   });
 }
 
 template <>
-void create_syscall_handler_t<PPC32Emulator>(PPC32Emulator& emu, shared_ptr<EmulatorDebugger<PPC32Emulator>>) {
-  emu.set_syscall_handler(+[](PPC32Emulator&) -> void {
-    throw logic_error("PPC32 syscall handler is not implemented");
+void create_syscall_handler_t<ResourceDASM::PPC32Emulator>(
+    ResourceDASM::PPC32Emulator& emu, std::shared_ptr<ResourceDASM::EmulatorDebugger<ResourceDASM::PPC32Emulator>>) {
+  emu.set_syscall_handler(+[](ResourceDASM::PPC32Emulator&) -> void {
+    throw std::logic_error("PPC32 syscall handler is not implemented");
   });
 }
 
 template <>
-void create_syscall_handler_t<SH4Emulator>(SH4Emulator&, shared_ptr<EmulatorDebugger<SH4Emulator>>) {
+void create_syscall_handler_t<ResourceDASM::SH4Emulator>(
+    ResourceDASM::SH4Emulator&, std::shared_ptr<ResourceDASM::EmulatorDebugger<ResourceDASM::SH4Emulator>>) {
   // Nothing to do; SH4Emulator doesn't have a syscall hook
 }
 
 template <typename EmuT>
 int main_t(phosg::Arguments& args) {
-  auto mem = make_shared<MemoryContext>();
+  auto mem = std::make_shared<ResourceDASM::MemoryContext>();
   EmuT emu(mem);
   auto& regs = emu.registers();
 
-  auto debugger = make_shared<EmulatorDebugger<EmuT>>();
+  auto debugger = std::make_shared<ResourceDASM::EmulatorDebugger<EmuT>>();
   debugger->bind(emu);
 
-  for (const auto& it : args.get_multi<string>("symbol")) {
+  for (const auto& it : args.get_multi<std::string>("symbol")) {
     size_t equals_pos = it.find('=');
-    if (equals_pos == string::npos) {
-      throw invalid_argument("invalid symbol definition");
+    if (equals_pos == std::string::npos) {
+      throw std::invalid_argument("invalid symbol definition");
     }
     uint32_t addr = stoull(it.substr(0, equals_pos), nullptr, 16);
     mem->set_symbol_addr(it.substr(equals_pos + 1), addr);
   }
 
-  for (const auto& it : args.get_multi<string>("arena")) {
-    auto tokens = split(it, ':');
+  for (const auto& it : args.get_multi<std::string>("arena")) {
+    auto tokens = phosg::split(it, ':');
     if (tokens.size() != 2) {
-      throw invalid_argument("invalid arena definition");
+      throw std::invalid_argument("invalid arena definition");
     }
     uint32_t addr = stoul(tokens[0], nullptr, 16);
     uint32_t size = stoul(tokens[1], nullptr, 16);
     mem->preallocate_arena(addr, size);
   }
 
-  string state_filename = args.get<string>("load-state");
+  std::string state_filename = args.get<std::string>("load-state");
   if (!state_filename.empty()) {
-    auto f = fopen_unique(state_filename, "rb");
+    auto f = phosg::fopen_unique(state_filename, "rb");
     emu.import_state(f.get());
   }
 
-  for (const auto& filename : args.get_multi<string>("exec")) {
+  for (const auto& filename : args.get_multi<std::string>("exec")) {
     uint32_t file_pc = 0;
     if (filename.ends_with(".exe") || filename.ends_with(".dll") || filename.ends_with(".ocx") || filename.ends_with(".scr")) {
       file_pc = load_pe(mem, filename);
@@ -524,32 +515,32 @@ int main_t(phosg::Arguments& args) {
     }
   }
 
-  for (const auto& it : args.get_multi<string>("mem")) {
+  for (const auto& it : args.get_multi<std::string>("mem")) {
     auto def = parse_segment_definition(it);
     if (def.assemble) {
-      unordered_set<string> get_include_stack; // For mutual recursion detection
-      function<string(const string&)> get_include = [&](const string& name) -> string {
+      std::unordered_set<std::string> get_include_stack; // For mutual recursion detection
+      std::function<std::string(const std::string&)> get_include = [&](const std::string& name) -> std::string {
         if (!get_include_stack.emplace(name).second) {
-          throw runtime_error("mutual recursion between includes");
+          throw std::runtime_error("mutual recursion between includes");
         }
 
-        vector<string> prefixes;
-        prefixes.emplace_back(dirname(def.filename));
+        std::vector<std::string> prefixes;
+        prefixes.emplace_back(phosg::dirname(def.filename));
         if (!prefixes.back().empty()) {
           prefixes.back().push_back('/');
           prefixes.emplace_back("");
         }
         for (const auto& prefix : prefixes) {
-          string filename = prefix + name + ".inc.s";
+          std::string filename = prefix + name + ".inc.s";
           if (std::filesystem::is_regular_file(filename)) {
-            return EmuT::assemble(load_file(filename), get_include).code;
+            return EmuT::assemble(phosg::load_file(filename), get_include).code;
           }
           filename = name + ".inc.bin";
           if (std::filesystem::is_regular_file(filename)) {
-            return load_file(filename);
+            return phosg::load_file(filename);
           }
         }
-        throw runtime_error("data not found for include " + name);
+        throw std::runtime_error("data not found for include " + name);
       };
 
       auto assembled = EmuT::assemble(def.data, get_include);
@@ -559,7 +550,7 @@ int main_t(phosg::Arguments& args) {
       if (!regs.pc) {
         try {
           regs.pc = def.addr + assembled.label_offsets.at("start");
-        } catch (const out_of_range&) {
+        } catch (const std::out_of_range&) {
         }
       }
     }
@@ -579,7 +570,7 @@ int main_t(phosg::Arguments& args) {
     static const size_t stack_size = 0x10000;
     uint32_t stack_addr = mem->allocate(stack_size);
     sp = stack_addr + stack_size;
-    fwrite_fmt(stderr, "note: automatically creating stack region at {:08X}:{:X} with stack pointer {:08X}\n",
+    phosg::fwrite_fmt(stderr, "note: automatically creating stack region at {:08X}:{:X} with stack pointer {:08X}\n",
         stack_addr, stack_size, sp);
   }
   for (uint32_t value : args.get_multi<uint32_t>("push", phosg::Arguments::IntFormat::DEFAULT)) {
@@ -592,20 +583,20 @@ int main_t(phosg::Arguments& args) {
   }
   regs.set_sp(sp);
 
-  for (const auto& it : args.get_multi<string>("reg")) {
-    auto tokens = split(it, ':');
+  for (const auto& it : args.get_multi<std::string>("reg")) {
+    auto tokens = phosg::split(it, ':');
     if (tokens.size() != 2) {
-      throw invalid_argument("invalid register definition");
+      throw std::invalid_argument("invalid register definition");
     }
     uint32_t value = stoul(tokens[1], nullptr, 16);
     regs.set_by_name(tokens[0], value);
   }
 
-  string time_base = args.get<string>("time-base", false);
+  std::string time_base = args.get<std::string>("time-base", false);
   if (!time_base.empty()) {
-    if (time_base.find(',') != string::npos) {
-      vector<uint64_t> overrides;
-      for (const auto& s : split(time_base, ',')) {
+    if (time_base.find(',') != std::string::npos) {
+      std::vector<uint64_t> overrides;
+      for (const auto& s : phosg::split(time_base, ',')) {
         overrides.emplace_back(stoull(s, nullptr, 16));
       }
       emu.set_time_base(overrides);
@@ -614,13 +605,13 @@ int main_t(phosg::Arguments& args) {
     }
   }
 
-  for (const auto& patch : args.get_multi<string>("patch")) {
+  for (const auto& patch : args.get_multi<std::string>("patch")) {
     size_t slash_pos = patch.find('/');
-    if (slash_pos == string::npos) {
-      throw invalid_argument("invalid patch definition");
+    if (slash_pos == std::string::npos) {
+      throw std::invalid_argument("invalid patch definition");
     }
     uint32_t addr = stoul(patch.substr(0, slash_pos), nullptr, 16);
-    string data = parse_data_string(patch.substr(slash_pos + 1));
+    std::string data = phosg::parse_data_string(patch.substr(slash_pos + 1));
     mem->memcpy(addr, data.data(), data.size());
   }
 
@@ -641,18 +632,18 @@ int main_t(phosg::Arguments& args) {
     debugger->state.cycle_breakpoints.emplace(it);
   }
   debugger->state.max_cycles = args.get<size_t>("max-cycles", 0);
-  for (const auto& it : args.get_multi<string>("behavior")) {
+  for (const auto& it : args.get_multi<std::string>("behavior")) {
     emu.set_behavior_by_name(it);
   }
   mem->set_strict(args.get<bool>("strict-memory"));
   size_t trace_period = args.get<size_t>("periodic-trace", 0);
   if (args.get<bool>("trace")) {
-    debugger->state.mode = DebuggerMode::TRACE;
+    debugger->state.mode = ResourceDASM::DebuggerMode::TRACE;
   } else if (trace_period > 0) {
-    debugger->state.mode = DebuggerMode::PERIODIC_TRACE;
+    debugger->state.mode = ResourceDASM::DebuggerMode::PERIODIC_TRACE;
     debugger->state.trace_period = trace_period;
   } else if (args.get<bool>("step")) {
-    debugger->state.mode = DebuggerMode::STEP;
+    debugger->state.mode = ResourceDASM::DebuggerMode::STEP;
   }
 
   args.assert_none_unused();
@@ -666,7 +657,7 @@ int main(int argc, char** argv) {
 
   bool any_filename_is_x86 = false;
   bool any_filename_is_ppc32 = false;
-  for (const auto& it : args.get_multi<string>("executable")) {
+  for (const auto& it : args.get_multi<std::string>("executable")) {
     if (is_ppc32_filename(it)) {
       any_filename_is_ppc32 = true;
     } else if (is_x86_filename(it)) {
@@ -675,19 +666,19 @@ int main(int argc, char** argv) {
   }
 
   if (args.get<bool>("m68k")) {
-    return main_t<M68KEmulator>(args);
+    return main_t<ResourceDASM::M68KEmulator>(args);
   } else if (args.get<bool>("sh4")) {
-    return main_t<SH4Emulator>(args);
+    return main_t<ResourceDASM::SH4Emulator>(args);
   } else if (args.get<bool>("ppc32")) {
-    return main_t<PPC32Emulator>(args);
+    return main_t<ResourceDASM::PPC32Emulator>(args);
   } else if (args.get<bool>("x86")) {
-    return main_t<X86Emulator>(args);
+    return main_t<ResourceDASM::X86Emulator>(args);
   } else if (any_filename_is_ppc32 && !any_filename_is_x86) {
-    return main_t<PPC32Emulator>(args);
+    return main_t<ResourceDASM::PPC32Emulator>(args);
   } else if (any_filename_is_x86 && !any_filename_is_ppc32) {
-    return main_t<X86Emulator>(args);
+    return main_t<ResourceDASM::X86Emulator>(args);
   } else {
     print_usage();
-    throw runtime_error("cannot determine architecture; use --m68k, --ppc32, --x86, or --sh4");
+    throw std::runtime_error("cannot determine architecture; use --m68k, --ppc32, --x86, or --sh4");
   }
 }

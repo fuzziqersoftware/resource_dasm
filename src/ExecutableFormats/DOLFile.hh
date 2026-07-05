@@ -11,10 +11,21 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 class DOLFile {
 public:
+  struct Header {
+    phosg::be_uint32_t text_offset[7];
+    phosg::be_uint32_t data_offset[11];
+    phosg::be_uint32_t text_address[7];
+    phosg::be_uint32_t data_address[11];
+    phosg::be_uint32_t text_size[7];
+    phosg::be_uint32_t data_size[11];
+    phosg::be_uint32_t bss_address;
+    phosg::be_uint32_t bss_size;
+    phosg::be_uint32_t entrypoint;
+    phosg::be_uint32_t unused[7];
+  } __attribute__((packed));
+
   static void check_address_range(uint32_t start, uint32_t size, const char* name);
 
   explicit DOLFile(const char* filename);

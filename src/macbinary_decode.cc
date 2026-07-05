@@ -7,12 +7,8 @@
 
 #include "IndexFormats/Formats.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 int main(int argc, char** argv) {
-  Arguments args(argv + 1, argc - 1);
+  phosg::Arguments args(argv + 1, argc - 1);
 
   std::string input_filename = args.get<std::string>(0, true);
   std::string output_filename = args.get<std::string>(1, false);
@@ -25,10 +21,10 @@ int main(int argc, char** argv) {
   }
   bool separate = args.get<bool>("separate");
 
-  auto decoded = parse_macbinary(load_file(input_filename));
-  auto data_f = fopen_unique(output_filename + (separate ? ".data" : ""), "wb");
-  auto rsrc_f = fopen_unique(output_filename + (separate ? ".rsrc" : "/..namedfork/rsrc"), "wb");
-  fwritex(data_f.get(), decoded.first.getv(decoded.first.size()), decoded.first.size());
-  fwritex(rsrc_f.get(), decoded.second.getv(decoded.second.size()), decoded.second.size());
+  auto decoded = ResourceDASM::parse_macbinary(phosg::load_file(input_filename));
+  auto data_f = phosg::fopen_unique(output_filename + (separate ? ".data" : ""), "wb");
+  auto rsrc_f = phosg::fopen_unique(output_filename + (separate ? ".rsrc" : "/..namedfork/rsrc"), "wb");
+  phosg::fwritex(data_f.get(), decoded.first.getv(decoded.first.size()), decoded.first.size());
+  phosg::fwritex(rsrc_f.get(), decoded.second.getv(decoded.second.size()), decoded.second.size());
   return 0;
 }

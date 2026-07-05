@@ -17,19 +17,14 @@
 #include "SDLAudioStream.hh"
 #endif
 
-using namespace std;
-using namespace ResourceDASM::Audio;
-
-class MODWriter : public MODSynthesizer {
+class MODWriter : public ResourceDASM::Audio::MODSynthesizer {
 protected:
   FILE* f;
 
 public:
-  MODWriter(shared_ptr<const Module> mod, shared_ptr<const Options> opts, FILE* f)
-      : MODSynthesizer(mod, opts),
-        f(f) {}
+  MODWriter(std::shared_ptr<const ResourceDASM::Audio::Module> mod, std::shared_ptr<const Options> opts, FILE* f) : MODSynthesizer(mod, opts), f(f) {}
 
-  virtual bool on_tick_samples_ready(vector<float>&& samples) {
+  virtual bool on_tick_samples_ready(std::vector<float>&& samples) {
     fwrite(samples.data(), sizeof(samples[0]), samples.size(), this->f);
     fflush(this->f);
     return true;
@@ -37,15 +32,16 @@ public:
 };
 
 #ifdef SDL3_AVAILABLE
-class SDLMODPlayer : public MODSynthesizer {
+class SDLMODPlayer : public ResourceDASM::Audio::MODSynthesizer {
 protected:
-  std::shared_ptr<SDLAudioStream> stream;
+  std::shared_ptr<ResourceDASM::Audio::SDLAudioStream> stream;
 
 public:
-  SDLMODPlayer(shared_ptr<const Module> mod, shared_ptr<const Options> opts)
-      : MODSynthesizer(mod, opts), stream(make_shared<SDLAudioStream>(2, opts->sample_rate)) {}
+  SDLMODPlayer(std::shared_ptr<const ResourceDASM::Audio::Module> mod, std::shared_ptr<const Options> opts)
+      : MODSynthesizer(mod, opts),
+        stream(std::make_shared<ResourceDASM::Audio::SDLAudioStream>(2, opts->sample_rate)) {}
 
-  virtual bool on_tick_samples_ready(vector<float>&& samples) {
+  virtual bool on_tick_samples_ready(std::vector<float>&& samples) {
     this->stream->wait_until_remaining_secs(0.1);
     this->stream->add(samples);
     return true;
@@ -180,7 +176,7 @@ int main(int argc, char** argv) {
   bool use_default_global_volume = true;
   bool trim_ending_silence_after_render = true;
   bool normalize_after_render = true;
-  shared_ptr<MODSynthesizer::Options> opts(new MODSynthesizer::Options());
+  auto opts = std::make_shared<ResourceDASM::Audio::MODSynthesizer::Options>();
   opts->print_status_while_playing = true;
   for (int x = 1; x < argc; x++) {
     if (!strcmp(argv[x], "--disassemble")) {
@@ -195,9 +191,9 @@ int main(int argc, char** argv) {
       behavior = Behavior::PLAY;
 
     } else if (!strcmp(argv[x], "--resample-method=hold")) {
-      opts->resample_method = ResampleMethod::EXTEND;
+      opts->resample_method = ResourceDASM::Audio::ResampleMethod::EXTEND;
     } else if (!strcmp(argv[x], "--resample-method=linear")) {
-      opts->resample_method = ResampleMethod::LINEAR_INTERPOLATE;
+      opts->resample_method = ResourceDASM::Audio::ResampleMethod::LINEAR_INTERPOLATE;
 
     } else if (!strcmp(argv[x], "--write-stdout")) {
       write_stdout = true;
@@ -220,7 +216,7 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[x], "--default-panning-split=surround")) {
       opts->default_enable_surround = true;
     } else if (!strncmp(argv[x], "--default-panning-split=", 24)) {
-      opts->default_panning_split = stoull(&argv[x][24], nullptr, 0);
+      opts->default_panning_split = std::stoull(&argv[x][24], nullptr, 0);
       if (opts->default_panning_split < -0x40) {
         opts->default_panning_split = -0x40;
       } else if (opts->default_panning_split > 0x40) {
@@ -279,9 +275,9 @@ int main(int argc, char** argv) {
   bool behavior_is_disassemble = ((behavior == Behavior::DISASSEMBLE) || (behavior == Behavior::DISASSEMBLE_DIRECTORY));
   opts->use_color = (isatty(fileno(behavior_is_disassemble ? stdout : stderr)));
 
-  shared_ptr<Module> mod;
+  std::shared_ptr<ResourceDASM::Audio::Module> mod;
   if (behavior != Behavior::DISASSEMBLE_DIRECTORY) {
-    mod = Module::parse(phosg::load_file(input_filename));
+    mod = ResourceDASM::Audio::Module::parse(phosg::load_file(input_filename));
   }
 
   // Since we don't clip float32 samples and just play them directly, we could end up generating very loud output. With
@@ -304,13 +300,13 @@ int main(int argc, char** argv) {
       break;
     case Behavior::DISASSEMBLE_DIRECTORY: {
       for (const auto& entry : std::filesystem::directory_iterator(input_filename)) {
-        string path = string(input_filename) + "/" + entry.path().filename().string();
+        std::string path = std::string(input_filename) + "/" + entry.path().filename().string();
         phosg::fwrite_fmt(stdout, "===== {}\n", path);
 
         try {
-          Module::parse(phosg::load_file(path))->disassemble(stdout, opts->use_color);
+          ResourceDASM::Audio::Module::parse(phosg::load_file(path))->disassemble(stdout, opts->use_color);
           fputc('\n', stdout);
-        } catch (const exception& e) {
+        } catch (const std::exception& e) {
           phosg::fwrite_fmt(stdout, "Failed: {}\n\n", e.what());
         }
         phosg::fwrite_fmt(stderr, "... {}\n", path);
@@ -326,20 +322,20 @@ int main(int argc, char** argv) {
         MODWriter writer(mod, opts, stdout);
         writer.run_all();
       } else {
-        string output_filename = string(input_filename) + ".wav";
-        MODRenderer renderer(mod, opts);
+        std::string output_filename = std::string(input_filename) + ".wav";
+        ResourceDASM::Audio::MODRenderer renderer(mod, opts);
         phosg::fwrite_fmt(stderr, "Synthesis:\n");
         renderer.run_all();
         phosg::fwrite_fmt(stderr, "Assembling result\n");
         auto result = renderer.result();
         if (trim_ending_silence_after_render) {
-          trim_ending_silence(result);
+          ResourceDASM::Audio::trim_ending_silence(result);
         }
         if (normalize_after_render) {
-          normalize_amplitude(result);
+          ResourceDASM::Audio::normalize_amplitude(result);
         }
         phosg::fwrite_fmt(stderr, "... {}\n", output_filename);
-        save_wav(output_filename, result, opts->sample_rate, 2);
+        ResourceDASM::Audio::save_wav(output_filename, result, opts->sample_rate, 2);
       }
       break;
     }
@@ -361,7 +357,7 @@ int main(int argc, char** argv) {
 #endif
     }
     default:
-      throw logic_error("invalid behavior");
+      throw std::logic_error("invalid behavior");
   }
 
   return 0;

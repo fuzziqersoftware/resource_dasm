@@ -16,8 +16,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 class MemoryContext {
 public:
   MemoryContext();
@@ -91,8 +89,8 @@ public:
     this->memcpy(data.data(), addr, size);
     return data;
   }
-  inline StringReader reader(uint32_t addr, size_t size) const {
-    return StringReader(this->at<void>(addr, size), size);
+  inline phosg::StringReader reader(uint32_t addr, size_t size) const {
+    return phosg::StringReader(this->at<void>(addr, size), size);
   }
   inline void write(uint32_t addr, const std::string& data) {
     this->memcpy(addr, data.data(), data.size());
@@ -111,101 +109,101 @@ public:
     this->write<uint8_t>(addr, value);
   }
   inline int16_t read_s16b(uint32_t addr) const {
-    return this->read<be_int16_t>(addr);
+    return this->read<phosg::be_int16_t>(addr);
   }
   inline void write_s16b(uint32_t addr, int16_t value) {
-    this->write<be_int16_t>(addr, value);
+    this->write<phosg::be_int16_t>(addr, value);
   }
   inline int16_t read_s16l(uint32_t addr) const {
-    return this->read<le_int16_t>(addr);
+    return this->read<phosg::le_int16_t>(addr);
   }
   inline void write_s16l(uint32_t addr, int16_t value) {
-    this->write<le_int16_t>(addr, value);
+    this->write<phosg::le_int16_t>(addr, value);
   }
   inline uint16_t read_u16b(uint32_t addr) const {
-    return this->read<be_uint16_t>(addr);
+    return this->read<phosg::be_uint16_t>(addr);
   }
   inline void write_u16b(uint32_t addr, uint16_t value) {
-    this->write<be_uint16_t>(addr, value);
+    this->write<phosg::be_uint16_t>(addr, value);
   }
   inline uint16_t read_u16l(uint32_t addr) const {
-    return this->read<le_uint16_t>(addr);
+    return this->read<phosg::le_uint16_t>(addr);
   }
   inline void write_u16l(uint32_t addr, uint16_t value) {
-    this->write<le_uint16_t>(addr, value);
+    this->write<phosg::le_uint16_t>(addr, value);
   }
   inline int32_t read_s32b(uint32_t addr) const {
-    return this->read<be_int32_t>(addr);
+    return this->read<phosg::be_int32_t>(addr);
   }
   inline void write_s32b(uint32_t addr, int32_t value) {
-    this->write<be_int32_t>(addr, value);
+    this->write<phosg::be_int32_t>(addr, value);
   }
   inline int32_t read_s32l(uint32_t addr) const {
-    return this->read<le_int32_t>(addr);
+    return this->read<phosg::le_int32_t>(addr);
   }
   inline void write_s32l(uint32_t addr, int32_t value) {
-    this->write<le_int32_t>(addr, value);
+    this->write<phosg::le_int32_t>(addr, value);
   }
   inline uint32_t read_u32b(uint32_t addr) const {
-    return this->read<be_uint32_t>(addr);
+    return this->read<phosg::be_uint32_t>(addr);
   }
   inline void write_u32b(uint32_t addr, uint32_t value) {
-    this->write<be_uint32_t>(addr, value);
+    this->write<phosg::be_uint32_t>(addr, value);
   }
   inline uint32_t read_u32l(uint32_t addr) const {
-    return this->read<le_uint32_t>(addr);
+    return this->read<phosg::le_uint32_t>(addr);
   }
   inline void write_u32l(uint32_t addr, uint32_t value) {
-    this->write<le_uint32_t>(addr, value);
+    this->write<phosg::le_uint32_t>(addr, value);
   }
   inline int64_t read_s64b(uint32_t addr) const {
-    return this->read<be_int64_t>(addr);
+    return this->read<phosg::be_int64_t>(addr);
   }
   inline void write_s64b(uint32_t addr, int64_t value) {
-    this->write<be_int64_t>(addr, value);
+    this->write<phosg::be_int64_t>(addr, value);
   }
   inline int64_t read_s64l(uint32_t addr) const {
-    return this->read<le_int64_t>(addr);
+    return this->read<phosg::le_int64_t>(addr);
   }
   inline void write_s64l(uint32_t addr, int64_t value) {
-    this->write<le_int64_t>(addr, value);
+    this->write<phosg::le_int64_t>(addr, value);
   }
   inline uint64_t read_u64b(uint32_t addr) const {
-    return this->read<be_uint64_t>(addr);
+    return this->read<phosg::be_uint64_t>(addr);
   }
   inline void write_u64b(uint32_t addr, uint64_t value) {
-    this->write<be_uint64_t>(addr, value);
+    this->write<phosg::be_uint64_t>(addr, value);
   }
   inline uint64_t read_u64l(uint32_t addr) const {
-    return this->read<le_uint64_t>(addr);
+    return this->read<phosg::le_uint64_t>(addr);
   }
   inline void write_u64l(uint32_t addr, uint64_t value) {
-    this->write<le_uint64_t>(addr, value);
+    this->write<phosg::le_uint64_t>(addr, value);
   }
 
   inline float read_f32b(uint32_t addr) const {
-    return this->read<be_float>(addr);
+    return this->read<phosg::be_float>(addr);
   }
   inline void write_f32b(uint32_t addr, float value) {
-    this->write<be_float>(addr, value);
+    this->write<phosg::be_float>(addr, value);
   }
   inline float read_f32l(uint32_t addr) const {
-    return this->read<le_float>(addr);
+    return this->read<phosg::le_float>(addr);
   }
   inline void write_f32l(uint32_t addr, float value) {
-    this->write<le_float>(addr, value);
+    this->write<phosg::le_float>(addr, value);
   }
   inline double read_f64b(uint32_t addr) const {
-    return this->read<be_double>(addr);
+    return this->read<phosg::be_double>(addr);
   }
   inline void write_f64b(uint32_t addr, double value) {
-    this->write<be_double>(addr, value);
+    this->write<phosg::be_double>(addr, value);
   }
   inline double read_f64l(uint32_t addr) const {
-    return this->read<le_double>(addr);
+    return this->read<phosg::le_double>(addr);
   }
   inline void write_f64l(uint32_t addr, double value) {
-    this->write<le_double>(addr, value);
+    this->write<phosg::le_double>(addr, value);
   }
 
   inline std::string read_cstring(uint32_t addr) {

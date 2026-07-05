@@ -22,9 +22,6 @@
 #include "IndexFormats/Formats.hh"
 #include "ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 RealmzSaveData::RealmzSaveData(RealmzScenarioData& scen, const std::string& save_dir)
@@ -53,7 +50,7 @@ std::vector<RealmzSaveData::LandLevelState> RealmzSaveData::load_land_level_stat
   return ret;
 }
 
-ImageRGB888 RealmzSaveData::generate_land_map(
+phosg::ImageRGB888 RealmzSaveData::generate_land_map(
     int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) const {
   const auto& level_state = this->land_level_states.at(level_num);
   RealmzScenarioData::MapMetadata meta = level_state.metadata.parse();
@@ -77,7 +74,7 @@ ImageRGB888 RealmzSaveData::generate_land_map(
       &level_state.los_revealed[0][0]);
 }
 
-ImageRGB888 RealmzSaveData::generate_dungeon_map(
+phosg::ImageRGB888 RealmzSaveData::generate_dungeon_map(
     int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) const {
   const auto& level_state = this->dungeon_level_states.at(level_num);
   RealmzScenarioData::MapMetadata meta = level_state.metadata.parse();
@@ -85,9 +82,9 @@ ImageRGB888 RealmzSaveData::generate_dungeon_map(
       level_num, x0, y0, w, h, show_random_rects, true, &level_state.map, &meta, level_state.aps);
 }
 
-ImageRGB888 RealmzSaveData::generate_layout_map(
+phosg::ImageRGB888 RealmzSaveData::generate_layout_map(
     const RealmzScenarioData::LandLayout& l, bool show_random_rects) const {
-  auto generate_level_map = [this](int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) -> ImageRGB888 {
+  auto generate_level_map = [this](int16_t level_num, uint8_t x0, uint8_t y0, uint8_t w, uint8_t h, bool show_random_rects) -> phosg::ImageRGB888 {
     return this->generate_land_map(level_num, x0, y0, w, h, show_random_rects);
   };
   return this->scenario.generate_layout_map(l, show_random_rects, generate_level_map);
@@ -144,7 +141,7 @@ std::string RealmzSaveData::disassemble_game_state() const {
     try {
       const auto& strs = this->scenario.strings_for_item(item.id);
       tokens.emplace_back(strs.display_name());
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       tokens.emplace_back("(missing)");
     }
     if (item.is_equipped) {
@@ -253,7 +250,7 @@ std::string RealmzSaveData::disassemble_game_state() const {
         try {
           const auto& strs = this->scenario.strings_for_item(v);
           return std::format("[{}] = {} ({})", z, v, strs.display_name());
-        } catch (const out_of_range&) {
+        } catch (const std::out_of_range&) {
           return std::format("[{}] = {} (missing)", z, v);
         }
       }));
@@ -285,7 +282,7 @@ std::string RealmzSaveData::disassemble_game_state() const {
         }
         try {
           return std::format("({}) {} x{}", spell_number, this->scenario.name_for_spell(spell_number), v.power_level);
-        } catch (const out_of_range&) {
+        } catch (const std::out_of_range&) {
           return std::format("({}) (missing) x{}", spell_number, v.power_level);
         }
       }));
@@ -341,7 +338,7 @@ std::string RealmzSaveData::disassemble_game_state() const {
         }
         try {
           return std::format("({}) {} x{}", spell_number, this->scenario.name_for_spell(spell_number), v.power_level);
-        } catch (const out_of_range&) {
+        } catch (const std::out_of_range&) {
           return std::format("({}) (missing) x{}", spell_number, v.power_level);
         }
       }));
@@ -480,7 +477,7 @@ std::string RealmzSaveData::disassemble_game_state() const {
       }
       try {
         return std::format("({}) {} x{}", spell_number, this->scenario.name_for_spell(spell_number), v.power_level);
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
         return std::format("({}) (missing) x{}", spell_number, v.power_level);
       }
     }));

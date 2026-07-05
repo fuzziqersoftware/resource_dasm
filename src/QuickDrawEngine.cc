@@ -23,19 +23,14 @@
 #include "QuickDrawFormats.hh"
 #include "TextCodecs.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-pict_contains_undecodable_quicktime::pict_contains_undecodable_quicktime(
-    string&& ext, string&& data)
-    : extension(std::move(ext)),
-      data(std::move(data)) {}
+pict_contains_undecodable_quicktime::pict_contains_undecodable_quicktime(std::string&& ext, std::string&& data)
+    : extension(std::move(ext)), data(std::move(data)) {}
 
 QuickDrawPortInterface::~QuickDrawPortInterface() {}
 
-static const ColorTable& get_color_table(StringReader& r) {
+static const ColorTable& get_color_table(phosg::StringReader& r) {
   size_t s = r.get<ColorTable>(false).size();
   return r.get<ColorTable>(true, s);
 }
@@ -58,7 +53,7 @@ FontHandler QuickDrawEngine::get_default_font_handler() {
   return default_font_handler;
 }
 
-pair<Pattern, ImageRGB888> QuickDrawEngine::pict_read_pixel_pattern(StringReader& r) {
+std::pair<Pattern, phosg::ImageRGB888> QuickDrawEngine::pict_read_pixel_pattern(phosg::StringReader& r) {
   uint16_t type = r.get_u16b();
   Pattern monochrome_pattern = r.get<Pattern>();
 
@@ -69,136 +64,136 @@ pair<Pattern, ImageRGB888> QuickDrawEngine::pict_read_pixel_pattern(StringReader
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
     const auto& pixel_map = r.get<PixelMapData>(true, header.bounds.height() * row_bytes);
 
-    return make_pair(std::move(monochrome_pattern), decode_color_image(header, pixel_map, &ctable));
+    return std::make_pair(std::move(monochrome_pattern), decode_color_image(header, pixel_map, &ctable));
 
   } else if (type == 2) { // dither pattern
     r.get<Color>();
     // TODO: figure out how dither patterns work
-    throw runtime_error("dither patterns are not supported");
+    throw std::runtime_error("dither patterns are not supported");
 
   } else {
-    throw runtime_error("unknown pattern type");
+    throw std::runtime_error("unknown pattern type");
   }
 }
 
-void QuickDrawEngine::pict_skip_0(StringReader&, uint16_t) {}
+void QuickDrawEngine::pict_skip_0(phosg::StringReader&, uint16_t) {}
 
-void QuickDrawEngine::pict_skip_2(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_skip_2(phosg::StringReader& r, uint16_t) {
   r.skip(2);
 }
-void QuickDrawEngine::pict_skip_8(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_skip_8(phosg::StringReader& r, uint16_t) {
   r.skip(8);
 }
 
-void QuickDrawEngine::pict_skip_12(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_skip_12(phosg::StringReader& r, uint16_t) {
   r.skip(12);
 }
 
-void QuickDrawEngine::pict_skip_var16(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_skip_var16(phosg::StringReader& r, uint16_t) {
   r.skip(r.get_u16b());
 }
 
-void QuickDrawEngine::pict_skip_var32(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_skip_var32(phosg::StringReader& r, uint16_t) {
   r.skip(r.get_u32b());
 }
 
-void QuickDrawEngine::pict_skip_long_comment(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_skip_long_comment(phosg::StringReader& r, uint16_t) {
   r.skip(2); // type (unused)
   r.skip(r.get_u16b());
 }
 
-void QuickDrawEngine::pict_unimplemented_opcode(StringReader& r, uint16_t opcode) {
-  throw runtime_error(std::format("unimplemented opcode {:04X} before offset {:X}",
+void QuickDrawEngine::pict_unimplemented_opcode(phosg::StringReader& r, uint16_t opcode) {
+  throw std::runtime_error(std::format("unimplemented opcode {:04X} before offset {:X}",
       opcode, r.where()));
 }
 
 // State modification opcodes
 
-void QuickDrawEngine::pict_set_clipping_region(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_clipping_region(phosg::StringReader& r, uint16_t) {
   Region rgn(r);
   this->port->set_clip_region(std::move(rgn));
 }
 
-void QuickDrawEngine::pict_set_font_number(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_font_number(phosg::StringReader& r, uint16_t) {
   this->port->set_text_font(r.get_u16b());
 }
 
-void QuickDrawEngine::pict_set_font_style_flags(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_font_style_flags(phosg::StringReader& r, uint16_t) {
   this->port->set_text_style(r.get_u8());
 }
 
-void QuickDrawEngine::pict_set_text_source_mode(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_text_source_mode(phosg::StringReader& r, uint16_t) {
   this->port->set_text_mode(r.get_u16b());
 }
 
-void QuickDrawEngine::pict_set_text_extra_space(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_text_extra_space(phosg::StringReader& r, uint16_t) {
   this->port->set_extra_space_space(r.get<Fixed>());
 }
 
-void QuickDrawEngine::pict_set_text_nonspace_extra_width(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_text_nonspace_extra_width(phosg::StringReader& r, uint16_t) {
   this->port->set_extra_space_nonspace(r.get_u16b());
 }
 
-void QuickDrawEngine::pict_set_font_number_and_name(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_font_number_and_name(phosg::StringReader& r, uint16_t) {
   uint16_t data_size = r.get_u16b();
   this->port->set_text_font(r.get_u16b());
   uint8_t font_name_bytes = r.get_u8();
   if (font_name_bytes != data_size - 3) {
-    throw runtime_error("font name length does not align with command data length");
+    throw std::runtime_error("font name length does not align with command data length");
   }
   // Skip the font name string
   r.go(r.where() + font_name_bytes);
 }
 
-void QuickDrawEngine::pict_set_pen_size(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_pen_size(phosg::StringReader& r, uint16_t) {
   this->port->set_pen_size(r.get<Point>());
 }
 
-void QuickDrawEngine::pict_set_pen_mode(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_pen_mode(phosg::StringReader& r, uint16_t) {
   this->port->set_pen_mode(r.get_u16b());
 }
 
-void QuickDrawEngine::pict_set_background_pattern(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_background_pattern(phosg::StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_background_mono_pattern(p);
-  this->port->set_background_pixel_pattern(ImageRGB888());
+  this->port->set_background_pixel_pattern(phosg::ImageRGB888());
 }
 
-void QuickDrawEngine::pict_set_pen_pattern(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_pen_pattern(phosg::StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_pen_mono_pattern(p);
-  this->port->set_pen_pixel_pattern(ImageRGB888());
+  this->port->set_pen_pixel_pattern(phosg::ImageRGB888());
 }
 
-void QuickDrawEngine::pict_set_fill_pattern(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_fill_pattern(phosg::StringReader& r, uint16_t) {
   Pattern p = r.get<Pattern>();
   this->port->set_fill_mono_pattern(p);
-  this->port->set_fill_pixel_pattern(ImageRGB888());
+  this->port->set_fill_pixel_pattern(phosg::ImageRGB888());
 }
 
-void QuickDrawEngine::pict_set_background_pixel_pattern(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_background_pixel_pattern(phosg::StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_background_mono_pattern(p.first);
   this->port->set_background_pixel_pattern(std::move(p.second));
 }
 
-void QuickDrawEngine::pict_set_pen_pixel_pattern(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_pen_pixel_pattern(phosg::StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_pen_mono_pattern(p.first);
   this->port->set_pen_pixel_pattern(std::move(p.second));
 }
 
-void QuickDrawEngine::pict_set_fill_pixel_pattern(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_fill_pixel_pattern(phosg::StringReader& r, uint16_t) {
   auto p = this->pict_read_pixel_pattern(r);
   this->port->set_fill_mono_pattern(p.first);
   this->port->set_fill_pixel_pattern(std::move(p.second));
 }
 
-void QuickDrawEngine::pict_set_oval_size(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_oval_size(phosg::StringReader& r, uint16_t) {
   this->pict_oval_size = r.get<Point>();
 }
 
-void QuickDrawEngine::pict_set_origin_dh_dv(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_origin_dh_dv(phosg::StringReader& r, uint16_t) {
   int16_t dh = r.get_s16b();
   int16_t dv = r.get_s16b();
   this->pict_bounds.x1 += dh;
@@ -209,16 +204,16 @@ void QuickDrawEngine::pict_set_origin_dh_dv(StringReader& r, uint16_t) {
   this->pict_origin.y += dv;
 }
 
-void QuickDrawEngine::pict_set_text_ratio(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_text_ratio(phosg::StringReader& r, uint16_t) {
   this->pict_text_ratio_numerator = r.get<Point>();
   this->pict_text_ratio_denominator = r.get<Point>();
 }
 
-void QuickDrawEngine::pict_set_text_size(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_text_size(phosg::StringReader& r, uint16_t) {
   this->port->set_text_size(r.get_u16b());
 }
 
-void QuickDrawEngine::pict_set_foreground_color32(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_foreground_color32(phosg::StringReader& r, uint16_t) {
   uint32_t color = r.get_u32b();
   Color c(
       ((color >> 8) & 0xFF00) | ((color >> 16) & 0x00FF),
@@ -227,7 +222,7 @@ void QuickDrawEngine::pict_set_foreground_color32(StringReader& r, uint16_t) {
   this->port->set_foreground_color(c);
 }
 
-void QuickDrawEngine::pict_set_background_color32(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_background_color32(phosg::StringReader& r, uint16_t) {
   uint32_t color = r.get_u32b();
   Color c(
       ((color >> 8) & 0xFF00) | ((color >> 16) & 0x00FF),
@@ -236,43 +231,43 @@ void QuickDrawEngine::pict_set_background_color32(StringReader& r, uint16_t) {
   this->port->set_background_color(c);
 }
 
-void QuickDrawEngine::pict_set_version(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_version(phosg::StringReader& r, uint16_t) {
   this->pict_version = r.get_u8();
   if (this->pict_version != 1 && this->pict_version != 2) {
-    throw runtime_error("version is not 1 or 2");
+    throw std::runtime_error("version is not 1 or 2");
   }
   if ((this->pict_version == 2) && (r.get_u8() != 0xFF)) {
-    throw runtime_error("version 2 picture is not version 02FF");
+    throw std::runtime_error("version 2 picture is not version 02FF");
   }
 }
 
-void QuickDrawEngine::pict_set_highlight_mode_flag(StringReader&, uint16_t) {
+void QuickDrawEngine::pict_set_highlight_mode_flag(phosg::StringReader&, uint16_t) {
   this->pict_highlight_flag = true;
 }
 
-void QuickDrawEngine::pict_set_highlight_color(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_highlight_color(phosg::StringReader& r, uint16_t) {
   this->port->set_highlight_color(r.get<Color>());
 }
 
-void QuickDrawEngine::pict_set_foreground_color(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_foreground_color(phosg::StringReader& r, uint16_t) {
   this->port->set_foreground_color(r.get<Color>());
 }
 
-void QuickDrawEngine::pict_set_background_color(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_background_color(phosg::StringReader& r, uint16_t) {
   this->port->set_background_color(r.get<Color>());
 }
 
-void QuickDrawEngine::pict_set_op_color(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_set_op_color(phosg::StringReader& r, uint16_t) {
   this->port->set_op_color(r.get<Color>());
 }
 
-void QuickDrawEngine::pict_set_default_highlight_color(StringReader&, uint16_t) {
+void QuickDrawEngine::pict_set_default_highlight_color(phosg::StringReader&, uint16_t) {
   this->port->set_highlight_color(this->default_highlight_color);
 }
 
 // Simple shape opcodes
 
-void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, const ImageRGB888& pixel_pat) {
+void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, const phosg::ImageRGB888& pixel_pat) {
   bool use_pixel_pat = !!(pixel_pat.get_width() && pixel_pat.get_height());
   auto clip_rgn_it = this->port->get_clip_region().iterate(this->pict_last_rect);
   for (ssize_t y = this->pict_last_rect.y1; y < this->pict_last_rect.y2; y++) {
@@ -294,28 +289,28 @@ void QuickDrawEngine::pict_fill_current_rect_with_pattern(const Pattern& pat, co
   }
 }
 
-void QuickDrawEngine::pict_erase_last_rect(StringReader&, uint16_t) {
+void QuickDrawEngine::pict_erase_last_rect(phosg::StringReader&, uint16_t) {
   this->pict_fill_current_rect_with_pattern(this->port->get_background_mono_pattern(),
       this->port->get_background_pixel_pattern());
 }
 
-void QuickDrawEngine::pict_erase_rect(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_erase_rect(phosg::StringReader& r, uint16_t) {
   this->pict_last_rect = r.get<Rect>();
   this->pict_fill_current_rect_with_pattern(this->port->get_background_mono_pattern(),
       this->port->get_background_pixel_pattern());
 }
 
-void QuickDrawEngine::pict_fill_last_rect(StringReader&, uint16_t) {
+void QuickDrawEngine::pict_fill_last_rect(phosg::StringReader&, uint16_t) {
   this->pict_fill_current_rect_with_pattern(this->port->get_fill_mono_pattern(),
       this->port->get_fill_pixel_pattern());
 }
 
-void QuickDrawEngine::pict_fill_rect(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_fill_rect(phosg::StringReader& r, uint16_t opcode) {
   this->pict_last_rect = r.get<Rect>();
   this->pict_fill_last_rect(r, opcode);
 }
 
-void QuickDrawEngine::pict_fill_last_oval(StringReader&, uint16_t) {
+void QuickDrawEngine::pict_fill_last_oval(phosg::StringReader&, uint16_t) {
   double x_center = static_cast<double>(this->pict_last_rect.x2 + this->pict_last_rect.x1) / 2.0;
   double y_center = static_cast<double>(this->pict_last_rect.y2 + this->pict_last_rect.y1) / 2.0;
   double width = this->pict_last_rect.x2 - this->pict_last_rect.x1;
@@ -341,7 +336,7 @@ void QuickDrawEngine::pict_fill_last_oval(StringReader&, uint16_t) {
   }
 }
 
-void QuickDrawEngine::pict_fill_oval(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_fill_oval(phosg::StringReader& r, uint16_t opcode) {
   this->pict_last_rect = r.get<Rect>();
   this->pict_fill_last_oval(r, opcode);
 }
@@ -373,12 +368,10 @@ void QuickDrawEngine::pict_draw_line(Point start, Point end) {
       for (int16_t px = 0; px < pen_size.x; px++) {
         ssize_t draw_x = x0 + px - this->pict_bounds.x1;
         ssize_t draw_y = y0 + py - this->pict_bounds.y1;
-        if (this->port->get_bounds().contains(draw_x, draw_y) &&
-            clip_rect.contains(x0 + px, y0 + py)) {
+        if (this->port->get_bounds().contains(draw_x, draw_y) && clip_rect.contains(x0 + px, y0 + py)) {
           uint32_t color;
           if (use_pixel_pat) {
-            color = pen_pixel_pat.read((x0 + px) % pen_pixel_pat.get_width(),
-                (y0 + py) % pen_pixel_pat.get_height());
+            color = pen_pixel_pat.read((x0 + px) % pen_pixel_pat.get_width(), (y0 + py) % pen_pixel_pat.get_height());
           } else {
             color = pen_pat.pixel_at(draw_x, draw_y)
                 ? this->port->get_foreground_color().rgba8888()
@@ -407,19 +400,19 @@ void QuickDrawEngine::pict_draw_line(Point start, Point end) {
   this->port->set_pen_loc(end);
 }
 
-void QuickDrawEngine::pict_line(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_line(phosg::StringReader& r, uint16_t) {
   Point start = r.get<Point>();
   Point end = r.get<Point>();
   this->pict_draw_line(start, end);
 }
 
-void QuickDrawEngine::pict_line_from(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_line_from(phosg::StringReader& r, uint16_t) {
   Point start = this->port->get_pen_loc();
   Point end = r.get<Point>();
   this->pict_draw_line(start, end);
 }
 
-void QuickDrawEngine::pict_short_line(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_short_line(phosg::StringReader& r, uint16_t) {
   Point start = r.get<Point>();
   int8_t dh = r.get_s8();
   int8_t dv = r.get_s8();
@@ -429,7 +422,7 @@ void QuickDrawEngine::pict_short_line(StringReader& r, uint16_t) {
   this->pict_draw_line(start, end);
 }
 
-void QuickDrawEngine::pict_short_line_from(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_short_line_from(phosg::StringReader& r, uint16_t) {
   Point start = this->port->get_pen_loc();
   int8_t dh = r.get_s8();
   int8_t dv = r.get_s8();
@@ -441,9 +434,9 @@ void QuickDrawEngine::pict_short_line_from(StringReader& r, uint16_t) {
 
 // Frame and paint rect opcodes
 
-void QuickDrawEngine::pict_frame_last_rect(StringReader&, uint16_t) {
-  // Frame rect draws the outline using pen pattern and pen size
-  // Draw top edge
+void QuickDrawEngine::pict_frame_last_rect(phosg::StringReader&, uint16_t) {
+  // Draw the outline using pen pattern and pen size
+
   Point top_left, top_right, bottom_left, bottom_right;
   top_left.x = this->pict_last_rect.x1;
   top_left.y = this->pict_last_rect.y1;
@@ -460,25 +453,24 @@ void QuickDrawEngine::pict_frame_last_rect(StringReader&, uint16_t) {
   this->pict_draw_line(bottom_left, top_left);
 }
 
-void QuickDrawEngine::pict_frame_rect(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_frame_rect(phosg::StringReader& r, uint16_t opcode) {
   this->pict_last_rect = r.get<Rect>();
   this->pict_frame_last_rect(r, opcode);
 }
 
-void QuickDrawEngine::pict_paint_last_rect(StringReader&, uint16_t) {
-  // Paint rect fills using pen pattern instead of fill pattern
-  this->pict_fill_current_rect_with_pattern(this->port->get_pen_mono_pattern(),
-      this->port->get_pen_pixel_pattern());
+void QuickDrawEngine::pict_paint_last_rect(phosg::StringReader&, uint16_t) {
+  // Fill using pen pattern instead of fill pattern
+  this->pict_fill_current_rect_with_pattern(this->port->get_pen_mono_pattern(), this->port->get_pen_pixel_pattern());
 }
 
-void QuickDrawEngine::pict_paint_rect(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_paint_rect(phosg::StringReader& r, uint16_t opcode) {
   this->pict_last_rect = r.get<Rect>();
   this->pict_paint_last_rect(r, opcode);
 }
 
 // Text opcodes
 
-void QuickDrawEngine::pict_render_text(const string& text) {
+void QuickDrawEngine::pict_render_text(const std::string& text) {
   int16_t font_id = this->port->get_text_font();
   int16_t text_size = this->port->get_text_size();
   uint8_t text_style = this->port->get_text_style();
@@ -487,7 +479,7 @@ void QuickDrawEngine::pict_render_text(const string& text) {
   auto& handler = this->font_handler ? this->font_handler : default_font_handler;
   auto font = handler ? handler(font_id, font_name, text_size, text_style) : nullptr;
   if (!font) {
-    throw runtime_error(std::format("font {} ({}) size {} style {} not available",
+    throw std::runtime_error(std::format("font {} ({}) size {} style {} not available",
         font_id, font_name ? font_name : "unknown", text_size, text_style));
   }
 
@@ -520,49 +512,41 @@ void QuickDrawEngine::pict_render_text(const string& text) {
   this->port->set_pen_loc(loc);
 }
 
-void QuickDrawEngine::pict_long_text(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_long_text(phosg::StringReader& r, uint16_t) {
   Point loc = r.get<Point>();
   this->port->set_pen_loc(loc);
   this->pict_text_origin = loc;
-  uint8_t count = r.get_u8();
-  string text = r.read(count);
-  this->pict_render_text(text);
+  this->pict_render_text(r.read(r.get_u8()));
 }
 
-void QuickDrawEngine::pict_dh_text(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_dh_text(phosg::StringReader& r, uint16_t) {
   Point loc = this->port->get_pen_loc();
   loc.x += r.get_u8();
   this->port->set_pen_loc(loc);
-  uint8_t count = r.get_u8();
-  string text = r.read(count);
-  this->pict_render_text(text);
+  this->pict_render_text(r.read(r.get_u8()));
 }
 
-void QuickDrawEngine::pict_dv_text(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_dv_text(phosg::StringReader& r, uint16_t) {
   Point loc = this->port->get_pen_loc();
   loc.x = this->pict_text_origin.x;
   loc.y += r.get_u8();
   this->port->set_pen_loc(loc);
-  uint8_t count = r.get_u8();
-  string text = r.read(count);
-  this->pict_render_text(text);
+  this->pict_render_text(r.read(r.get_u8()));
 }
 
-void QuickDrawEngine::pict_dh_dv_text(StringReader& r, uint16_t) {
+void QuickDrawEngine::pict_dh_dv_text(phosg::StringReader& r, uint16_t) {
   Point loc = this->port->get_pen_loc();
   loc.x += r.get_u8();
   loc.y += r.get_u8();
   this->port->set_pen_loc(loc);
-  uint8_t count = r.get_u8();
-  string text = r.read(count);
-  this->pict_render_text(text);
+  this->pict_render_text(r.read(r.get_u8()));
 }
 
 // Bits opcodes
 
-string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
+std::string QuickDrawEngine::unpack_bits(phosg::StringReader& r, size_t row_count,
     uint16_t row_bytes, bool sizes_are_words, bool chunks_are_words) {
-  string ret;
+  std::string ret;
   size_t expected_size = row_bytes * row_count;
   ret.reserve(expected_size);
 
@@ -589,36 +573,37 @@ string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
       }
     }
     if (ret.size() != static_cast<size_t>(row_bytes * (y + 1))) {
-      throw runtime_error(std::format("packed data size is incorrect on row {} at offset {:X} (expected {:X}, have {:X})",
+      throw std::runtime_error(std::format(
+          "packed data size is incorrect on row {} at offset {:X} (expected {:X}, have {:X})",
           y, r.where(), row_bytes * (y + 1), ret.size()));
     }
   }
   if (row_bytes * row_count != ret.size()) {
-    throw runtime_error(std::format("unpacked data size is incorrect (expected {:X}, have {:X})",
+    throw std::runtime_error(std::format("unpacked data size is incorrect (expected {:X}, have {:X})",
         row_bytes * row_count, ret.size()));
   }
   return ret;
 }
 
-string QuickDrawEngine::unpack_bits(StringReader& r, size_t row_count,
+std::string QuickDrawEngine::unpack_bits(phosg::StringReader& r, size_t row_count,
     uint16_t row_bytes, bool chunks_are_words) {
   size_t start_offset = r.where();
-  string failure_strs[2];
+  std::string failure_strs[2];
   for (size_t x = 0; x < 2; x++) {
     try {
       // If row_bytes > 250, word sizes are most likely to be correct, so try
       // that first
       return unpack_bits(r, row_count, row_bytes, x ^ (row_bytes > 250), chunks_are_words);
-    } catch (const exception& e) {
+    } catch (const std::exception& e) {
       failure_strs[x ^ (row_bytes > 250)] = e.what();
       r.go(start_offset);
     }
   }
-  throw runtime_error(std::format("failed to unpack data with either byte sizes ({}) or word sizes ({})",
+  throw std::runtime_error(std::format("failed to unpack data with either byte sizes ({}) or word sizes ({})",
       failure_strs[0], failure_strs[1]));
 }
 
-void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_copy_bits_indexed_color(phosg::StringReader& r, uint16_t opcode) {
   bool is_packed = opcode & 0x08;
   bool has_mask_region = opcode & 0x01;
 
@@ -626,11 +611,10 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
   Rect source_rect;
   Rect dest_rect;
   uint16_t mode __attribute__((unused));
-  shared_ptr<Region> mask_region;
-  ImageRGB888 source_image(0, 0);
+  std::shared_ptr<Region> mask_region;
+  phosg::ImageRGB888 source_image(0, 0);
 
-  // TODO: should we support pixmaps in v1? Currently we do, but I don't know if
-  // this is technically correct behavior
+  // TODO: should we support pixmaps in v1? Currently we do, but I don't know if this is technically correct behavior
   bool is_pixmap = r.get_u8(false) & 0x80;
   if (is_pixmap) {
     const auto& header = r.get<PixelMapHeader>();
@@ -643,17 +627,18 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     // TODO: transfer mode, e.g. srcCopy, srcOr, blend (see Imaging with Quickdraw, page 4-38)
     /* uint16_t mode = */ r.get_u16b();
 
-    if ((source_rect.width() != dest_rect.width()) ||
-        (source_rect.height() != dest_rect.height())) {
-      throw runtime_error("source and destination rect dimensions do not match");
+    if ((source_rect.width() != dest_rect.width()) || (source_rect.height() != dest_rect.height())) {
+      throw std::runtime_error("source and destination rect dimensions do not match");
     }
 
     if (has_mask_region) {
-      mask_region = make_shared<Region>(r);
+      mask_region = std::make_shared<Region>(r);
     }
 
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
-    string data = is_packed ? unpack_bits(r, header.bounds.height(), row_bytes, header.pixel_size == 0x10) : r.read(header.bounds.height() * row_bytes);
+    std::string data = is_packed
+        ? unpack_bits(r, header.bounds.height(), row_bytes, header.pixel_size == 0x10)
+        : r.read(header.bounds.height() * row_bytes);
     const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
 
     source_image = decode_color_image(header, *pixel_map, &ctable);
@@ -662,13 +647,12 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     const auto& args = r.get<PictCopyBitsMonochromeArgs>();
 
     if (!args.header.bounds.contains(args.source_rect)) {
-      string source_s = args.source_rect.str();
-      string bounds_s = args.header.bounds.str();
-      throw runtime_error(std::format("source {} is not within bounds {}", source_s, bounds_s));
+      throw std::runtime_error(std::format("source {} is not within bounds {}",
+          args.source_rect.str(), args.header.bounds.str()));
     }
     if ((args.source_rect.width() != args.dest_rect.width()) ||
         (args.source_rect.height() != args.dest_rect.height())) {
-      throw runtime_error("source and destination rect dimensions do not match");
+      throw std::runtime_error("source and destination rect dimensions do not match");
     }
     bounds = args.header.bounds;
     source_rect = args.source_rect;
@@ -676,12 +660,14 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
     mode = args.mode;
 
     if (has_mask_region) {
-      mask_region = make_shared<Region>(r);
+      mask_region = std::make_shared<Region>(r);
     }
 
-    string data = is_packed ? unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false) : r.read(args.header.bounds.height() * args.header.flags_row_bytes);
-    auto mono_source_image = decode_monochrome_image(data.data(), data.size(),
-        args.header.bounds.width(), args.header.bounds.height(),
+    std::string data = is_packed
+        ? unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false)
+        : r.read(args.header.bounds.height() * args.header.flags_row_bytes);
+    auto mono_source_image = decode_monochrome_image(
+        data.data(), data.size(), args.header.bounds.width(), args.header.bounds.height(),
         args.header.flags_row_bytes);
     source_image = mono_source_image.convert_monochrome_to_color(0xFFFFFFFF, 0x000000FF);
   }
@@ -699,18 +685,17 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(StringReader& r, uint16_t opc
       dest_rect.y1);
 }
 
-void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_packed_copy_bits_direct_color(phosg::StringReader& r, uint16_t opcode) {
   bool has_mask_region = opcode & 0x01;
 
   const auto& args = r.get<PictPackedCopyBitsDirectColorArgs>();
 
   if (!args.header.bounds.contains(args.source_rect)) {
-    string source_s = args.source_rect.str();
-    string bounds_s = args.header.bounds.str();
-    throw runtime_error(std::format("source {} is not within bounds {}", source_s, bounds_s));
+    throw std::runtime_error(std::format("source {} is not within bounds {}",
+        args.source_rect.str(), args.header.bounds.str()));
   }
   if ((args.source_rect.width() != args.dest_rect.width()) || (args.source_rect.height() != args.dest_rect.height())) {
-    throw runtime_error("source and destination rect dimensions do not match");
+    throw std::runtime_error("source and destination rect dimensions do not match");
   }
 
   auto mask_region = has_mask_region ? Region(r) : Region(args.dest_rect);
@@ -719,19 +704,19 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
   if (args.header.component_size == 8) {
     bytes_per_pixel = args.header.component_count;
     if ((args.header.component_count != 3) && (args.header.component_count != 4)) {
-      throw runtime_error("for 8-bit channels, image must have 3 or 4 components");
+      throw std::runtime_error("for 8-bit channels, image must have 3 or 4 components");
     }
   } else if (args.header.component_size == 5) {
     // Round up to the next byte boundary
     bytes_per_pixel = ((args.header.component_count * 5) + 7) / 8;
     if (args.header.component_count != 3) {
-      throw runtime_error("for 5-bit channels, image must have 3 components");
+      throw std::runtime_error("for 5-bit channels, image must have 3 components");
     }
   } else {
-    throw runtime_error("only 8-bit and 5-bit channels are supported");
+    throw std::runtime_error("only 8-bit and 5-bit channels are supported");
   }
   size_t row_bytes = args.header.bounds.width() * bytes_per_pixel;
-  string data = unpack_bits(r, args.header.bounds.height(), row_bytes, args.header.pixel_size == 0x10);
+  std::string data = unpack_bits(r, args.header.bounds.height(), row_bytes, args.header.pixel_size == 0x10);
 
   auto clip_region_it = this->port->get_clip_region().iterate(args.dest_rect);
   // TODO: The mask region is in dest-space, right?
@@ -744,22 +729,22 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
       if (this->port->get_bounds().contains(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1) && clip_region_it.check() && mask_region_it.check()) {
         uint32_t color;
         if ((args.header.component_size == 8) && (args.header.component_count == 3)) {
-          color = rgba8888(
+          color = phosg::rgba8888(
               data[row_offset + x],
               data[row_offset + (row_bytes / 3) + x],
               data[row_offset + (2 * row_bytes / 3) + x]);
 
         } else if ((args.header.component_size == 8) && (args.header.component_count == 4)) {
           // The first component is ignored
-          color = rgba8888(
+          color = phosg::rgba8888(
               data[row_offset + (row_bytes / 4) + x],
               data[row_offset + (2 * row_bytes / 4) + x],
               data[row_offset + (3 * row_bytes / 4) + x]);
 
         } else if (args.header.component_size == 5) { // xrgb1555
-          color = rgba8888_for_xrgb1555(*reinterpret_cast<const be_uint16_t*>(&data[row_offset + 2 * x]));
+          color = phosg::rgba8888_for_xrgb1555(*reinterpret_cast<const phosg::be_uint16_t*>(&data[row_offset + 2 * x]));
         } else {
-          throw logic_error("unimplemented channel width");
+          throw std::logic_error("unimplemented channel width");
         }
         this->port->write(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1, color);
       }
@@ -775,12 +760,10 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(StringReader& r, uint16
 
 // QuickTime embedded file support
 
-ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
-    const PictQuickTimeImageDescription& desc,
-    const vector<ColorTableEntry>& clut,
-    const string& data) {
+phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
+    const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, const std::string& data) {
   if (data.size() < 4) {
-    throw runtime_error("smc-encoded image too small for header");
+    throw std::runtime_error("smc-encoded image too small for header");
   }
 
   uint8_t color_index_cache2[0x100][2];
@@ -790,20 +773,20 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
   uint8_t color_index_cache8[0x100][8];
   uint8_t color_index_cache8_pos = 0;
 
-  StringReader r(data.data(), data.size());
+  phosg::StringReader r(data.data(), data.size());
   r.get_u8(); // Skip flags byte
   uint32_t encoded_size = r.get_u24b();
   if (encoded_size != data.size()) {
-    throw runtime_error("smc-encoded image has incorrect size header");
+    throw std::runtime_error("smc-encoded image has incorrect size header");
   }
 
-  ImageRGBA8888N ret(desc.width, desc.height, 0x00000000);
+  phosg::ImageRGBA8888N ret(desc.width, desc.height, 0x00000000);
   size_t prev_x2 = 0, prev_y2 = 0;
   size_t prev_x1 = 0, prev_y1 = 0;
   size_t x = 0, y = 0;
   auto advance_block = [&]() {
     if (y >= ret.get_height()) {
-      throw runtime_error("smc decoder advanced beyond end of output image");
+      throw std::runtime_error("smc decoder advanced beyond end of output image");
     }
     prev_x2 = prev_x1;
     prev_y2 = prev_y1;
@@ -819,15 +802,15 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
   auto write_color = [&](size_t x, size_t y, uint8_t color_index) {
     const auto& color_entry = clut.at(color_index);
     try {
-      ret.write(x, y, rgba8888(color_entry.c.r / 0x101, color_entry.c.g / 0x101, color_entry.c.b / 0x101));
-    } catch (const out_of_range&) {
+      ret.write(x, y, phosg::rgba8888(color_entry.c.r / 0x101, color_entry.c.g / 0x101, color_entry.c.b / 0x101));
+    } catch (const std::out_of_range&) {
     }
   };
 
   while (!r.eof()) {
     uint8_t opcode = r.get_u8();
     if ((opcode & 0xF0) == 0xF0) {
-      throw runtime_error("smc-encoded contains opcode 0xF0");
+      throw std::runtime_error("smc-encoded contains opcode 0xF0");
     }
     switch (opcode & 0xE0) {
       case 0x00: { // Skip blocks
@@ -883,14 +866,12 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
           uint8_t bottom_colors = r.get_u8();
           for (size_t yy = 0; yy < 2; yy++) {
             for (size_t xx = 0; xx < 4; xx++) {
-              write_color(x + xx, y + yy,
-                  color_indexes[!!(top_colors & (0x80 >> (yy * 4 + xx)))]);
+              write_color(x + xx, y + yy, color_indexes[!!(top_colors & (0x80 >> (yy * 4 + xx)))]);
             }
           }
           for (size_t yy = 0; yy < 2; yy++) {
             for (size_t xx = 0; xx < 4; xx++) {
-              write_color(x + xx, y + 2 + yy,
-                  color_indexes[!!(bottom_colors & (0x80 >> (yy * 4 + xx)))]);
+              write_color(x + xx, y + 2 + yy, color_indexes[!!(bottom_colors & (0x80 >> (yy * 4 + xx)))]);
             }
           }
           advance_block();
@@ -914,8 +895,7 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
           for (size_t yy = 0; yy < 4; yy++) {
             uint8_t row_colors = r.get_u8();
             for (size_t xx = 0; xx < 4; xx++) {
-              write_color(x + xx, y + yy,
-                  color_indexes[(row_colors >> (6 - (2 * xx))) & 0x03]);
+              write_color(x + xx, y + yy, color_indexes[(row_colors >> (6 - (2 * xx))) & 0x03]);
             }
           }
           advance_block();
@@ -950,8 +930,7 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
               ((block_colors >> 12) & 0x0000000000F0);
           for (size_t yy = 0; yy < 4; yy++) {
             for (size_t xx = 0; xx < 4; xx++) {
-              write_color(x + xx, y + yy,
-                  color_indexes[(block_colors >> (45 - (yy * 12) - (xx * 3))) & 0x07]);
+              write_color(x + xx, y + yy, color_indexes[(block_colors >> (45 - (yy * 12) - (xx * 3))) & 0x07]);
             }
           }
           advance_block();
@@ -977,25 +956,26 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
   return ret;
 }
 
-ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescription& desc, const string& data) {
+phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(
+    const PictQuickTimeImageDescription& desc, const std::string& data) {
   if (data.size() < 4) {
-    throw runtime_error("rpza-encoded image too small for header");
+    throw std::runtime_error("rpza-encoded image too small for header");
   }
 
-  StringReader r(data.data(), data.size());
+  phosg::StringReader r(data.data(), data.size());
   if (r.get_u8() != 0xE1) {
-    throw runtime_error("rpza-encoded image does not start with frame command");
+    throw std::runtime_error("rpza-encoded image does not start with frame command");
   }
   uint32_t encoded_size = r.get_u24b();
   if (encoded_size != data.size()) {
-    throw runtime_error("rpza-encoded image has incorrect size header");
+    throw std::runtime_error("rpza-encoded image has incorrect size header");
   }
 
-  ImageRGBA8888N ret(desc.width, desc.height, 0x00000000);
+  phosg::ImageRGBA8888N ret(desc.width, desc.height, 0x00000000);
   size_t x = 0, y = 0;
   auto advance_block = [&]() {
     if (y >= ret.get_height()) {
-      throw runtime_error("rpza decoder advanced beyond end of output image");
+      throw std::runtime_error("rpza decoder advanced beyond end of output image");
     }
     x += 4;
     if (x >= ret.get_width()) {
@@ -1006,8 +986,8 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescrip
 
   auto decode_four_color_blocks = [&](uint16_t color_a, uint16_t color_b, uint8_t num_blocks) {
     Color8 c[4];
-    c[3] = rgba8888_for_xrgb1555(color_a);
-    c[0] = rgba8888_for_xrgb1555(color_b);
+    c[3] = phosg::rgba8888_for_xrgb1555(color_a);
+    c[0] = phosg::rgba8888_for_xrgb1555(color_b);
     c[1] = {static_cast<uint8_t>((11 * c[3].r + 21 * c[0].r) / 32),
         static_cast<uint8_t>((11 * c[3].g + 21 * c[0].g) / 32),
         static_cast<uint8_t>((11 * c[3].b + 21 * c[0].b) / 32)};
@@ -1021,7 +1001,7 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescrip
           const Color8& color = c[(row_indexes >> (6 - (2 * xx))) & 3];
           try {
             ret.write(x + xx, y + yy, color.rgba8888());
-          } catch (const out_of_range&) {
+          } catch (const std::out_of_range&) {
           }
         }
       }
@@ -1040,7 +1020,7 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescrip
           }
           break;
         case 0x20: { // Single color
-          uint32_t color = rgba8888_for_xrgb1555(r.get_u16b());
+          uint32_t color = phosg::rgba8888_for_xrgb1555(r.get_u16b());
           for (uint8_t z = 0; z < block_count; z++) {
             ret.write_rect(x, y, 4, 4, color);
             advance_block();
@@ -1054,7 +1034,7 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescrip
           break;
         }
         case 0x60:
-          throw runtime_error("rpza-encoded image uses command 60");
+          throw std::runtime_error("rpza-encoded image uses command 60");
       }
     } else {
       uint16_t color_a = (static_cast<uint16_t>(opcode) << 8) | r.get_u8();
@@ -1065,7 +1045,7 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescrip
       } else { // 16 different colors
         for (size_t yy = 0; yy < 4; yy++) {
           for (size_t xx = 0; xx < 4; xx++) {
-            ret.write(x + xx, y + yy, rgba8888_for_xrgb1555((xx + yy == 0) ? color_a : r.get_u16b()));
+            ret.write(x + xx, y + yy, phosg::rgba8888_for_xrgb1555((xx + yy == 0) ? color_a : r.get_u16b()));
           }
         }
         advance_block();
@@ -1076,7 +1056,7 @@ ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(const PictQuickTimeImageDescrip
   return ret;
 }
 
-void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode) {
+void QuickDrawEngine::pict_write_quicktime_data(phosg::StringReader& r, uint16_t opcode) {
   bool is_compressed = !(opcode & 0x01);
 
   uint32_t matte_size;
@@ -1088,19 +1068,17 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     const auto& args = r.get<PictCompressedQuickTimeArgs>();
     matte_size = args.matte_size;
     if (args.mask_region_size) {
-      throw runtime_error("compressed QuickTime data includes a mask region");
+      throw std::runtime_error("compressed QuickTime data includes a mask region");
     }
   }
 
-  // TODO: In the future if we ever support matte images, we'll have to read the
-  // header data for them here. In both the compressed and uncompressed cases,
-  // these fields are present if matte_size != 0:
+  // TODO: In the future if we ever support matte images, we'll have to read the header data for them here. In both the
+  // compressed and uncompressed cases, these fields are present if matte_size != 0:
   // - matte_image_description
   // - matte_data
   if (matte_size) {
-    // The next header is always word-aligned, so if the matte image is an odd
-    // number of bytes, round up
-    fwrite_fmt(stderr, "warning: skipping matte image ({} bytes) from QuickTime data\n", matte_size);
+    // The next header is always word-aligned, so if the matte image is an odd number of bytes, round up
+    phosg::fwrite_fmt(stderr, "warning: skipping matte image ({} bytes) from QuickTime data\n", matte_size);
     r.go((r.where() + matte_size + 1) & ~1);
   }
 
@@ -1110,11 +1088,11 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     // Get the image description and check for unsupported fancy stuff
     const auto& desc = r.get<PictQuickTimeImageDescription>();
     if (desc.frame_count != 1) {
-      throw runtime_error("compressed QuickTime data includes zero or multiple frames");
+      throw std::runtime_error("compressed QuickTime data includes zero or multiple frames");
     }
 
     // If clut_id == 0, a struct color_table immediately follows
-    vector<ColorTableEntry> clut;
+    std::vector<ColorTableEntry> clut;
     if (desc.clut_id == 0) {
       const auto& clut_header = r.get<ColorTable>();
       // TODO: Should this be <= instead?
@@ -1126,10 +1104,10 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     }
 
     // Read the encoded image data
-    string encoded_data = r.read(desc.data_size);
+    std::string encoded_data = r.read(desc.data_size);
 
     // Find the appropriate handler, if it's implemented
-    ImageRGBA8888N decoded;
+    phosg::ImageRGBA8888N decoded;
     if (desc.codec == 0x736D6320) { // kGraphicsCodecType
       decoded = this->pict_decode_smc(desc, clut, encoded_data);
     } else if (desc.codec == 0x72707A61) { // kVideoCodecType
@@ -1147,32 +1125,31 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     } else if (desc.codec == 0x74696666) { // kTIFFCodecType
       throw pict_contains_undecodable_quicktime("tiff", std::move(encoded_data));
     } else {
-      string codec = string_for_resource_type(desc.codec);
-      throw runtime_error(std::format("compressed QuickTime data uses codec '{}' [0x{:08X}]", codec, desc.codec));
+      throw std::runtime_error(std::format("compressed QuickTime data uses codec '{}' (0x{:08X})",
+          string_for_resource_type(desc.codec), desc.codec));
     }
 
     if (decoded.get_width() > this->port->width() || decoded.get_height() > this->port->height()) {
-      fwrite_fmt(stderr, "warning: decoded QuickTime image dimensions ({}x{}) exceed port dimensions ({}x{}); resizing port\n",
+      phosg::fwrite_fmt(stderr, "warning: decoded QuickTime image dimensions ({}x{}) exceed port dimensions ({}x{}); resizing port\n",
           decoded.get_width(),
           decoded.get_height(),
           this->port->width(),
           this->port->height());
       Rect new_bounds = this->port->get_bounds();
-      new_bounds.x2 = max<size_t>(new_bounds.x1 + decoded.get_width(), new_bounds.x2);
-      new_bounds.y2 = max<size_t>(new_bounds.y1 + decoded.get_height(), new_bounds.y2);
+      new_bounds.x2 = std::max<size_t>(new_bounds.x1 + decoded.get_width(), new_bounds.x2);
+      new_bounds.y2 = std::max<size_t>(new_bounds.y1 + decoded.get_height(), new_bounds.y2);
       this->port->set_bounds(new_bounds);
     }
     this->port->blit(
         decoded,
         0,
         0,
-        min<size_t>(decoded.get_width(), this->port->width()),
-        min<size_t>(decoded.get_height(), this->port->height()));
+        std::min<size_t>(decoded.get_width(), this->port->width()),
+        std::min<size_t>(decoded.get_height(), this->port->height()));
 
   } else {
-    // "Uncompressed" QuickTime data has a subordinate opcode at this position
-    // that just renders the data directly. According to the docs, this must
-    // always be a CopyBits opcode; it's unclear if this is actually enforced by
+    // "Uncompressed" QuickTime data has a subordinate opcode at this position that just renders the data directly.
+    // According to the docs, this must always be a CopyBits opcode; it's unclear if this is actually enforced by
     // QuickDraw though (and if we need to support more than 9x opcodes here)
     uint16_t subopcode = r.get_u16b();
     if (subopcode == 0x0098 || subopcode == 0x0099) {
@@ -1180,14 +1157,14 @@ void QuickDrawEngine::pict_write_quicktime_data(StringReader& r, uint16_t opcode
     } else if (subopcode == 0x009A || subopcode == 0x009B) {
       this->pict_packed_copy_bits_direct_color(r, subopcode);
     } else {
-      throw runtime_error(std::format("uncompressed QuickTime data uses non-CopyBits subopcode {}", subopcode));
+      throw std::runtime_error(std::format("uncompressed QuickTime data uses non-CopyBits subopcode {}", subopcode));
     }
   }
 }
 
 // Opcode index
 
-const vector<void (QuickDrawEngine::*)(StringReader&, uint16_t)> QuickDrawEngine::render_functions({
+const std::vector<void (QuickDrawEngine::*)(phosg::StringReader&, uint16_t)> QuickDrawEngine::render_functions({
     &QuickDrawEngine::pict_skip_0, // 0000: no operation (args: 0)
     &QuickDrawEngine::pict_set_clipping_region, // 0001: clipping region (args: region)
     &QuickDrawEngine::pict_set_background_pattern, // 0002: background pattern (args: ?8)
@@ -1354,10 +1331,10 @@ const vector<void (QuickDrawEngine::*)(StringReader&, uint16_t)> QuickDrawEngine
 
 void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
   if (size < sizeof(PictHeader)) {
-    throw runtime_error("pict too small for header");
+    throw std::runtime_error("pict too small for header");
   }
 
-  StringReader r(vdata, size);
+  phosg::StringReader r(vdata, size);
   auto header = r.get<PictHeader>();
 
   // If the pict header is all zeroes, assume this is a pict file with a
@@ -1423,7 +1400,7 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
         Rect port_bounds = this->pict_bounds.anchor();
         this->port->set_bounds(port_bounds);
       } else {
-        fwrite_fmt(stderr, "warning: subheader has incorrect version ({:08X} or {:04X})\n",
+        phosg::fwrite_fmt(stderr, "warning: subheader has incorrect version ({:08X} or {:04X})\n",
             h.v2.version, h.v2e.version);
       }
 
@@ -1441,12 +1418,10 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
 
     } else if ((opcode & 0xFFFE) == 0x8200) { // args: pict_compressed_quicktime_args or pict_uncompressed_quicktime_args
       this->pict_write_quicktime_data(r, opcode);
-      // TODO: It appears that these opcodes always just end rendering, since
-      // some PICTs that include them have rendering opcodes afterward that
-      // appear to do backup things, like render text saying "You need QuickTime
-      // to see this picture". So we just end rendering immediately, which seems
-      // correct, in practice, but I haven't been able to verify this via
-      // documentation.
+      // TODO: It appears that these opcodes always just end rendering, since some PICTs that include them have
+      // rendering opcodes afterward that appear to do backup things, like render text saying "You need QuickTime to
+      // see this picture". So we just end rendering immediately, which seems correct in practice, but I haven't been
+      // able to verify this via documentation.
       break;
 
     } else { // args: u32 len, u8[] data
@@ -1455,8 +1430,8 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
   }
 }
 
-vector<ColorTableEntry> create_default_clut() {
-  return vector<ColorTableEntry>({
+std::vector<ColorTableEntry> create_default_clut() {
+  return std::vector<ColorTableEntry>({
       {0x0000, Color(0xFFFF, 0xFFFF, 0xFFFF)},
       {0x0000, Color(0xFFFF, 0xFFFF, 0xCCCC)},
       {0x0000, Color(0xFFFF, 0xFFFF, 0x9999)},

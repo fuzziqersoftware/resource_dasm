@@ -12,25 +12,19 @@
 #include "../Emulators/MemoryContext.hh"
 #include "../Emulators/X86Emulator.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-PEFile::PEFile(const char* filename) : PEFile(filename, load_file(filename)) {}
+PEFile::PEFile(const char* filename) : PEFile(filename, phosg::load_file(filename)) {}
 
-PEFile::PEFile(const char* filename, const string& data)
-    : PEFile(filename, data.data(), data.size()) {}
+PEFile::PEFile(const char* filename, const std::string& data) : PEFile(filename, data.data(), data.size()) {}
 
-PEFile::PEFile(const char* filename, const void* data, size_t size)
-    : filename(filename) {
+PEFile::PEFile(const char* filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 
-uint32_t PEFile::load_into(shared_ptr<MemoryContext> mem) const {
-  // Since we may be loading on a system with a larger page size than the system
-  // the PE was compiled for, preallocate an arena for the entire thing because
-  // we may have to do fixed-address allocations across arena boundaries if we
+uint32_t PEFile::load_into(std::shared_ptr<MemoryContext> mem) const {
+  // Since we may be loading on a system with a larger page size than the system the PE was compiled for, preallocate
+  // an arena for the entire thing because we may have to do fixed-address allocations across arena boundaries if we
   // don't preallocate.
   uint32_t min_addr = 0xFFFFFFFF, max_addr = 0x00000000;
   for (const auto& section : this->sections) {
@@ -42,32 +36,30 @@ uint32_t PEFile::load_into(shared_ptr<MemoryContext> mem) const {
       max_addr = end_addr;
     }
   }
-  // TODO: When we support relocations, and if the PE file can't load at its
-  // image base, use find_unallocated_arena_space to put it anywhere it fits,
-  // and run the relocations.
+  // TODO: When we support relocations, and if the PE file can't load at its image base, use
+  // find_unallocated_arena_space to put it anywhere it fits, and run the relocations.
   mem->preallocate_arena(min_addr, max_addr - min_addr);
 
   for (const auto& section : this->sections) {
     if (section.size == 0) {
       continue;
     }
-    size_t bytes_to_copy = min<size_t>(section.size, section.data.size());
+    size_t bytes_to_copy = std::min<size_t>(section.size, section.data.size());
     mem->allocate_at(section.address, section.size);
     void* section_mem = mem->at<void>(section.address, bytes_to_copy);
     memcpy(section_mem, section.data.data(), bytes_to_copy);
-    memset(reinterpret_cast<uint8_t*>(section_mem) + bytes_to_copy, 0,
-        section.size - bytes_to_copy);
+    memset(reinterpret_cast<uint8_t*>(section_mem) + bytes_to_copy, 0, section.size - bytes_to_copy);
   }
 
   return this->header.image_base;
 }
 
-multimap<uint32_t, string> PEFile::labels_for_loaded_imports(uint32_t image_base) const {
-  multimap<uint32_t, string> ret;
+std::multimap<uint32_t, std::string> PEFile::labels_for_loaded_imports(uint32_t image_base) const {
+  std::multimap<uint32_t, std::string> ret;
   for (const auto& lib_it : this->import_libs) {
     const auto& lib = lib_it.second;
     for (const auto& imp : lib.imports) {
-      string name = imp.name.empty()
+      std::string name = imp.name.empty()
           ? std::format("{}:<Ordinal{:04X}>", lib.name, imp.ordinal)
           : std::format("{}:{}", lib.name, imp.name);
       ret.emplace(imp.addr_rva + image_base, std::move(name));
@@ -76,8 +68,8 @@ multimap<uint32_t, string> PEFile::labels_for_loaded_imports(uint32_t image_base
   return ret;
 }
 
-multimap<uint32_t, string> PEFile::labels_for_loaded_exports(uint32_t image_base) const {
-  multimap<uint32_t, string> ret;
+std::multimap<uint32_t, std::string> PEFile::labels_for_loaded_exports(uint32_t image_base) const {
+  std::multimap<uint32_t, std::string> ret;
   for (size_t z = 0; z < this->export_rvas.size(); z++) {
     ret.emplace(this->export_rvas[z] + image_base, std::format("{}:<Ordinal{:04X}>", this->export_lib_name, z + this->ordinal_base));
   }
@@ -93,38 +85,37 @@ const PEHeader& PEFile::unloaded_header() const {
   return this->header;
 }
 
-StringReader PEFile::read_from_rva(uint32_t rva, uint32_t size) const {
+phosg::StringReader PEFile::read_from_rva(uint32_t rva, uint32_t size) const {
   for (const auto& sec : this->sections) {
     uint32_t offset_within_section = rva - sec.rva;
     if (offset_within_section >= sec.data.size()) {
       continue;
     }
-    // If size extends beyond the end of the section, truncate the reader to the
-    // end of the section.
-    size_t r_size = min<size_t>(sec.data.size() - offset_within_section, size);
-    return StringReader(sec.data.data() + offset_within_section, r_size);
+    // If size extends beyond the end of the section, truncate the reader to the end of the section.
+    size_t r_size = std::min<size_t>(sec.data.size() - offset_within_section, size);
+    return phosg::StringReader(sec.data.data() + offset_within_section, r_size);
   }
-  throw out_of_range("rva not within any initialized section");
+  throw std::out_of_range("rva not within any initialized section");
 }
 
 void PEFile::parse(const void* data, size_t size) {
-  StringReader r(data, size);
+  phosg::StringReader r(data, size);
 
   const auto& mz_header = r.get<MZHeader>();
   if (mz_header.signature != 0x4D5A) {
-    throw runtime_error("file does not have MZ signature");
+    throw std::runtime_error("file does not have MZ signature");
   }
   r.go(mz_header.pe_header_offset);
 
   this->header = r.get<PEHeader>();
   if (this->header.signature != 0x50450000) {
-    throw runtime_error("file does not have PE signature");
+    throw std::runtime_error("file does not have PE signature");
   }
   if (this->header.magic == 0x020B) {
-    throw runtime_error("PE32+ format is not implemented");
+    throw std::runtime_error("PE32+ format is not implemented");
   }
   if (this->header.magic != 0x010B) {
-    throw runtime_error("file has incorrect magic value");
+    throw std::runtime_error("file has incorrect magic value");
   }
 
   r.go(mz_header.pe_header_offset + offsetof(PEHeader, magic) + this->header.optional_header_size);
@@ -141,7 +132,7 @@ void PEFile::parse(const void* data, size_t size) {
     sec.flags = sec_header.flags;
 
     sec.name.assign(sec_header.name, 8);
-    strip_trailing_zeroes(sec.name);
+    phosg::strip_trailing_zeroes(sec.name);
     sec.address = sec_header.rva + this->header.image_base;
     sec.size = sec_header.loaded_size;
     sec.data = r.preadx(sec_header.file_data_rva, sec_header.file_data_size);
@@ -149,25 +140,23 @@ void PEFile::parse(const void* data, size_t size) {
     this->sections.emplace_back(std::move(sec));
   }
 
-  // Now that sections have been read, we can use read_from_rva to parse
-  // internal structures
+  // Now that sections have been read, we can use read_from_rva to parse internal structures
 
   if (this->header.import_table_rva) {
-    auto r = this->read_from_rva(
-        this->header.import_table_rva, this->header.import_table_size);
+    auto r = this->read_from_rva(this->header.import_table_rva, this->header.import_table_size);
     while (!r.eof()) {
       const auto& lib_entry = r.get<PEImportLibraryHeader>();
       if (lib_entry.lookup_table_rva == 0) {
         break;
       }
 
-      string name;
+      std::string name;
       {
         auto name_r = this->read_from_rva(lib_entry.name_rva, 0xFFFFFFFF);
         name = name_r.get_cstr();
       }
       if (name.empty()) {
-        throw runtime_error("import library entry name is blank");
+        throw std::runtime_error("import library entry name is blank");
       }
 
       auto& lib = this->import_libs[name];
@@ -181,14 +170,11 @@ void PEFile::parse(const void* data, size_t size) {
           break;
         }
         if (imp_entry.is_ordinal()) {
-          lib.imports.emplace_back(ImportLibrary::Function{
-              imp_entry.ordinal(), "", addr_addr});
+          lib.imports.emplace_back(ImportLibrary::Function{imp_entry.ordinal(), "", addr_addr});
         } else {
           auto name_r = this->read_from_rva(imp_entry.name_table_entry_rva(), 0xFFFFFFFF);
           uint16_t ordinal_hint = name_r.get_u16l();
-          string name = name_r.get_cstr();
-          lib.imports.emplace_back(ImportLibrary::Function{
-              ordinal_hint, std::move(name), addr_addr});
+          lib.imports.emplace_back(ImportLibrary::Function{ordinal_hint, name_r.get_cstr(), addr_addr});
         }
       }
     }
@@ -201,7 +187,7 @@ void PEFile::parse(const void* data, size_t size) {
     this->export_lib_name = this->read_from_rva(header.name_rva, 0xFFFFFFFF).get_cstr();
 
     {
-      auto r = this->read_from_rva(header.address_table_rva, sizeof(le_uint32_t) * header.num_entries);
+      auto r = this->read_from_rva(header.address_table_rva, sizeof(phosg::le_uint32_t) * header.num_entries);
       this->export_rvas.reserve(header.num_entries);
       while (this->export_rvas.size() < header.num_entries) {
         this->export_rvas.emplace_back(r.get_u32l());
@@ -209,8 +195,8 @@ void PEFile::parse(const void* data, size_t size) {
     }
 
     {
-      auto name_ptrs_r = this->read_from_rva(header.name_pointer_table_rva, sizeof(le_uint32_t) * header.num_names);
-      auto ordinals_r = this->read_from_rva(header.ordinal_table_rva, sizeof(le_uint16_t) * header.num_names);
+      auto name_ptrs_r = this->read_from_rva(header.name_pointer_table_rva, sizeof(phosg::le_uint32_t) * header.num_names);
+      auto ordinals_r = this->read_from_rva(header.ordinal_table_rva, sizeof(phosg::le_uint16_t) * header.num_names);
       for (size_t z = 0; z < header.num_names; z++) {
         this->export_name_to_ordinal.emplace(
             this->read_from_rva(name_ptrs_r.get_u32l(), 0xFFFFFFFF).get_cstr(),
@@ -221,7 +207,7 @@ void PEFile::parse(const void* data, size_t size) {
 }
 
 static const char* name_for_architecture(uint16_t architecture) {
-  static const unordered_map<uint16_t, const char*> names({
+  static const std::unordered_map<uint16_t, const char*> names({
       {0x014C, "x86/i386"},
       {0x0166, "MIPS little-endian"},
       {0x0169, "MIPS little-endian WCE v2"},
@@ -251,13 +237,13 @@ static const char* name_for_architecture(uint16_t architecture) {
   });
   try {
     return names.at(architecture);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return "unknown";
   }
 }
 
-static string string_for_flags(uint16_t flags) {
-  vector<const char*> tokens;
+static std::string string_for_flags(uint16_t flags) {
+  std::vector<const char*> tokens;
   if (flags & 0x0001) {
     tokens.emplace_back("RELOCS_STRIPPED");
   }
@@ -307,12 +293,12 @@ static string string_for_flags(uint16_t flags) {
   if (tokens.empty()) {
     return "none";
   } else {
-    return join(tokens, ",");
+    return phosg::join(tokens, ",");
   }
 }
 
 static const char* name_for_subsystem(uint16_t subsystem) {
-  static const vector<const char*> names({
+  static const std::vector<const char*> names({
       "unknown", // 0
       "native", // 1
       "windows_gui", // 2
@@ -333,13 +319,13 @@ static const char* name_for_subsystem(uint16_t subsystem) {
   });
   try {
     return names.at(subsystem);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return "unknown";
   }
 }
 
-static string string_for_dll_flags(uint16_t flags) {
-  vector<const char*> tokens;
+static std::string string_for_dll_flags(uint16_t flags) {
+  std::vector<const char*> tokens;
   if (flags & 0x0020) {
     tokens.emplace_back("HIGH_ENTROPY_ADDRESS_SPACE");
   }
@@ -376,12 +362,12 @@ static string string_for_dll_flags(uint16_t flags) {
   if (tokens.empty()) {
     return "none";
   } else {
-    return join(tokens, ",");
+    return phosg::join(tokens, ",");
   }
 }
 
-static string string_for_section_flags(uint32_t flags) {
-  vector<const char*> tokens;
+static std::string string_for_section_flags(uint32_t flags) {
+  std::vector<const char*> tokens;
   if (flags & 0x00000008) {
     tokens.emplace_back("NO_PADDING");
   }
@@ -487,7 +473,7 @@ static string string_for_section_flags(uint32_t flags) {
   if (tokens.empty()) {
     return "none";
   } else {
-    return join(tokens, ",");
+    return phosg::join(tokens, ",");
   }
 }
 
@@ -503,72 +489,70 @@ static const char* name_for_magic(uint16_t magic) {
 
 void PEFile::print(
     FILE* stream,
-    const multimap<uint32_t, string>* labels,
+    const std::multimap<uint32_t, std::string>* labels,
     bool print_hex_view_for_code,
     bool all_sections_as_code) const {
-  fwrite_fmt(stream, "[PE file: {}]\n", this->filename);
-  fwrite_fmt(stream, "  architecture: {:04X} ({})\n", this->header.architecture, name_for_architecture(this->header.architecture));
-  fwrite_fmt(stream, "  num_sections: {:04X}\n", this->header.num_sections);
-  fwrite_fmt(stream, "  build_timestamp: {:08X}\n", this->header.build_timestamp);
-  fwrite_fmt(stream, "  symbol_table: rva={:08X} size={:08X} (deprecated)\n", this->header.deprecated_symbol_table_rva, this->header.deprecated_symbol_table_size);
-  string flags_str = string_for_flags(this->header.flags);
-  fwrite_fmt(stream, "  flags: {:04X} ({})\n", this->header.flags, flags_str);
-  fwrite_fmt(stream, "  magic: {:04X} ({})\n", this->header.magic, name_for_magic(this->header.magic));
-  fwrite_fmt(stream, "  linker_version: {:04X}\n", this->header.linker_version);
-  fwrite_fmt(stream, "  total_code_size: {:08X}\n", this->header.total_code_size);
-  fwrite_fmt(stream, "  total_initialized_data_size: {:08X}\n", this->header.total_initialized_data_size);
-  fwrite_fmt(stream, "  total_uninitialized_data_size: {:08X}\n", this->header.total_uninitialized_data_size);
-  fwrite_fmt(stream, "  entrypoint_rva: {:08X} (loaded as {:08X})\n", this->header.entrypoint_rva, this->header.entrypoint_rva + this->header.image_base);
-  fwrite_fmt(stream, "  code_base_rva: {:08X} (loaded as {:08X})\n", this->header.code_base_rva, this->header.code_base_rva + this->header.image_base);
-  fwrite_fmt(stream, "  data_base_rva: {:08X} (loaded as {:08X})\n", this->header.data_base_rva, this->header.data_base_rva + this->header.image_base);
-  fwrite_fmt(stream, "  image_base: {:08X}\n", this->header.image_base);
-  fwrite_fmt(stream, "  loaded_section_alignment: {:08X}\n", this->header.loaded_section_alignment);
-  fwrite_fmt(stream, "  file_section_alignment: {:08X}\n", this->header.file_section_alignment);
-  fwrite_fmt(stream, "  os_version: {:04X}.{:04X}\n", this->header.os_version[0], this->header.os_version[1]);
-  fwrite_fmt(stream, "  image_version: {:04X}.{:04X}\n", this->header.image_version[0], this->header.image_version[1]);
-  fwrite_fmt(stream, "  subsystem_version: {:04X}.{:04X}\n", this->header.subsystem_version[0], this->header.subsystem_version[1]);
-  fwrite_fmt(stream, "  win32_version: {:08X}\n", this->header.win32_version);
-  fwrite_fmt(stream, "  virtual_image_size: {:08X}\n", this->header.virtual_image_size);
-  fwrite_fmt(stream, "  total_header_size: {:08X}\n", this->header.total_header_size);
-  fwrite_fmt(stream, "  checksum: {:08X} (unused)\n", this->header.checksum);
-  fwrite_fmt(stream, "  subsystem: {:04X} ({})\n", this->header.subsystem, name_for_subsystem(this->header.subsystem));
-  string dll_flags_str = string_for_dll_flags(this->header.dll_flags);
-  fwrite_fmt(stream, "  dll_flags: {:04X} ({})\n", this->header.dll_flags, dll_flags_str);
-  fwrite_fmt(stream, "  stack_reserve_size: {:08X}\n", this->header.stack_reserve_size);
-  fwrite_fmt(stream, "  stack_commit_size: {:08X}\n", this->header.stack_commit_size);
-  fwrite_fmt(stream, "  heap_reserve_size: {:08X}\n", this->header.heap_reserve_size);
-  fwrite_fmt(stream, "  heap_commit_size: {:08X}\n", this->header.heap_commit_size);
-  fwrite_fmt(stream, "  loader_flags: {:08X}\n", this->header.loader_flags);
-  fwrite_fmt(stream, "  data_directory_count: {:08X}\n", this->header.data_directory_count);
-  fwrite_fmt(stream, "  directory(export_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.export_table_rva, this->header.export_table_rva + this->header.image_base, this->header.export_table_size);
-  fwrite_fmt(stream, "  directory(import_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.import_table_rva, this->header.import_table_rva + this->header.image_base, this->header.import_table_size);
-  fwrite_fmt(stream, "  directory(resource_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.resource_table_rva, this->header.resource_table_rva + this->header.image_base, this->header.resource_table_size);
-  fwrite_fmt(stream, "  directory(exception_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.exception_table_rva, this->header.exception_table_rva + this->header.image_base, this->header.exception_table_size);
-  fwrite_fmt(stream, "  directory(certificate_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.certificate_table_rva, this->header.certificate_table_rva + this->header.image_base, this->header.certificate_table_size);
-  fwrite_fmt(stream, "  directory(relocation_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.relocation_table_rva, this->header.relocation_table_rva + this->header.image_base, this->header.relocation_table_size);
-  fwrite_fmt(stream, "  directory(debug_data): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.debug_data_rva, this->header.debug_data_rva + this->header.image_base, this->header.debug_data_size);
-  fwrite_fmt(stream, "  directory(architecture_data): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.architecture_data_rva, this->header.architecture_data_rva + this->header.image_base, this->header.architecture_data_size);
-  fwrite_fmt(stream, "  directory(global_ptr): rva={:08X} (loaded as {:08X}) unused={:08X}\n", this->header.global_ptr_rva, this->header.global_ptr_rva + this->header.image_base, this->header.unused);
-  fwrite_fmt(stream, "  directory(tls_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.tls_table_rva, this->header.tls_table_rva + this->header.image_base, this->header.tls_table_size);
-  fwrite_fmt(stream, "  directory(load_config_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.load_config_table_rva, this->header.load_config_table_rva + this->header.image_base, this->header.load_config_table_size);
-  fwrite_fmt(stream, "  directory(bound_import): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.bound_import_rva, this->header.bound_import_rva + this->header.image_base, this->header.bound_import_size);
-  fwrite_fmt(stream, "  directory(import_address_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.import_address_table_rva, this->header.import_address_table_rva + this->header.image_base, this->header.import_address_table_size);
-  fwrite_fmt(stream, "  directory(delay_import_descriptor): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.delay_import_descriptor_rva, this->header.delay_import_descriptor_rva + this->header.image_base, this->header.delay_import_descriptor_size);
-  fwrite_fmt(stream, "  directory(clr_runtime_header): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.clr_runtime_header_rva, this->header.clr_runtime_header_rva + this->header.image_base, this->header.clr_runtime_header_size);
-  fwrite_fmt(stream, "  directory(unused): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.unused_rva, this->header.unused_rva + this->header.image_base, this->header.unused_size);
+  phosg::fwrite_fmt(stream, "[PE file: {}]\n", this->filename);
+  phosg::fwrite_fmt(stream, "  architecture: {:04X} ({})\n", this->header.architecture, name_for_architecture(this->header.architecture));
+  phosg::fwrite_fmt(stream, "  num_sections: {:04X}\n", this->header.num_sections);
+  phosg::fwrite_fmt(stream, "  build_timestamp: {:08X}\n", this->header.build_timestamp);
+  phosg::fwrite_fmt(stream, "  symbol_table: rva={:08X} size={:08X} (deprecated)\n", this->header.deprecated_symbol_table_rva, this->header.deprecated_symbol_table_size);
+  phosg::fwrite_fmt(stream, "  flags: {:04X} ({})\n", this->header.flags, string_for_flags(this->header.flags));
+  phosg::fwrite_fmt(stream, "  magic: {:04X} ({})\n", this->header.magic, name_for_magic(this->header.magic));
+  phosg::fwrite_fmt(stream, "  linker_version: {:04X}\n", this->header.linker_version);
+  phosg::fwrite_fmt(stream, "  total_code_size: {:08X}\n", this->header.total_code_size);
+  phosg::fwrite_fmt(stream, "  total_initialized_data_size: {:08X}\n", this->header.total_initialized_data_size);
+  phosg::fwrite_fmt(stream, "  total_uninitialized_data_size: {:08X}\n", this->header.total_uninitialized_data_size);
+  phosg::fwrite_fmt(stream, "  entrypoint_rva: {:08X} (loaded as {:08X})\n", this->header.entrypoint_rva, this->header.entrypoint_rva + this->header.image_base);
+  phosg::fwrite_fmt(stream, "  code_base_rva: {:08X} (loaded as {:08X})\n", this->header.code_base_rva, this->header.code_base_rva + this->header.image_base);
+  phosg::fwrite_fmt(stream, "  data_base_rva: {:08X} (loaded as {:08X})\n", this->header.data_base_rva, this->header.data_base_rva + this->header.image_base);
+  phosg::fwrite_fmt(stream, "  image_base: {:08X}\n", this->header.image_base);
+  phosg::fwrite_fmt(stream, "  loaded_section_alignment: {:08X}\n", this->header.loaded_section_alignment);
+  phosg::fwrite_fmt(stream, "  file_section_alignment: {:08X}\n", this->header.file_section_alignment);
+  phosg::fwrite_fmt(stream, "  os_version: {:04X}.{:04X}\n", this->header.os_version[0], this->header.os_version[1]);
+  phosg::fwrite_fmt(stream, "  image_version: {:04X}.{:04X}\n", this->header.image_version[0], this->header.image_version[1]);
+  phosg::fwrite_fmt(stream, "  subsystem_version: {:04X}.{:04X}\n", this->header.subsystem_version[0], this->header.subsystem_version[1]);
+  phosg::fwrite_fmt(stream, "  win32_version: {:08X}\n", this->header.win32_version);
+  phosg::fwrite_fmt(stream, "  virtual_image_size: {:08X}\n", this->header.virtual_image_size);
+  phosg::fwrite_fmt(stream, "  total_header_size: {:08X}\n", this->header.total_header_size);
+  phosg::fwrite_fmt(stream, "  checksum: {:08X} (unused)\n", this->header.checksum);
+  phosg::fwrite_fmt(stream, "  subsystem: {:04X} ({})\n", this->header.subsystem, name_for_subsystem(this->header.subsystem));
+  phosg::fwrite_fmt(stream, "  dll_flags: {:04X} ({})\n", this->header.dll_flags, string_for_dll_flags(this->header.dll_flags));
+  phosg::fwrite_fmt(stream, "  stack_reserve_size: {:08X}\n", this->header.stack_reserve_size);
+  phosg::fwrite_fmt(stream, "  stack_commit_size: {:08X}\n", this->header.stack_commit_size);
+  phosg::fwrite_fmt(stream, "  heap_reserve_size: {:08X}\n", this->header.heap_reserve_size);
+  phosg::fwrite_fmt(stream, "  heap_commit_size: {:08X}\n", this->header.heap_commit_size);
+  phosg::fwrite_fmt(stream, "  loader_flags: {:08X}\n", this->header.loader_flags);
+  phosg::fwrite_fmt(stream, "  data_directory_count: {:08X}\n", this->header.data_directory_count);
+  phosg::fwrite_fmt(stream, "  directory(export_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.export_table_rva, this->header.export_table_rva + this->header.image_base, this->header.export_table_size);
+  phosg::fwrite_fmt(stream, "  directory(import_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.import_table_rva, this->header.import_table_rva + this->header.image_base, this->header.import_table_size);
+  phosg::fwrite_fmt(stream, "  directory(resource_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.resource_table_rva, this->header.resource_table_rva + this->header.image_base, this->header.resource_table_size);
+  phosg::fwrite_fmt(stream, "  directory(exception_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.exception_table_rva, this->header.exception_table_rva + this->header.image_base, this->header.exception_table_size);
+  phosg::fwrite_fmt(stream, "  directory(certificate_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.certificate_table_rva, this->header.certificate_table_rva + this->header.image_base, this->header.certificate_table_size);
+  phosg::fwrite_fmt(stream, "  directory(relocation_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.relocation_table_rva, this->header.relocation_table_rva + this->header.image_base, this->header.relocation_table_size);
+  phosg::fwrite_fmt(stream, "  directory(debug_data): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.debug_data_rva, this->header.debug_data_rva + this->header.image_base, this->header.debug_data_size);
+  phosg::fwrite_fmt(stream, "  directory(architecture_data): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.architecture_data_rva, this->header.architecture_data_rva + this->header.image_base, this->header.architecture_data_size);
+  phosg::fwrite_fmt(stream, "  directory(global_ptr): rva={:08X} (loaded as {:08X}) unused={:08X}\n", this->header.global_ptr_rva, this->header.global_ptr_rva + this->header.image_base, this->header.unused);
+  phosg::fwrite_fmt(stream, "  directory(tls_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.tls_table_rva, this->header.tls_table_rva + this->header.image_base, this->header.tls_table_size);
+  phosg::fwrite_fmt(stream, "  directory(load_config_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.load_config_table_rva, this->header.load_config_table_rva + this->header.image_base, this->header.load_config_table_size);
+  phosg::fwrite_fmt(stream, "  directory(bound_import): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.bound_import_rva, this->header.bound_import_rva + this->header.image_base, this->header.bound_import_size);
+  phosg::fwrite_fmt(stream, "  directory(import_address_table): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.import_address_table_rva, this->header.import_address_table_rva + this->header.image_base, this->header.import_address_table_size);
+  phosg::fwrite_fmt(stream, "  directory(delay_import_descriptor): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.delay_import_descriptor_rva, this->header.delay_import_descriptor_rva + this->header.image_base, this->header.delay_import_descriptor_size);
+  phosg::fwrite_fmt(stream, "  directory(clr_runtime_header): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.clr_runtime_header_rva, this->header.clr_runtime_header_rva + this->header.image_base, this->header.clr_runtime_header_size);
+  phosg::fwrite_fmt(stream, "  directory(unused): rva={:08X} (loaded as {:08X}) size={:08X}\n", this->header.unused_rva, this->header.unused_rva + this->header.image_base, this->header.unused_size);
 
   if (!this->import_libs.empty()) {
-    fwrite_fmt(stream, "[import table]\n");
+    phosg::fwrite_fmt(stream, "[import table]\n");
 
     for (const auto& imp_lib_it : this->import_libs) {
       const auto& lib = imp_lib_it.second;
-      fwrite_fmt(stream, "  [library: {}]\n", lib.name);
+      phosg::fwrite_fmt(stream, "  [library: {}]\n", lib.name);
       for (const auto& imp : lib.imports) {
         if (imp.name.empty()) {
-          fwrite_fmt(stream, "    (ordinal:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
+          phosg::fwrite_fmt(stream, "    (ordinal:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
               imp.ordinal, imp.addr_rva, imp.addr_rva + this->header.image_base);
         } else {
-          fwrite_fmt(stream, "    {} (hint:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
+          phosg::fwrite_fmt(stream, "    {} (hint:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
               imp.name, imp.ordinal, imp.addr_rva, imp.addr_rva + this->header.image_base);
         }
       }
@@ -576,10 +560,10 @@ void PEFile::print(
   }
 
   if (!this->export_rvas.empty()) {
-    fwrite_fmt(stream, "[export table]\n");
-    fwrite_fmt(stream, "  library name: {}\n", this->export_lib_name);
+    phosg::fwrite_fmt(stream, "[export table]\n");
+    phosg::fwrite_fmt(stream, "  library name: {}\n", this->export_lib_name);
 
-    vector<string> export_names;
+    std::vector<std::string> export_names;
     export_names.resize(this->export_rvas.size());
     for (const auto& it : this->export_name_to_ordinal) {
       export_names.at(it.second - this->ordinal_base) = it.first;
@@ -587,16 +571,16 @@ void PEFile::print(
 
     for (size_t z = 0; z < this->export_rvas.size(); z++) {
       if (!export_names[z].empty()) {
-        fwrite_fmt(stream, "  {} ", export_names[z]);
+        phosg::fwrite_fmt(stream, "  {} ", export_names[z]);
       } else {
         fputs("  ", stream);
       }
-      fwrite_fmt(stream, "(ordinal:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
+      phosg::fwrite_fmt(stream, "(ordinal:{:04X}) -> {:08X} (at {:08X} when loaded)\n",
           z + this->ordinal_base, this->export_rvas[z], this->export_rvas[z] + this->header.image_base);
     }
   }
 
-  multimap<uint32_t, string> all_labels = this->labels_for_loaded_imports(this->header.image_base);
+  std::multimap<uint32_t, std::string> all_labels = this->labels_for_loaded_imports(this->header.image_base);
   for (const auto& it : this->labels_for_loaded_exports(this->header.image_base)) {
     all_labels.emplace(it.first, it.second);
   }
@@ -609,18 +593,17 @@ void PEFile::print(
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fwrite_fmt(stream, "\n[section {} header]\n", x);
+    phosg::fwrite_fmt(stream, "\n[section {} header]\n", x);
 
-    fwrite_fmt(stream, "  name: {}\n", sec.name);
-    fwrite_fmt(stream, "  rva: {:08X} (loaded as {:08X})\n", sec.rva, sec.address);
-    fwrite_fmt(stream, "  loaded_size: {:08X}\n", sec.size);
-    fwrite_fmt(stream, "  file_offset: {:08X}\n", sec.file_offset);
-    fwrite_fmt(stream, "  relocations_rva: {:08X}\n", sec.relocations_rva);
-    fwrite_fmt(stream, "  line_numbers_rva: {:08X}\n", sec.line_numbers_rva);
-    fwrite_fmt(stream, "  num_relocations: {:04X}\n", sec.num_relocations);
-    fwrite_fmt(stream, "  num_line_numbers: {:04X}\n", sec.num_line_numbers);
-    string sec_flags_str = string_for_section_flags(sec.flags);
-    fwrite_fmt(stream, "  flags: {:08X} ({})\n", sec.flags, sec_flags_str);
+    phosg::fwrite_fmt(stream, "  name: {}\n", sec.name);
+    phosg::fwrite_fmt(stream, "  rva: {:08X} (loaded as {:08X})\n", sec.rva, sec.address);
+    phosg::fwrite_fmt(stream, "  loaded_size: {:08X}\n", sec.size);
+    phosg::fwrite_fmt(stream, "  file_offset: {:08X}\n", sec.file_offset);
+    phosg::fwrite_fmt(stream, "  relocations_rva: {:08X}\n", sec.relocations_rva);
+    phosg::fwrite_fmt(stream, "  line_numbers_rva: {:08X}\n", sec.line_numbers_rva);
+    phosg::fwrite_fmt(stream, "  num_relocations: {:04X}\n", sec.num_relocations);
+    phosg::fwrite_fmt(stream, "  num_line_numbers: {:04X}\n", sec.num_line_numbers);
+    phosg::fwrite_fmt(stream, "  flags: {:08X} ({})\n", sec.flags, string_for_section_flags(sec.flags));
 
     if (!sec.data.empty()) {
       bool is_code = true;
@@ -629,20 +612,20 @@ void PEFile::print(
       } else if (!all_sections_as_code && !(sec.flags & 0x00000020)) {
         uint32_t entrypoint = this->header.image_base + this->header.entrypoint_rva;
         if ((entrypoint >= sec.address) && (entrypoint < sec.address + sec.size)) {
-          fwrite_fmt(stream, "  NOTE: section type is not executable but section contains entrypoint; disassembling as code\n");
+          phosg::fwrite_fmt(stream, "  NOTE: section type is not executable but section contains entrypoint; disassembling as code\n");
         } else {
           is_code = false;
         }
       }
 
       if (is_code) {
-        string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, &all_labels);
-        fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
-        fwritex(stream, disassembly);
+        std::string disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.address, &all_labels);
+        phosg::fwrite_fmt(stream, "[section {:X} disassembly]\n", x);
+        phosg::fwritex(stream, disassembly);
       }
       if ((!is_code || print_hex_view_for_code) && !sec.data.empty()) {
-        fwrite_fmt(stream, "[section {:X} data]\n", x);
-        print_data(stream, sec.data, sec.address);
+        phosg::fwrite_fmt(stream, "[section {:X} data]\n", x);
+        phosg::print_data(stream, sec.data, sec.address);
       }
     }
   }

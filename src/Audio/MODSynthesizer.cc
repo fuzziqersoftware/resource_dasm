@@ -16,29 +16,23 @@
 #include "SampleCache.hh"
 #include "WAVFile.hh"
 
-using namespace std;
-
 namespace ResourceDASM {
 namespace Audio {
 
 static inline int8_t sign_extend_nybble(int8_t x) {
-  if (x & 0x08) {
-    return x | 0xF0;
-  } else {
-    return x & 0x0F;
-  }
+  return (x & 0x08) ? (x | 0xF0) : (x & 0x0F);
 }
 
-shared_ptr<Module> Module::parse(const string& data) {
+std::shared_ptr<Module> Module::parse(const std::string& data) {
   phosg::StringReader r(data.data(), data.size());
 
-  auto mod = make_shared<Module>();
+  auto mod = std::make_shared<Module>();
 
   // First, look ahead to see if this file uses any extensions. Annoyingly, the signature field is pretty late in the
   // file format, and some preceding fields' sizes depend on the enabled extensions.
   try {
     mod->extension_signature = r.pget_u32b(0x438);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     mod->extension_signature = 0;
   }
 
@@ -88,7 +82,7 @@ shared_ptr<Module> Module::parse(const string& data) {
   if (num_instruments == 31) {
     uint32_t inplace_extension_signature = r.get_u32b();
     if (mod->extension_signature && mod->extension_signature != inplace_extension_signature) {
-      throw logic_error(format(
+      throw std::logic_error(std::format(
           "read-ahead extension signature ({:08X}) does not match inplace extension signature ({:08X})",
           mod->extension_signature, inplace_extension_signature));
     }
@@ -134,7 +128,7 @@ shared_ptr<Module> Module::parse(const string& data) {
   return mod;
 }
 
-const map<uint16_t, const char*> Module::note_name_for_period{
+const std::map<uint16_t, const char*> Module::note_name_for_period{
     {1712, "C 0"},
     {1616, "C#0"},
     {1525, "D 0"},
@@ -251,7 +245,7 @@ void Module::disassemble_pattern_cell(
     } else {
       try {
         phosg::fwrite_fmt(stream, " {}", note_name_for_period.at(period));
-      } catch (const out_of_range&) {
+      } catch (const std::out_of_range&) {
         phosg::fwrite_fmt(stream, " {:03X}", period);
       }
     }
@@ -270,7 +264,7 @@ void Module::print_text(FILE* stream) const {
     if (i.name.empty() && i.sample_data.empty()) {
       continue;
     }
-    string escaped_name = phosg::escape_quotes(i.name);
+    std::string escaped_name = phosg::escape_quotes(i.name);
     phosg::fwrite_fmt(stream, "  [{:02}] {}\n", i.index + 1, escaped_name);
   }
 }
@@ -284,7 +278,7 @@ void Module::disassemble(FILE* stream, bool use_color) const {
 
   for (const auto& i : this->instruments) {
     fputc('\n', stream);
-    string escaped_name = phosg::escape_quotes(i.name);
+    std::string escaped_name = phosg::escape_quotes(i.name);
     phosg::fwrite_fmt(stream, "Instrument {}: {}\n", i.index + 1, escaped_name);
     phosg::fwrite_fmt(stream, "  Fine-tune: {:c}{}/8 semitones\n",
         (i.finetune < 0) ? '-' : '+', (i.finetune < 0) ? -i.finetune : i.finetune);
@@ -293,7 +287,7 @@ void Module::disassemble(FILE* stream, bool use_color) const {
     phosg::fwrite_fmt(stream, "  Data: ({} samples)\n", i.sample_data.size());
   }
 
-  vector<bool> patterns_used(0x80, false);
+  std::vector<bool> patterns_used(0x80, false);
   for (size_t x = 0; x < this->partition_count; x++) {
     patterns_used.at(this->partition_table.at(x)) = true;
   }
@@ -324,7 +318,7 @@ void Module::export_instruments(const char* output_prefix) const {
     if (i.sample_data.empty()) {
       phosg::fwrite_fmt(stderr, "... ({}) \"{}\" -> (no sound data)\n", i.index + 1, i.name);
     } else {
-      string escaped_name = phosg::escape_quotes(i.name);
+      std::string escaped_name = phosg::escape_quotes(i.name);
       phosg::fwrite_fmt(stderr, "... ({}) \"{}\" -> {} samples, +{}ft, {:02X} vol, loop [{}x{}]\n",
           i.index + 1,
           escaped_name,
@@ -334,15 +328,15 @@ void Module::export_instruments(const char* output_prefix) const {
           i.loop_start_samples,
           i.loop_length_samples);
 
-      string output_filename_u8 = std::format("{}_{}.u8.wav", output_prefix, i.index + 1);
-      vector<uint8_t> u8_sample_data;
+      std::string output_filename_u8 = std::format("{}_{}.u8.wav", output_prefix, i.index + 1);
+      std::vector<uint8_t> u8_sample_data;
       u8_sample_data.reserve(i.num_samples);
       for (int8_t sample : i.original_sample_data) {
         u8_sample_data.emplace_back(static_cast<uint8_t>(sample) - 0x80);
       }
       save_wav(output_filename_u8.c_str(), u8_sample_data, 16574, 1);
 
-      string output_filename_f32 = std::format("{}_{}.f32.wav", output_prefix, i.index + 1);
+      std::string output_filename_f32 = std::format("{}_{}.f32.wav", output_prefix, i.index + 1);
       save_wav(output_filename_f32.c_str(), i.sample_data, 16574, 1);
     }
   }
@@ -355,7 +349,8 @@ MODSynthesizer::Timing::Timing(size_t sample_rate, size_t beats_per_minute, size
       divisions_per_minute(static_cast<double>(24 * this->beats_per_minute) / this->ticks_per_division),
       ticks_per_second(static_cast<double>(this->divisions_per_minute * this->ticks_per_division) / 60),
       samples_per_tick(static_cast<double>(this->sample_rate * 60) / (this->divisions_per_minute * this->ticks_per_division)) {}
-string MODSynthesizer::Timing::str() const {
+
+std::string MODSynthesizer::Timing::str() const {
   return std::format("{}kHz {}bpm {}t/d => {:g}d/m {:g}t/sec {:g}smp/t",
       this->sample_rate,
       this->beats_per_minute,
@@ -447,12 +442,12 @@ void MODSynthesizer::SongPosition::advance_division() {
     return;
   }
   if (this->division_index >= 64) {
-    throw runtime_error("pattern break opcode jumps past end of next pattern");
+    throw std::runtime_error("pattern break opcode jumps past end of next pattern");
   }
   this->partitions_executed.at(this->partition_index) = true;
 }
 
-MODSynthesizer::MODSynthesizer(shared_ptr<const Module> mod, shared_ptr<const Options> opts)
+MODSynthesizer::MODSynthesizer(std::shared_ptr<const Module> mod, std::shared_ptr<const Options> opts)
     : log("[MODSynthesizer] ", opts->log_level),
       mod(mod),
       opts(opts),
@@ -807,7 +802,7 @@ float MODSynthesizer::get_vibrato_tremolo_wave_amplitude(float offset, uint8_t w
     case 2: // Square wave
       return (wave_progress < 0.5) ? 1.0 : -1.0;
     default:
-      throw logic_error("invalid vibrato/tremolo waveform");
+      throw std::logic_error("invalid vibrato/tremolo waveform");
   }
 }
 
@@ -842,7 +837,7 @@ bool MODSynthesizer::render_current_division_audio() {
     // Note: we do this multiplication after the above computation because num_tick_samples must not be an odd number,
     // so we don't want to *2 during the floating-point computation.
     num_tick_samples *= 2;
-    vector<float> tick_samples(num_tick_samples);
+    std::vector<float> tick_samples(num_tick_samples);
     for (auto& track : this->tracks) {
 
       // If track is muted or another track is solo'd, or if this track's instrument is muted or another track's
@@ -894,17 +889,17 @@ bool MODSynthesizer::render_current_division_audio() {
       // boundaries, which makes the sample generation loop below unfortunately rather complicated.
       size_t division_output_offset = tick_num * tick_samples.size();
       // This is a list of (start_at_output_sample, instrument_period) for the current tick
-      vector<pair<size_t, float>> segments;
+      std::vector<std::pair<size_t, float>> segments;
       if (track.vibrato_amplitude && track.vibrato_cycles) {
         if (track.arpeggio_arg) {
-          throw logic_error("cannot have both arpeggio and vibrato effects in the same division");
+          throw std::logic_error("cannot have both arpeggio and vibrato effects in the same division");
         }
         for (size_t x = 0; x < this->opts->vibrato_resolution; x++) {
           float amplitude = this->get_vibrato_tremolo_wave_amplitude(
               track.vibrato_offset + static_cast<float>(track.vibrato_cycles) / (64 * this->opts->vibrato_resolution),
               track.vibrato_waveform);
           amplitude *= static_cast<float>(track.vibrato_amplitude) / 16.0;
-          segments.emplace_back(make_pair(
+          segments.emplace_back(std::make_pair(
               (num_tick_samples * x) / this->opts->vibrato_resolution, effective_period * pow(2, -amplitude / 12.0)));
         }
 
@@ -921,7 +916,7 @@ bool MODSynthesizer::render_current_division_audio() {
         // actually sounds better for some MODs, so we implement both this behavior and true evenly-spaced arpeggio.
         if (this->opts->arpeggio_frequency <= 0) {
           for (size_t x = 0; x < timing.ticks_per_division; x++) {
-            segments.emplace_back(make_pair(x * num_tick_samples, periods[x % 3]));
+            segments.emplace_back(std::make_pair(x * num_tick_samples, periods[x % 3]));
           }
 
         } else {
@@ -932,15 +927,15 @@ bool MODSynthesizer::render_current_division_audio() {
           // times. The intervals are evenly spaced across the division, independent of tick boundaries.
           size_t denom = this->opts->arpeggio_frequency * 3;
           for (size_t x = 0; x < this->opts->arpeggio_frequency; x++) {
-            segments.emplace_back(make_pair((3 * x + 0) * interval_samples / denom, periods[0]));
-            segments.emplace_back(make_pair((3 * x + 1) * interval_samples / denom, periods[1]));
-            segments.emplace_back(make_pair((3 * x + 2) * interval_samples / denom, periods[2]));
+            segments.emplace_back(std::make_pair((3 * x + 0) * interval_samples / denom, periods[0]));
+            segments.emplace_back(std::make_pair((3 * x + 1) * interval_samples / denom, periods[1]));
+            segments.emplace_back(std::make_pair((3 * x + 2) * interval_samples / denom, periods[2]));
           }
         }
 
       } else {
         // If neither arpeggio nor vibrato happens in this tick, then the period is constant
-        segments.emplace_back(make_pair(0, effective_period));
+        segments.emplace_back(std::make_pair(0, effective_period));
       }
 
       // Figure out the volume for this tick
@@ -961,7 +956,7 @@ bool MODSynthesizer::render_current_division_audio() {
       track.last_effective_volume = effective_volume;
 
       // Apply the appropriate portion of the instrument's sample data to the tick output data.
-      const vector<float>* resampled_data = nullptr;
+      const std::vector<float>* resampled_data = nullptr;
       ssize_t segment_index = -1;
       double src_ratio = -1.0;
       double resampled_offset = -1.0;
@@ -1000,7 +995,7 @@ bool MODSynthesizer::render_current_division_audio() {
         }
 
         if (!resampled_data) {
-          throw logic_error("resampled data not present at sound generation time");
+          throw std::logic_error("resampled data not present at sound generation time");
         }
 
         // The sample could "end" here (and not below) because of floating-point imprecision
@@ -1156,15 +1151,15 @@ bool MODSynthesizer::done() const {
   return (this->pos.partition_index >= this->mod->partition_count || this->exceeded_time_limit());
 }
 
-MODRenderer::MODRenderer(shared_ptr<const Module> mod, shared_ptr<const Options> opts)
+MODRenderer::MODRenderer(std::shared_ptr<const Module> mod, std::shared_ptr<const Options> opts)
     : MODSynthesizer(mod, opts) {}
 
-bool MODRenderer::on_tick_samples_ready(vector<float>&& samples) {
+bool MODRenderer::on_tick_samples_ready(std::vector<float>&& samples) {
   this->tick_samples.emplace_back(std::move(samples));
   return true;
 }
 
-const vector<float>& MODRenderer::result() {
+const std::vector<float>& MODRenderer::result() {
   if (this->all_tick_samples.empty()) {
     this->all_tick_samples.reserve(this->pos.total_output_samples);
     for (const auto& s : this->tick_samples) {

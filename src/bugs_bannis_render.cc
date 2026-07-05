@@ -12,23 +12,18 @@
 #include "ImageSaver.hh"
 #include "TextCodecs.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
-ImageRGB888 render_Levs(const string& data, const ImageRGB888& tile_sheet) {
+phosg::ImageRGB888 render_Levs(const std::string& data, const phosg::ImageRGB888& tile_sheet) {
   if (data.size() != 0x800) {
-    throw runtime_error("data size is incorrect");
+    throw std::runtime_error("data size is incorrect");
   }
-  StringReader r(data);
+  phosg::StringReader r(data);
 
-  // The time and required carrots are encoded in the high bytes of the first
-  // few tiles.
+  // The time and required carrots are encoded in the high bytes of the first few tiles.
   uint8_t minutes = r.pget_u8(0x00);
   uint8_t seconds = r.pget_u8(0x02);
   uint8_t carrots = r.pget_u8(0x04);
 
-  static const vector<uint16_t> tile_remap({
+  static const std::vector<uint16_t> tile_remap({
       // clang-format off
       /* 00 */ 0xFFFF, 0x0000, 0xFFFF, 0x0002, 0x0003, 0x0130, 0x000C, 0x0006,
       /* 08 */ 0xFFFF, 0x0010, 0x001C, 0xFFFF, 0x0032, 0x0023, 0x0084, 0x002A,
@@ -65,7 +60,7 @@ ImageRGB888 render_Levs(const string& data, const ImageRGB888& tile_sheet) {
       // clang-format on
   });
 
-  ImageRGB888 ret(32 * 32, 32 * 32);
+  phosg::ImageRGB888 ret(32 * 32, 32 * 32);
   for (size_t y = 0; y < 0x20; y++) {
     for (size_t x = 0; x < 0x20; x++) {
       // Seems like only the low byte is relevant?
@@ -88,7 +83,7 @@ ImageRGB888 render_Levs(const string& data, const ImageRGB888& tile_sheet) {
 }
 
 static void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: bugs_bannis_render [options] <Levs-file.bin> PICT-132.bmp [output-filename]\n\
 \n\
 You can get Levs files by using resource_dasm on the Bugs Bannis game itself.\n\
@@ -100,10 +95,10 @@ If no output filename is given, the output is written to <Levs-file>.<image ext>
 }
 
 int main(int argc, char** argv) {
-  ImageSaver image_saver;
-  string input_filename;
-  string tile_sheet_filename;
-  string output_filename;
+  ResourceDASM::ImageSaver image_saver;
+  std::string input_filename;
+  std::string tile_sheet_filename;
+  std::string output_filename;
   for (int x = 1; x < argc; x++) {
     if (image_saver.process_cli_arg(argv[x])) {
       // Nothing
@@ -114,7 +109,7 @@ int main(int argc, char** argv) {
     } else if (output_filename.empty()) {
       output_filename = argv[x];
     } else {
-      fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
+      phosg::fwrite_fmt(stderr, "excess argument: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -129,19 +124,19 @@ int main(int argc, char** argv) {
     output_filename = input_filename;
   }
 
-  string input_data = load_file(input_filename);
+  std::string input_data = phosg::load_file(input_filename);
 
-  auto tile_sheet = ImageRGB888::from_file_data(load_file(tile_sheet_filename));
+  auto tile_sheet = phosg::ImageRGB888::from_file_data(phosg::load_file(tile_sheet_filename));
   if (tile_sheet.get_width() < 16 * 32) {
-    throw runtime_error("tile sheet is too narrow");
+    throw std::runtime_error("tile sheet is too narrow");
   }
   if (tile_sheet.get_height() < 16 * 32) {
-    throw runtime_error("tile sheet is too short");
+    throw std::runtime_error("tile sheet is too short");
   }
 
-  ImageRGB888 map = render_Levs(input_data, tile_sheet);
+  phosg::ImageRGB888 map = render_Levs(input_data, tile_sheet);
   output_filename = image_saver.save_image(map, output_filename);
 
-  fwrite_fmt(stderr, "... {}\n", output_filename);
+  phosg::fwrite_fmt(stderr, "... {}\n", output_filename);
   return 0;
 }

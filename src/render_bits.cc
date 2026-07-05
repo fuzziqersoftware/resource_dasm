@@ -14,10 +14,6 @@
 #include "QuickDrawEngine.hh"
 #include "ResourceFile.hh"
 
-using namespace std;
-using namespace phosg;
-using namespace ResourceDASM;
-
 enum ColorFormat {
   GRAY1 = 0,
   GRAY2,
@@ -74,7 +70,7 @@ ColorFormat color_format_for_name(const char* name) {
   } else if (!strcmp(name, "rgba8888")) {
     return ColorFormat::RGBA8888;
   } else {
-    throw out_of_range("invalid color format");
+    throw std::out_of_range("invalid color format");
   }
 }
 
@@ -102,14 +98,14 @@ size_t bits_for_format(ColorFormat format) {
     case ColorFormat::RGBA8888:
       return 32;
     case ColorFormat::INDEXED:
-      throw logic_error("indexed color format does not have a fixed width");
+      throw std::logic_error("indexed color format does not have a fixed width");
     default:
-      throw out_of_range("invalid color format");
+      throw std::out_of_range("invalid color format");
   }
 }
 
 static void print_usage() {
-  fwrite_fmt(stderr, "\
+  phosg::fwrite_fmt(stderr, "\
 Usage: render_bits [options] [input_filename [output_filename_without_extension]]\n\
 \n\
 If no filenames are given, read from stdin and write to stdout. You should\n\
@@ -163,7 +159,7 @@ Options:\n\
 
 int main(int argc, char** argv) {
   if (argc <= 1) {
-    fwrite_fmt(stderr, "No options given. If you actually want all default options, use --bits=1.\n\n");
+    phosg::fwrite_fmt(stderr, "No options given. If you actually want all default options, use --bits=1.\n\n");
     print_usage();
     return 1;
   }
@@ -180,7 +176,7 @@ int main(int argc, char** argv) {
   const char* clut_filename = nullptr;
   size_t block_size_x = 0;
   size_t block_size_y = 0;
-  ImageSaver image_saver;
+  ResourceDASM::ImageSaver image_saver;
   for (int x = 1; x < argc; x++) {
     if (!strcmp(argv[x], "--help")) {
       print_usage();
@@ -202,7 +198,7 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[x], "--column-major")) {
       column_major = true;
     } else if (!strncmp(argv[x], "--block-size=", 13)) {
-      auto tokens = split(&argv[x][13], ':');
+      auto tokens = phosg::split(&argv[x][13], ':');
       if (tokens.size() == 1) {
         block_size_x = stoull(tokens[0], nullptr, 0);
         block_size_y = block_size_x;
@@ -221,7 +217,7 @@ int main(int argc, char** argv) {
     } else if (!output_filename) {
       output_filename = argv[x];
     } else {
-      fwrite_fmt(stderr, "invalid or excessive option: {}\n", argv[x]);
+      phosg::fwrite_fmt(stderr, "invalid or excessive option: {}\n", argv[x]);
       print_usage();
       return 2;
     }
@@ -231,34 +227,34 @@ int main(int argc, char** argv) {
   // mean. Should we order the pixels within the blocks in column-major order
   // or order the blocks in column-major order?
   if (block_size_x && block_size_y && column_major) {
-    throw runtime_error("cannot decode column-major blocks");
+    throw std::runtime_error("cannot decode column-major blocks");
   }
 
-  string in_data = input_filename ? load_file(input_filename) : read_all(stdin);
+  std::string in_data = input_filename ? phosg::load_file(input_filename) : phosg::read_all(stdin);
   if (parse) {
-    in_data = parse_data_string(in_data);
+    in_data = phosg::parse_data_string(in_data);
   }
   if (offset) {
     in_data = in_data.substr(offset);
   }
 
-  vector<ColorTableEntry> clut;
+  std::vector<ResourceDASM::ColorTableEntry> clut;
   size_t pixel_bits;
   if (use_default_clut) {
-    clut = create_default_clut();
+    clut = ResourceDASM::create_default_clut();
     pixel_bits = 8;
   } else if (clut_filename) {
-    string clut_data = load_file(clut_filename);
-    clut = ResourceFile::decode_clut(clut_data.data(), clut_data.size());
+    std::string clut_data = phosg::load_file(clut_filename);
+    clut = ResourceDASM::ResourceFile::decode_clut(clut_data.data(), clut_data.size());
     if (clut.empty()) {
-      throw invalid_argument("clut is empty");
+      throw std::invalid_argument("clut is empty");
     }
     if (clut.size() & (clut.size() - 1)) {
-      fwrite_fmt(stderr, "warning: clut size is not a power of 2; extending with black\n");
+      phosg::fwrite_fmt(stderr, "warning: clut size is not a power of 2; extending with black\n");
       while (clut.size() & (clut.size() - 1)) {
         auto entry = clut.emplace_back();
         entry.color_num = clut.size() - 1;
-        entry.c = Color(0, 0, 0);
+        entry.c = ResourceDASM::Color(0, 0, 0);
       }
     }
     for (pixel_bits = 0;
@@ -293,15 +289,15 @@ int main(int argc, char** argv) {
   }
 
   if (block_size_x && (w % block_size_x)) {
-    throw runtime_error("image width is not a multiple of block width");
+    throw std::runtime_error("image width is not a multiple of block width");
   }
   if (block_size_y && (h % block_size_y)) {
-    throw runtime_error("image height is not a multiple of block height");
+    throw std::runtime_error("image height is not a multiple of block height");
   }
 
-  BitReader br(in_data);
-  StringReader sr(in_data);
-  deque<uint32_t> pixel_stream;
+  phosg::BitReader br(in_data);
+  phosg::StringReader sr(in_data);
+  std::deque<uint32_t> pixel_stream;
   for (size_t z = 0; z < pixel_count; z++) {
     switch (color_format) {
       case ColorFormat::GRAY1:
@@ -348,7 +344,7 @@ int main(int argc, char** argv) {
       }
 
       case ColorFormat::INDEXED: {
-        Color8 c = clut.at(br.read(pixel_bits)).c.as8();
+        ResourceDASM::Color8 c = clut.at(br.read(pixel_bits)).c.as8();
         pixel_stream.emplace_back((c.r << 24) | (c.g << 16) | (c.b << 8) | 0xFF);
         break;
       }
@@ -437,18 +433,18 @@ int main(int argc, char** argv) {
       }
 
       default:
-        fwrite_fmt(stderr, "invalid color format\n");
+        phosg::fwrite_fmt(stderr, "invalid color format\n");
         return 1;
     }
   }
 
   if (pixel_stream.size() < w * h) {
-    fwrite_fmt(stderr, "warning: not enough pixels ({}) to fill {}x{} image ({} required)\n", pixel_stream.size(), w, h, w * h);
+    phosg::fwrite_fmt(stderr, "warning: not enough pixels ({}) to fill {}x{} image ({} required)\n", pixel_stream.size(), w, h, w * h);
   }
 
-  ImageRGBA8888N img;
+  phosg::ImageRGBA8888N img;
   if (block_size_x && block_size_y) {
-    img = ImageRGBA8888N(w, h);
+    img = phosg::ImageRGBA8888N(w, h);
     for (size_t block_y = 0; block_y < h && !pixel_stream.empty(); block_y += block_size_y) {
       for (size_t block_x = 0; block_x < w && !pixel_stream.empty(); block_x += block_size_x) {
         for (size_t y = 0; y < block_size_y; y++) {
@@ -460,7 +456,7 @@ int main(int argc, char** argv) {
       }
     }
   } else if (column_major) {
-    img = ImageRGBA8888N(w, h);
+    img = phosg::ImageRGBA8888N(w, h);
     for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
       for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
         img.write(x, y, pixel_stream.front());
@@ -468,7 +464,7 @@ int main(int argc, char** argv) {
       }
     }
   } else {
-    img = ImageRGBA8888N(w, h);
+    img = phosg::ImageRGBA8888N(w, h);
     for (size_t y = 0; y < h && !pixel_stream.empty(); y++) {
       for (size_t x = 0; x < w && !pixel_stream.empty(); x++) {
         img.write(x, y, pixel_stream.front());

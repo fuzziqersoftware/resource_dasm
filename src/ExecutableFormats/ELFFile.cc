@@ -14,55 +14,50 @@
 #include "../Emulators/PPC32Emulator.hh"
 #include "../Emulators/X86Emulator.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
-ELFFile::ELFFile(const char* filename) : ELFFile(filename, load_file(filename)) {}
+ELFFile::ELFFile(const char* filename) : ELFFile(filename, phosg::load_file(filename)) {}
 
-ELFFile::ELFFile(const char* filename, const string& data)
-    : ELFFile(filename, data.data(), data.size()) {}
+ELFFile::ELFFile(const char* filename, const std::string& data) : ELFFile(filename, data.data(), data.size()) {}
 
-ELFFile::ELFFile(const char* filename, const void* data, size_t size)
-    : filename(filename) {
+ELFFile::ELFFile(const char* filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 
 void ELFFile::parse(const void* data, size_t size) {
-  StringReader r(data, size);
+  phosg::StringReader r(data, size);
   this->identifier = r.get<ELFIdentifier>();
   if (this->identifier.magic != 0x7F454C46) { // '\x7FELF'
-    throw runtime_error("incorrect signature");
+    throw std::runtime_error("incorrect signature");
   }
 
   if (this->identifier.format_version != 1) {
-    throw runtime_error("unsupported format version");
+    throw std::runtime_error("unsupported format version");
   }
 
   if (this->identifier.width == 1) {
     if (this->identifier.endianness == 1) {
-      this->parse_t<le_uint16_t, le_uint32_t, le_uint32_t>(r);
+      this->parse_t<phosg::le_uint16_t, phosg::le_uint32_t, phosg::le_uint32_t>(r);
     } else if (this->identifier.endianness == 2) {
-      this->parse_t<be_uint16_t, be_uint32_t, be_uint32_t>(r);
+      this->parse_t<phosg::be_uint16_t, phosg::be_uint32_t, phosg::be_uint32_t>(r);
     } else {
-      throw runtime_error("unsupported endianness");
+      throw std::runtime_error("unsupported endianness");
     }
   } else if (this->identifier.width == 2) {
     if (this->identifier.endianness == 1) {
-      this->parse_t<le_uint16_t, le_uint32_t, le_uint64_t>(r);
+      this->parse_t<phosg::le_uint16_t, phosg::le_uint32_t, phosg::le_uint64_t>(r);
     } else if (this->identifier.endianness == 2) {
-      this->parse_t<be_uint16_t, be_uint32_t, be_uint64_t>(r);
+      this->parse_t<phosg::be_uint16_t, phosg::be_uint32_t, phosg::be_uint64_t>(r);
     } else {
-      throw runtime_error("unsupported endianness");
+      throw std::runtime_error("unsupported endianness");
     }
   } else {
-    throw runtime_error("unsupported field width");
+    throw std::runtime_error("unsupported field width");
   }
 }
 
 template <typename U16T, typename U32T, typename LongT>
-void ELFFile::parse_t(StringReader& r) {
+void ELFFile::parse_t(phosg::StringReader& r) {
   const auto& header = r.get<ELFHeader<U16T, U32T, LongT>>();
   this->type = header.type;
   this->architecture = header.architecture;
@@ -71,7 +66,7 @@ void ELFFile::parse_t(StringReader& r) {
 
   r.go(header.section_header_offset);
   this->sections.clear();
-  vector<uint32_t> sec_name_offsets;
+  std::vector<uint32_t> sec_name_offsets;
   while (this->sections.size() < header.section_header_entry_count) {
     const auto& sec_entry = r.get<ELFSectionHeaderEntry<U32T, LongT>>();
     sec_name_offsets.emplace_back(sec_entry.name_offset);
@@ -90,18 +85,18 @@ void ELFFile::parse_t(StringReader& r) {
 
   // Get the names from the names section (if possible)
   try {
-    StringReader names_r(this->sections.at(header.names_section_index).data);
+    phosg::StringReader names_r(this->sections.at(header.names_section_index).data);
     for (size_t x = 0; x < this->sections.size(); x++) {
       auto& sec = this->sections[x];
       uint32_t name_offset = sec_name_offsets.at(x);
       sec.name = names_r.get_cstr(name_offset);
     }
-  } catch (const exception&) {
+  } catch (const std::exception&) {
   }
 }
 
 static const char* name_for_abi(uint16_t abi) {
-  static const vector<const char*> names({
+  static const std::vector<const char*> names({
       /* 00 */ "System V",
       /* 01 */ "HP-UX",
       /* 02 */ "NetBSD",
@@ -124,19 +119,19 @@ static const char* name_for_abi(uint16_t abi) {
   });
   try {
     return names.at(abi);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return "Unknown";
   }
 }
 
-static string name_for_file_type(uint16_t type) {
+static std::string name_for_file_type(uint16_t type) {
   if ((type & 0xFF00) == 0xFE00) {
     return std::format("(OS-specific {:02X})", type & 0xFF);
   }
   if ((type & 0xFF00) == 0xFF00) {
     return std::format("(architecture-specific {:02X})", type & 0xFF);
   }
-  static const vector<const char*> names({
+  static const std::vector<const char*> names({
       /* 00 */ "Unspecified",
       /* 01 */ "Relocatable file",
       /* 02 */ "Executable file",
@@ -145,19 +140,19 @@ static string name_for_file_type(uint16_t type) {
   });
   try {
     return names.at(type);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return "Unknown";
   }
 }
 
-static string name_for_section_type(uint32_t type) {
+static std::string name_for_section_type(uint32_t type) {
   if ((type & 0xF0000000) == 0x60000000) {
     return std::format("(OS-specific {:08X})", type & 0x0FFFFFFF);
   }
   if ((type & 0xF0000000) == 0x70000000) {
     return std::format("(architecture-specific {:08X})", type & 0x0FFFFFFF);
   }
-  static const vector<const char*> names({
+  static const std::vector<const char*> names({
       /* 00 */ "Unused",
       /* 01 */ "Program data",
       /* 02 */ "Symbol table",
@@ -178,13 +173,13 @@ static string name_for_section_type(uint32_t type) {
   });
   try {
     return names.at(type);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return "Unknown";
   }
 }
 
 static const char* name_for_architecture(uint16_t arch) {
-  static const unordered_map<uint16_t, const char*> names({
+  static const std::unordered_map<uint16_t, const char*> names({
       {0x0000, "Unspecified"},
       {0x0001, "AT&T WE 32100"},
       {0x0002, "SPARC"},
@@ -238,13 +233,13 @@ static const char* name_for_architecture(uint16_t arch) {
   });
   try {
     return names.at(arch);
-  } catch (const out_of_range&) {
+  } catch (const std::out_of_range&) {
     return "Unknown";
   }
 }
 
-static string string_for_section_flags(uint32_t flags) {
-  vector<string> tokens;
+static std::string string_for_section_flags(uint32_t flags) {
+  std::vector<std::string> tokens;
   if (flags & 0x00000001) {
     tokens.emplace_back("writable");
   }
@@ -284,44 +279,45 @@ static string string_for_section_flags(uint32_t flags) {
   if (flags & 0x000FF808) {
     tokens.emplace_back(std::format("unknown {:02X}", flags & 0x000FF808));
   }
-  return join(tokens, ", ");
+  return phosg::join(tokens, ", ");
 }
 
 void ELFFile::print(
     FILE* stream,
-    const multimap<uint32_t, string>* labels,
+    const std::multimap<uint32_t, std::string>* labels,
     bool print_hex_view_for_code,
     bool all_sections_as_code) const {
-  fwrite_fmt(stream, "[ELF file: {}]\n", this->filename);
-  fwrite_fmt(stream, "  width: {:02X} ({})\n", this->identifier.width, (this->identifier.width == 1) ? "32-bit" : "64-bit");
-  fwrite_fmt(stream, "  endianness: {:02X} ({})\n", this->identifier.width, (this->identifier.width == 1) ? "little-endian" : "big-endian");
-  fwrite_fmt(stream, "  OS ABI: {:02X} ({})\n", this->identifier.os_abi, name_for_abi(this->identifier.os_abi));
-  string version_args_str = format_data_string(this->identifier.version_args, sizeof(this->identifier.version_args));
-  fwrite_fmt(stream, "  version arguments: {}\n", version_args_str);
-  string type_str = name_for_file_type(this->type);
-  fwrite_fmt(stream, "  file type: {:04X} ({})\n", this->type, type_str);
-  fwrite_fmt(stream, "  architecture: {:04X} ({})\n", this->architecture, name_for_architecture(this->architecture));
-  fwrite_fmt(stream, "  entrypoint: {:08X}\n", this->entrypoint_addr);
-  fwrite_fmt(stream, "  flags: {:08X}\n", this->flags);
+  phosg::fwrite_fmt(stream, "[ELF file: {}]\n", this->filename);
+  phosg::fwrite_fmt(stream, "  width: {:02X} ({})\n",
+      this->identifier.width, (this->identifier.width == 1) ? "32-bit" : "64-bit");
+  phosg::fwrite_fmt(stream, "  endianness: {:02X} ({})\n",
+      this->identifier.width, (this->identifier.width == 1) ? "little-endian" : "big-endian");
+  phosg::fwrite_fmt(stream, "  OS ABI: {:02X} ({})\n", this->identifier.os_abi, name_for_abi(this->identifier.os_abi));
+  std::string version_args_str = phosg::format_data_string(
+      this->identifier.version_args, sizeof(this->identifier.version_args));
+  phosg::fwrite_fmt(stream, "  version arguments: {}\n", version_args_str);
+  std::string type_str = name_for_file_type(this->type);
+  phosg::fwrite_fmt(stream, "  file type: {:04X} ({})\n", this->type, type_str);
+  phosg::fwrite_fmt(stream, "  architecture: {:04X} ({})\n", this->architecture, name_for_architecture(this->architecture));
+  phosg::fwrite_fmt(stream, "  entrypoint: {:08X}\n", this->entrypoint_addr);
+  phosg::fwrite_fmt(stream, "  flags: {:08X}\n", this->flags);
 
   for (size_t x = 0; x < this->sections.size(); x++) {
     const auto& sec = this->sections[x];
-    fwrite_fmt(stream, "\n[section {} header]\n", x);
-    fwrite_fmt(stream, "  name: {}\n", sec.name);
-    string sec_type_str = name_for_section_type(sec.type);
-    fwrite_fmt(stream, "  type: {:08X} ({})\n", sec.type, sec_type_str);
-    string sec_flags_str = string_for_section_flags(sec.flags);
-    fwrite_fmt(stream, "  flags: {:08X} ({})\n", sec.flags, sec_flags_str);
-    fwrite_fmt(stream, "  virtual address: {:08X}\n", sec.virtual_addr);
-    fwrite_fmt(stream, "  file offset: {:08X}\n", sec.offset);
-    fwrite_fmt(stream, "  file size: {:08X}\n", sec.physical_size);
-    fwrite_fmt(stream, "  linked section number: {:08X}\n", sec.linked_section_num);
-    fwrite_fmt(stream, "  information: {:08X}\n", sec.info);
-    fwrite_fmt(stream, "  alignment: {:08X}\n", sec.alignment);
-    fwrite_fmt(stream, "  contents entry size: {:08X}\n", sec.entry_size);
+    phosg::fwrite_fmt(stream, "\n[section {} header]\n", x);
+    phosg::fwrite_fmt(stream, "  name: {}\n", sec.name);
+    phosg::fwrite_fmt(stream, "  type: {:08X} ({})\n", sec.type, name_for_section_type(sec.type));
+    phosg::fwrite_fmt(stream, "  flags: {:08X} ({})\n", sec.flags, string_for_section_flags(sec.flags));
+    phosg::fwrite_fmt(stream, "  virtual address: {:08X}\n", sec.virtual_addr);
+    phosg::fwrite_fmt(stream, "  file offset: {:08X}\n", sec.offset);
+    phosg::fwrite_fmt(stream, "  file size: {:08X}\n", sec.physical_size);
+    phosg::fwrite_fmt(stream, "  linked section number: {:08X}\n", sec.linked_section_num);
+    phosg::fwrite_fmt(stream, "  information: {:08X}\n", sec.info);
+    phosg::fwrite_fmt(stream, "  alignment: {:08X}\n", sec.alignment);
+    phosg::fwrite_fmt(stream, "  contents entry size: {:08X}\n", sec.entry_size);
     if (!sec.data.empty()) {
       if (all_sections_as_code || (sec.flags & 0x00000004)) { // Executable
-        string disassembly;
+        std::string disassembly;
         if (this->architecture == 0x0003) { // X86
           disassembly = X86Emulator::disassemble(sec.data.data(), sec.data.size(), sec.virtual_addr, labels);
         } else if (this->architecture == 0x0004) { // M68K
@@ -331,18 +327,18 @@ void ELFFile::print(
         }
 
         if (disassembly.empty()) {
-          fwrite_fmt(stream, "[section {:X} data] // Architecture not supported for disassembly\n", x);
-          print_data(stream, sec.data, sec.virtual_addr);
+          phosg::fwrite_fmt(stream, "[section {:X} data] // Architecture not supported for disassembly\n", x);
+          phosg::print_data(stream, sec.data, sec.virtual_addr);
         } else {
-          fwritex(stream, disassembly);
+          phosg::fwritex(stream, disassembly);
           if (print_hex_view_for_code) {
-            fwrite_fmt(stream, "[section {:X} data] // Architecture not supported for disassembly\n", x);
-            print_data(stream, sec.data, sec.virtual_addr);
+            phosg::fwrite_fmt(stream, "[section {:X} data] // Architecture not supported for disassembly\n", x);
+            phosg::print_data(stream, sec.data, sec.virtual_addr);
           }
         }
       } else if (!sec.data.empty()) {
-        fwrite_fmt(stream, "[section {:X} data]\n", x);
-        print_data(stream, sec.data, sec.virtual_addr);
+        phosg::fwrite_fmt(stream, "[section {:X} data]\n", x);
+        phosg::print_data(stream, sec.data, sec.virtual_addr);
       }
     }
   }

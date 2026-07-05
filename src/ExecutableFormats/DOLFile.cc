@@ -13,9 +13,6 @@
 #include "../Emulators/MemoryContext.hh"
 #include "../Emulators/PPC32Emulator.hh"
 
-using namespace std;
-using namespace phosg;
-
 namespace ResourceDASM {
 
 void DOLFile::check_address_range(uint32_t start, uint32_t size, const char* name) {
@@ -23,31 +20,17 @@ void DOLFile::check_address_range(uint32_t start, uint32_t size, const char* nam
     return;
   }
   uint32_t end = start + size;
-  if ((start < 0x80000000) || (start >= 0x81800000) ||
-      (end < 0x80000000) || (end > 0x81800000)) {
-    throw runtime_error(string(name) + " out of range");
+  if ((start < 0x80000000) || (start >= 0x81800000) || (end < 0x80000000) || (end > 0x81800000)) {
+    throw std::runtime_error(std::string(name) + " out of range");
   }
 }
 
-struct DOLHeader {
-  be_uint32_t text_offset[7];
-  be_uint32_t data_offset[11];
-  be_uint32_t text_address[7];
-  be_uint32_t data_address[11];
-  be_uint32_t text_size[7];
-  be_uint32_t data_size[11];
-  be_uint32_t bss_address;
-  be_uint32_t bss_size;
-  be_uint32_t entrypoint;
-  be_uint32_t unused[7];
-} __attribute__((packed));
-
 DOLFile::DOLFile(const char* filename) : filename(filename) {
-  string data = load_file(filename);
+  std::string data = phosg::load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-DOLFile::DOLFile(const char* filename, const string& data) : filename(filename) {
+DOLFile::DOLFile(const char* filename, const std::string& data) : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
@@ -55,17 +38,17 @@ DOLFile::DOLFile(const char* filename, const void* data, size_t size) : filename
   this->parse(data, size);
 }
 
-void DOLFile::load_into(shared_ptr<MemoryContext> mem) const {
+void DOLFile::load_into(std::shared_ptr<MemoryContext> mem) const {
   uint32_t min_addr = this->bss_address ? this->bss_address : 0xFFFFFFFF;
   uint32_t max_addr = this->bss_address ? (this->bss_address + this->bss_size) : 0;
   for (const auto& sec : this->sections) {
-    min_addr = min<uint32_t>(min_addr, sec.address);
-    max_addr = max<uint32_t>(max_addr, sec.address + sec.data.size());
+    min_addr = std::min<uint32_t>(min_addr, sec.address);
+    max_addr = std::max<uint32_t>(max_addr, sec.address + sec.data.size());
   }
   mem->preallocate_arena(min_addr, max_addr - min_addr);
 
   // Sometimes the BSS overlaps other sections, so we trim it down as needed
-  vector<pair<uint32_t, uint32_t>> bss_sections;
+  std::vector<std::pair<uint32_t, uint32_t>> bss_sections;
   if (this->bss_address && this->bss_size) {
     bss_sections.emplace_back(this->bss_address, this->bss_address + this->bss_size);
   }
@@ -95,14 +78,13 @@ void DOLFile::load_into(shared_ptr<MemoryContext> mem) const {
 }
 
 void DOLFile::parse(const void* data, size_t size) {
-  StringReader r(data, size);
+  phosg::StringReader r(data, size);
 
-  const auto& header = r.get<DOLHeader>();
+  const auto& header = r.get<Header>();
 
   for (size_t x = 0; x < 7; x++) {
     if (header.text_offset[x] && header.text_size[x]) {
-      this->check_address_range(
-          header.text_address[x], header.text_size[x], "text section");
+      this->check_address_range(header.text_address[x], header.text_size[x], "text section");
       auto& sec = this->sections.emplace_back();
       sec.offset = header.text_offset[x];
       sec.address = header.text_address[x];
@@ -114,8 +96,7 @@ void DOLFile::parse(const void* data, size_t size) {
 
   for (size_t x = 0; x < 11; x++) {
     if (header.data_offset[x] && header.data_offset[x]) {
-      this->check_address_range(
-          header.data_address[x], header.data_size[x], "text section");
+      this->check_address_range(header.data_address[x], header.data_size[x], "text section");
       auto& sec = this->sections.emplace_back();
       sec.offset = header.data_offset[x];
       sec.address = header.data_address[x];
@@ -134,42 +115,43 @@ void DOLFile::parse(const void* data, size_t size) {
 
 void DOLFile::print(
     FILE* stream,
-    const multimap<uint32_t, string>* labels,
+    const std::multimap<uint32_t, std::string>* labels,
     bool print_hex_view_for_code,
     bool all_sections_as_code) const {
-  fwrite_fmt(stream, "[DOL file: {}]\n", this->filename);
+  phosg::fwrite_fmt(stream, "[DOL file: {}]\n", this->filename);
   uint32_t bss_mem_addr_end = this->bss_address + this->bss_size - 1;
-  fwrite_fmt(stream, "  BSS section: {:08X}-{:08X} in memory ({:08X} bytes)\n",
+  phosg::fwrite_fmt(stream, "  BSS section: {:08X}-{:08X} in memory ({:08X} bytes)\n",
       this->bss_address, bss_mem_addr_end, this->bss_size);
-  fwrite_fmt(stream, "  entrypoint: {:08X}\n", this->entrypoint);
+  phosg::fwrite_fmt(stream, "  entrypoint: {:08X}\n", this->entrypoint);
   for (const auto& sec : this->sections) {
     uint32_t file_offset_end = sec.offset + sec.data.size() - 1;
     uint32_t mem_addr_end = sec.address + sec.data.size() - 1;
-    fwrite_fmt(stream,
+    phosg::fwrite_fmt(stream,
         "  {} section {}: {:08X}-{:08X} in file, {:08X}-{:08X} in memory ({:08X} bytes)\n",
-        sec.is_text ? "text" : "data", sec.section_num, sec.offset, file_offset_end, sec.address, mem_addr_end, sec.data.size());
+        sec.is_text ? "text" : "data", sec.section_num, sec.offset, file_offset_end, sec.address, mem_addr_end,
+        sec.data.size());
   }
 
   fputc('\n', stream);
 
-  multimap<uint32_t, string> effective_labels;
+  std::multimap<uint32_t, std::string> effective_labels;
   if (labels) {
     effective_labels = *labels;
   }
   effective_labels.emplace(this->entrypoint, "start");
 
   for (const auto& sec : this->sections) {
-    fwrite_fmt(stream, "\n.{}{}:\n", sec.is_text ? "text" : "data", sec.section_num);
+    phosg::fwrite_fmt(stream, "\n.{}{}:\n", sec.is_text ? "text" : "data", sec.section_num);
     if (all_sections_as_code || sec.is_text) {
-      string disassembly = PPC32Emulator::disassemble(
+      std::string disassembly = PPC32Emulator::disassemble(
           sec.data.data(), sec.data.size(), sec.address, &effective_labels);
-      fwritex(stream, disassembly);
+      phosg::fwritex(stream, disassembly);
       if (print_hex_view_for_code) {
-        fwrite_fmt(stream, "\n.{}{}:\n", sec.is_text ? "text" : "data", sec.section_num);
-        print_data(stream, sec.data, sec.address);
+        phosg::fwrite_fmt(stream, "\n.{}{}:\n", sec.is_text ? "text" : "data", sec.section_num);
+        phosg::print_data(stream, sec.data, sec.address);
       }
     } else {
-      print_data(stream, sec.data, sec.address);
+      phosg::print_data(stream, sec.data, sec.address);
     }
   }
 }

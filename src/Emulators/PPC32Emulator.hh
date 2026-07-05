@@ -17,8 +17,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 class PPC32Emulator : public EmulatorBase {
 public:
   static constexpr bool is_little_endian = false;
@@ -652,7 +650,7 @@ private:
 
     typedef uint32_t (Assembler::*AssembleFunction)(const StreamItem& si);
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
-    StringWriter code;
+    phosg::StringWriter code;
 
     void assemble(const std::string& text, std::function<std::string(const std::string&)> get_include);
 

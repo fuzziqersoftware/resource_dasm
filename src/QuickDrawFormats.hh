@@ -16,8 +16,6 @@
 
 namespace ResourceDASM {
 
-using namespace phosg;
-
 enum TransferMode {
   SRC_COPY = 0,
   SRC_OR = 1,
@@ -42,20 +40,19 @@ enum TransferMode {
 };
 
 struct Region {
-  // Note: unlike most of the others, this struct does not represent the actual
-  // structure used in PICT files, but is instead an interpretation thereof. Use
-  // the StringReader constructor instead of directly reading these.
+  // Note: unlike most of the others, this struct does not represent the actual structure used in PICT files, but is
+  // instead an interpretation thereof. Use the phosg::StringReader constructor instead of directly reading these.
   Rect rect;
   std::map<int16_t, std::set<int16_t>> inversions;
 
-  Region(StringReader& r);
+  Region(phosg::StringReader& r);
   Region(const Rect& r);
 
   std::string serialize() const;
 
   bool is_inversion_point(int16_t x, int16_t y) const;
 
-  ImageG1 render() const;
+  phosg::ImageG1 render() const;
 
   class Iterator {
   public:
@@ -95,31 +92,27 @@ extern const std::vector<Color8> default_icon_color_table_4bit;
 extern const std::vector<Color8> default_icon_color_table_8bit;
 
 // Decodes a monochrome image
-ImageG1 decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes = 0);
+phosg::ImageG1 decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes = 0);
 
-// Decodes a monochrome image (as above), but also decodes a second monochrome
-// image immediately following the first, and applies the second image as an
-// alpha mask over the first. Returns an RGBA image containing white, black, and
-// transparent pixels. (The transparent pixels may also have white or black
-// color values.)
-ImageGA11 decode_monochrome_image_masked(const void* vdata, size_t size, size_t w, size_t h);
+// Decodes a monochrome image (as above), but also decodes a second monochrome image immediately following the first,
+// and applies the second image as an alpha mask over the first. Returns an RGBA image containing white, black, and
+// transparent pixels. (The transparent pixels may also have white or black  color values.)
+phosg::ImageGA11 decode_monochrome_image_masked(const void* vdata, size_t size, size_t w, size_t h);
 
-// Decodes a 4-bit color image, and applies the given color table to produce a
-// full-color RGB image. If null is given for color_table, returns a full-color
-// RGB image in which each pixel is one of 000000, 111111, 222222, ... FFFFFF
-// (produced by directly placing each 4-bit value in each nybble of each pixel.)
-ImageRGB888 decode_4bit_image(
+// Decodes a 4-bit color image, and applies the given color table to produce a full-color RGB image. If null is given
+// for color_table, returns a full-color RGB image in which each pixel is one of 000000, 111111, 222222, ... FFFFFF
+// (produced by directly placing each 4-bit value in each nybble of each pixel).
+phosg::ImageRGB888 decode_4bit_image(
     const void* vdata,
     size_t size,
     size_t w,
     size_t h,
     const std::vector<Color8>* color_table = &default_icon_color_table_4bit);
 
-// Decodes an 8-bit color image, and applies the given color table to produce a
-// full-color RGB image. If null is given for color_table, returns a full-color
-// RGB image in which all channels of each pixel contain the corresponding value
+// Decodes an 8-bit color image, and applies the given color table to produce a full-color RGB image. If null is given
+// for color_table, returns a full-color RGB image in which all channels of each pixel contain the corresponding value
 // from the source pixel.
-ImageRGB888 decode_8bit_image(
+phosg::ImageRGB888 decode_8bit_image(
     const void* vdata,
     size_t size,
     size_t w,
@@ -127,21 +120,23 @@ ImageRGB888 decode_8bit_image(
     const std::vector<Color8>* color_table = &default_icon_color_table_8bit);
 
 // Decodes a color pixel map, optionally with a mask bitmap.
-ImageRGB888 decode_color_image(const PixelMapHeader& header, const PixelMapData& pixel_map, const ColorTable* ctable);
-ImageRGBA8888N decode_color_image_masked(
+phosg::ImageRGB888 decode_color_image(
+    const PixelMapHeader& header, const PixelMapData& pixel_map, const ColorTable* ctable);
+phosg::ImageRGBA8888N decode_color_image_masked(
     const PixelMapHeader& header,
     const PixelMapData& pixel_map,
     const ColorTable* ctable,
     const PixelMapData& mask_map,
     size_t mask_row_bytes);
 
-template <PixelFormat SourceFormat, PixelFormat MaskFormat>
-  requires(Image<MaskFormat>::HAS_ALPHA)
-ImageRGBA8888N apply_alpha_from_mask(const Image<SourceFormat>& image, const Image<MaskFormat>& mask) {
+template <phosg::PixelFormat SourceFormat, phosg::PixelFormat MaskFormat>
+  requires(phosg::Image<MaskFormat>::HAS_ALPHA)
+phosg::ImageRGBA8888N apply_alpha_from_mask(
+    const phosg::Image<SourceFormat>& image, const phosg::Image<MaskFormat>& mask) {
   if ((image.get_width() != mask.get_width()) || (image.get_height() != mask.get_height())) {
     throw std::runtime_error("dest and src dimensions are not equal");
   }
-  ImageRGBA8888N ret(image.get_width(), image.get_height());
+  phosg::ImageRGBA8888N ret(image.get_width(), image.get_height());
   for (size_t y = 0; y < image.get_height(); y++) {
     for (size_t x = 0; x < image.get_width(); x++) {
       ret.write(x, y, (image.read(x, y) & 0xFFFFFF00) | (mask.read(x, y) & 0x000000FF));
