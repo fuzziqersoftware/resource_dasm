@@ -8,7 +8,6 @@
 
 ### Code style
 
-- Use phosg::StringReader in most places where we currently do pointer arithmetic
 - Create some abstraction or consistent pattern for generating outputs based on multiple input resources (for example, generating the SONG JSON template or a .icns file from ICN#/icl4/icl8/etc.)
 
 ### Compression
@@ -216,12 +215,6 @@ Think C string table. A list of combined C/P-strings, where each string is both 
 ## m68kdasm
 
 - Implement m68k assembler
-- Fix PPC assembler/disassembler mismatch errors. Many of these are due to unused bits in the opcode (which are not represented in the disassembled output, so are re-assembled as zeroes).
-  - 40000000 => 66781184 (0x3FB0000) mismatches
-  - 4C000000 => 720352 (0xAFDE0) mismatches
-  - 7C000000 => 4160136 (0x3F7A88) mismatches
-  - EC000000 => 12316672 (0xBBF000) mismatches
-  - FC000000 => 13252472 (0xCA3778) mismatches
 - Add export symbols as labels in PEFF disassembly (this is tricky because they often point to transition vectors which are relocated at load time)
 
 ## realmz_dasm

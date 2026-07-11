@@ -39,7 +39,7 @@ void disassemble_executable(
     const std::multimap<uint32_t, std::string>* labels,
     bool print_hex_view_for_code,
     bool all_sections_as_code) {
-  ExecT f(filename.c_str(), data);
+  ExecT f(filename, data);
   f.print(out_stream, labels, print_hex_view_for_code, all_sections_as_code);
 }
 

@@ -513,7 +513,7 @@ struct SoundResourceHeaderMohawkChunkHeader {
 } __attribute__((packed));
 
 struct SoundResourceHeaderMohawkFormat {
-  // Used when header.type = 'Data' or 'Cue#'
+  // Used when header.type = 'Data'
   phosg::be_uint16_t sample_rate;
   phosg::be_uint32_t num_samples; // could be sample bytes, could also be uint16_t
   uint8_t sample_bits;

@@ -9,7 +9,7 @@
 #include <phosg/Filesystem.hh>
 #include <vector>
 
-#include "../AudioCodecs.hh"
+#include "Codecs.hh"
 
 namespace ResourceDASM {
 namespace Audio {

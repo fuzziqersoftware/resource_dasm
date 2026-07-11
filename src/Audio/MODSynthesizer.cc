@@ -328,16 +328,10 @@ void Module::export_instruments(const char* output_prefix) const {
           i.loop_start_samples,
           i.loop_length_samples);
 
-      std::string output_filename_u8 = std::format("{}_{}.u8.wav", output_prefix, i.index + 1);
-      std::vector<uint8_t> u8_sample_data;
-      u8_sample_data.reserve(i.num_samples);
-      for (int8_t sample : i.original_sample_data) {
-        u8_sample_data.emplace_back(static_cast<uint8_t>(sample) - 0x80);
-      }
-      save_wav(output_filename_u8.c_str(), u8_sample_data, 16574, 1);
-
-      std::string output_filename_f32 = std::format("{}_{}.f32.wav", output_prefix, i.index + 1);
-      save_wav(output_filename_f32.c_str(), i.sample_data, 16574, 1);
+      auto float_samples = convert_samples<float, int8_t>(i.original_sample_data);
+      phosg::save_file(
+          std::format("{}_{}.wav", output_prefix, i.index + 1),
+          Audio::serialize_wav(float_samples, 16574, 1));
     }
   }
 }

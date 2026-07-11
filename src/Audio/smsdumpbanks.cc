@@ -164,9 +164,9 @@ Comments=\n");
         phosg::fwrite_fmt(stderr, "warning: can\'t decode {}:{:X}:{:X}\n", s.source_filename, s.source_offset, s.source_size);
         continue;
       }
-      std::string basename = base_filename_for_sound(s);
-      std::string filename = std::format("{}/{}.wav", argv[2], basename);
-      ResourceDASM::Audio::save_wav(filename, samples, s.sample_rate, s.num_channels);
+      phosg::save_file(
+          std::format("{}/{}.wav", argv[2], base_filename_for_sound(s)),
+          ResourceDASM::Audio::serialize_wav(samples, s.sample_rate, s.num_channels));
     }
   }
 

@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "AudioCodecs.hh"
+#include "Audio/Codecs.hh"
 #include "DataCodecs/Codecs.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
@@ -2808,128 +2808,6 @@ std::vector<ColorTableEntry> ResourceFile::decode_CTBL(const void* data, size_t 
 ////////////////////////////////////////////////////////////////////////////////
 // Sound decoding
 
-struct WaveFileHeader {
-  phosg::be_uint32_t riff_magic; // 0x52494646 ('RIFF')
-  phosg::le_uint32_t file_size; // size of file - 8
-  phosg::be_uint32_t wave_magic; // 0x57415645
-
-  phosg::be_uint32_t fmt_magic; // 0x666d7420 ('fmt ')
-  phosg::le_uint32_t fmt_size; // 16
-  phosg::le_uint16_t format; // 1 = PCM
-  phosg::le_uint16_t num_channels;
-  phosg::le_uint32_t sample_rate;
-  phosg::le_uint32_t byte_rate; // num_channels * sample_rate * bits_per_sample / 8
-  phosg::le_uint16_t block_align; // num_channels * bits_per_sample / 8
-  phosg::le_uint16_t bits_per_sample;
-
-  union {
-    struct {
-      phosg::be_uint32_t smpl_magic;
-      phosg::le_uint32_t smpl_size;
-      phosg::le_uint32_t manufacturer;
-      phosg::le_uint32_t product;
-      phosg::le_uint32_t sample_period;
-      phosg::le_uint32_t base_note;
-      phosg::le_uint32_t pitch_fraction;
-      phosg::le_uint32_t smpte_format;
-      phosg::le_uint32_t smpte_offset;
-      phosg::le_uint32_t num_loops; // = 1
-      phosg::le_uint32_t sampler_data;
-
-      phosg::le_uint32_t loop_cue_point_id; // Can be zero? We'll only have at most one loop in this context
-      phosg::le_uint32_t loop_type; // 0 = normal, 1 = ping-pong, 2 = reverse
-      phosg::le_uint32_t loop_start; // Start and end are byte offsets into the wave data, not sample indexes
-      phosg::le_uint32_t loop_end;
-      phosg::le_uint32_t loop_fraction; // Fraction of a sample to loop (0)
-      phosg::le_uint32_t loop_play_count; // 0 = loop forever
-
-      phosg::be_uint32_t data_magic; // 0x64617461 ('data')
-      phosg::le_uint32_t data_size; // num_samples * num_channels * bits_per_sample / 8
-      uint8_t data[0];
-    } __attribute__((packed)) with;
-
-    struct {
-      phosg::be_uint32_t data_magic; // 0x64617461 ('data')
-      phosg::le_uint32_t data_size; // num_samples * num_channels * bits_per_sample / 8
-      uint8_t data[0];
-    } __attribute__((packed)) without;
-  } __attribute__((packed)) loop;
-
-  WaveFileHeader(uint32_t num_samples, uint16_t num_channels, uint32_t sample_rate, uint16_t bits_per_sample,
-      uint32_t loop_start = 0, uint32_t loop_end = 0, uint8_t base_note = 0x3C) {
-
-    this->riff_magic = 0x52494646; // 'RIFF'
-    // this->file_size is set below (it depends on whether there's a loop)
-    this->wave_magic = 0x57415645; // 'WAVE'
-    this->fmt_magic = 0x666D7420; // 'fmt '
-    this->fmt_size = 16;
-    this->format = 1;
-    this->num_channels = num_channels;
-    this->sample_rate = sample_rate;
-    this->byte_rate = num_channels * sample_rate * bits_per_sample / 8;
-    this->block_align = num_channels * bits_per_sample / 8;
-    this->bits_per_sample = bits_per_sample;
-
-    if (((loop_start > 0) && (loop_end > 0)) || (base_note != 0x3C) || (base_note != 0)) {
-      this->file_size = ((num_samples * num_channels * bits_per_sample) / 8) + sizeof(*this) - 8;
-
-      this->loop.with.smpl_magic = 0x736D706C; // 'smpl'
-      this->loop.with.smpl_size = 0x3C;
-      this->loop.with.manufacturer = 0;
-      this->loop.with.product = 0;
-      this->loop.with.sample_period = 1000000000 / this->sample_rate;
-      this->loop.with.base_note = base_note;
-      this->loop.with.pitch_fraction = 0;
-      this->loop.with.smpte_format = 0;
-      this->loop.with.smpte_offset = 0;
-      this->loop.with.num_loops = 1;
-      this->loop.with.sampler_data = 0x18; // includes the loop struct below
-
-      this->loop.with.loop_cue_point_id = 0;
-      this->loop.with.loop_type = 0; // 0 = normal, 1 = ping-pong, 2 = reverse
-
-      // Note: loop_start and loop_end are given to this function as sample offsets, but in the wav file, they should
-      // be byte offsets
-      this->loop.with.loop_start = loop_start * (bits_per_sample >> 3);
-      this->loop.with.loop_end = loop_end * (bits_per_sample >> 3);
-
-      this->loop.with.loop_fraction = 0;
-      this->loop.with.loop_play_count = 0; // 0 = loop forever
-
-      this->loop.with.data_magic = 0x64617461; // 'data'
-      this->loop.with.data_size = num_samples * num_channels * bits_per_sample / 8;
-
-    } else {
-      // with_loop is longer than loop.without so we correct for the size disparity manually here
-      const uint32_t header_size = sizeof(*this) - sizeof(this->loop.with) + sizeof(this->loop.without);
-      this->file_size = ((num_samples * num_channels * bits_per_sample) / 8) + header_size - 8;
-
-      this->loop.without.data_magic = 0x64617461; // 'data'
-      this->loop.without.data_size = num_samples * num_channels * bits_per_sample / 8;
-    }
-  }
-
-  bool has_loop() const {
-    return (this->loop.with.smpl_magic == 0x736D706C);
-  }
-
-  size_t size() const {
-    if (this->has_loop()) {
-      return sizeof(*this);
-    } else {
-      return sizeof(*this) - sizeof(this->loop.with) + sizeof(this->loop.without);
-    }
-  }
-
-  uint32_t get_data_size() const {
-    if (this->has_loop()) {
-      return this->loop.with.data_size;
-    } else {
-      return this->loop.without.data_size;
-    }
-  }
-} __attribute__((packed));
-
 ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
     const void* vdata, size_t size, bool metadata_only, bool hirf_semantics, bool decompress_ysnd) {
   if (size < 4) {
@@ -2941,14 +2819,20 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
   ResourceFile::DecodedSoundResource ret;
   ret.num_channels = 1;
 
-  // These format codes ('Cue#' or 'Data') are the type codes of the first chunk for a Mohawk-specific chunk-based
-  // format - we don't want to consume the format code from r because it's part of the first chunk header
+  // These format codes ('MHWK', 'Cue#', or 'Data') are the type codes of the first chunk for a Mohawk-specific chunk-
+  // based format - we don't want to consume the format code from r because it's part of the first chunk header
   uint32_t format_code32 = r.get_u32b(false);
-  if (format_code32 == 0x43756523 || format_code32 == 0x44617461) {
+  if (format_code32 == 0x4D48574B || format_code32 == 0x43756523 || format_code32 == 0x44617461) {
 
     while (r.remaining() >= sizeof(SoundResourceHeaderMohawkChunkHeader)) {
       const auto& header = r.get<SoundResourceHeaderMohawkChunkHeader>();
-      if (header.type == 0x43756523) {
+      if (header.type == 0x4D48574B) { // Ignore MHWK
+        // The size field oesn't appear to be meaningful here; the Cue# and Data blocks are children of MHWK and its
+        // size field appears wrong in various examples I've seen anyway. Just ignore the (already-consumed) header
+        if (r.get_u32b() != 0x57415645) {
+          throw std::runtime_error("MHK snd is not WAVE type");
+        }
+      } else if (header.type == 0x43756523) { // Ignore Cue#
         r.skip(header.size);
       } else if (header.type == 0x44617461) {
         const auto& data_header = r.get<SoundResourceHeaderMohawkFormat>();
@@ -2962,16 +2846,10 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
           throw std::runtime_error("MHK snd does not have 8-bit samples");
         }
         ret.sample_rate = data_header.sample_rate;
-        ret.bits_per_sample = data_header.sample_bits;
         ret.num_channels = data_header.num_channels;
         if (!metadata_only) {
-          WaveFileHeader wav(
-              data_header.num_samples, data_header.num_channels, data_header.sample_rate, data_header.sample_bits);
-          phosg::StringWriter w;
-          w.write(&wav, wav.size());
-          ret.sample_start_offset = w.size();
-          w.write(r.readx(data_header.num_samples));
-          ret.data = std::move(w.str());
+          ret.samples = Audio::convert_samples_dynamic(
+              r.readx(data_header.num_samples * (data_header.sample_bits >> 3)), data_header.sample_bits);
         }
         return ret;
       }
@@ -3025,11 +2903,10 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
       throw std::runtime_error("cannot decompress Ysnd-encoded format 3 snd");
     }
 
-    ret.is_mp3 = true;
     ret.sample_rate = header.sample_rate >> 16;
     ret.base_note = static_cast<uint8_t>(header.base_note ? header.base_note : 0x3C);
     if (!metadata_only) {
-      ret.data = r.read(r.remaining());
+      ret.mp3_data = r.read(r.remaining());
     }
     return ret;
 
@@ -3106,33 +2983,17 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
     if (sample_buffer.encoding != 0x00) {
       throw std::runtime_error("Ysnd contains doubly-compressed buffer");
     }
-
-    ret.bits_per_sample = 8;
-
     if (!metadata_only) {
-      WaveFileHeader wav(
-          sample_buffer.data_bytes,
-          ret.num_channels,
-          ret.sample_rate,
-          ret.bits_per_sample,
-          ret.loop_start_sample_offset,
-          ret.loop_end_sample_offset,
-          ret.base_note);
-
-      phosg::StringWriter w;
-      w.write(&wav, wav.size());
-      ret.sample_start_offset = w.size();
-
-      size_t end_size = sample_buffer.data_bytes + w.size();
+      std::vector<uint8_t> samples8;
       uint8_t p = 0x80;
-      while (w.str().size() < end_size) {
+      while (samples8.size() < sample_buffer.data_bytes) {
         uint8_t x = r.get_u8();
         uint8_t d1 = (x >> 4) - 8;
         p += (d1 * 2);
         d1 += 8;
         if ((d1 != 0) && (d1 != 0x0F)) {
-          w.put_u8(p);
-          if (w.str().size() >= end_size) {
+          samples8.push_back(p);
+          if (samples8.size() >= sample_buffer.data_bytes) {
             break;
           }
         }
@@ -3140,13 +3001,11 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
         p += (x * 2);
         x += 8;
         if ((x != 0) && (x != 0x0F)) {
-          w.put_u8(p);
+          samples8.push_back(p);
         }
       }
-
-      ret.data = std::move(w.str());
+      ret.samples = Audio::convert_samples<float, uint8_t>(samples8);
     }
-
     return ret;
   }
 
@@ -3158,22 +3017,9 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
 
     // Some snds have erroneously large values in the data_bytes field, so only trust it if it fits within the resource
     size_t num_samples = std::min<size_t>(sample_buffer.data_bytes, r.remaining());
-
-    ret.bits_per_sample = 8;
     if (!metadata_only) {
-      WaveFileHeader wav(
-          num_samples,
-          ret.num_channels,
-          ret.sample_rate,
-          ret.bits_per_sample,
-          ret.loop_start_sample_offset,
-          ret.loop_end_sample_offset,
-          ret.base_note);
-      phosg::StringWriter w;
-      w.write(&wav, wav.size());
-      ret.sample_start_offset = w.size();
-      w.write(r.readx(num_samples));
-      ret.data = std::move(w.str());
+      // Always 8-bit in this case
+      ret.samples = Audio::convert_samples<float, uint8_t>(r.readx(num_samples));
     }
     return ret;
 
@@ -3194,34 +3040,16 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
 
       case 3:
       case 4: {
-        bool is_mace3 = compressed_buffer.compression_id == 3;
-        auto decoded_samples = decode_mace(
-            compressed_buffer.data,
-            compressed_buffer.num_frames * (is_mace3 ? 2 : 1) * ret.num_channels,
-            ret.num_channels == 2,
-            is_mace3);
+        bool is_mace3 = (compressed_buffer.compression_id == 3);
         uint32_t loop_factor = is_mace3 ? 3 : 6;
-
-        ret.bits_per_sample = 16;
         ret.loop_start_sample_offset *= loop_factor;
         ret.loop_end_sample_offset *= loop_factor;
         if (!metadata_only) {
-          WaveFileHeader wav(
-              decoded_samples.size() / ret.num_channels,
-              ret.num_channels,
-              ret.sample_rate,
-              ret.bits_per_sample,
-              ret.loop_start_sample_offset,
-              ret.loop_end_sample_offset,
-              ret.base_note);
-          if (wav.get_data_size() != 2 * decoded_samples.size()) {
-            throw std::runtime_error("computed data size does not match decoded data size");
-          }
-          phosg::StringWriter w;
-          w.write(&wav, wav.size());
-          ret.sample_start_offset = w.size();
-          w.write(decoded_samples.data(), wav.get_data_size());
-          ret.data = std::move(w.str());
+          ret.samples = Audio::decode_mace(
+              compressed_buffer.data,
+              compressed_buffer.num_frames * (is_mace3 ? 2 : 1) * ret.num_channels,
+              ret.num_channels == 2,
+              is_mace3);
         }
         return ret;
       }
@@ -3230,109 +3058,68 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
         // 'twos' and 'sowt' are equivalent to no compression and fall through to the uncompressed case below. For all
         // others, we'll have to decompress somehow
         if ((compressed_buffer.format != 0x74776F73) && (compressed_buffer.format != 0x736F7774)) {
-          std::vector<phosg::le_int16_t> decoded_samples;
-
           size_t num_frames = compressed_buffer.num_frames;
           uint32_t loop_factor;
           if (compressed_buffer.format == 0x696D6134) { // ima4
-            decoded_samples = decode_ima4(
-                compressed_buffer.data, num_frames * 34 * ret.num_channels, (ret.num_channels == 2));
+            if (!metadata_only) {
+              ret.samples = Audio::decode_ima4(
+                  compressed_buffer.data, num_frames * 34 * ret.num_channels, (ret.num_channels == 2));
+            }
             loop_factor = 4; // TODO: verify this. I don't actually have any examples right now
 
           } else if ((compressed_buffer.format == 0x4D414333) || (compressed_buffer.format == 0x4D414336)) { // MAC3, MAC6
             bool is_mace3 = compressed_buffer.format == 0x4D414333;
-            decoded_samples = decode_mace(
-                compressed_buffer.data,
-                num_frames * (is_mace3 ? 2 : 1) * ret.num_channels,
-                ret.num_channels == 2,
-                is_mace3);
+            if (!metadata_only) {
+              ret.samples = Audio::decode_mace(
+                  compressed_buffer.data,
+                  num_frames * (is_mace3 ? 2 : 1) * ret.num_channels,
+                  ret.num_channels == 2,
+                  is_mace3);
+            }
             loop_factor = is_mace3 ? 3 : 6;
 
           } else if (compressed_buffer.format == 0x756C6177) { // ulaw
-            decoded_samples = decode_ulaw(compressed_buffer.data, num_frames);
+            if (!metadata_only) {
+              ret.samples = Audio::decode_ulaw(compressed_buffer.data, num_frames);
+            }
             loop_factor = 2;
 
           } else if (compressed_buffer.format == 0x616C6177) { // alaw (guess)
-            decoded_samples = decode_alaw(compressed_buffer.data, num_frames);
+            if (!metadata_only) {
+              ret.samples = Audio::decode_alaw(compressed_buffer.data, num_frames);
+            }
             loop_factor = 2;
 
           } else {
             throw std::runtime_error(std::format("snd uses unknown compression ({:08X})", compressed_buffer.format));
           }
 
-          ret.bits_per_sample = 16;
           ret.loop_start_sample_offset *= loop_factor;
           ret.loop_end_sample_offset *= loop_factor;
-          if (!metadata_only) {
-            WaveFileHeader wav(
-                decoded_samples.size() / ret.num_channels,
-                ret.num_channels,
-                ret.sample_rate,
-                ret.bits_per_sample,
-                ret.loop_start_sample_offset,
-                ret.loop_end_sample_offset,
-                ret.base_note);
-            if (wav.get_data_size() != 2 * decoded_samples.size()) {
-              throw std::runtime_error(std::format("computed data size ({}) does not match decoded data size ({})",
-                  wav.get_data_size(), 2 * decoded_samples.size()));
-            }
-            phosg::StringWriter w;
-            w.write(&wav, wav.size());
-            ret.sample_start_offset = w.size();
-            w.write(decoded_samples.data(), wav.get_data_size());
-            ret.data = std::move(w.str());
-          }
           return ret;
         }
 
         [[fallthrough]];
       case 0: { // No compression
         uint32_t num_samples = compressed_buffer.num_frames;
-        ret.bits_per_sample = compressed_buffer.bits_per_sample;
-        if (ret.bits_per_sample == 0) {
-          ret.bits_per_sample = compressed_buffer.state_vars >> 16;
+        size_t bits_per_sample = compressed_buffer.bits_per_sample;
+        if (bits_per_sample == 0) {
+          bits_per_sample = compressed_buffer.state_vars >> 16;
         }
 
-        // Hack: if the sound is stereo and the computed data size is exactly twice the available data size, treat it
-        // as mono
-        if ((ret.num_channels == 2) &&
-            (num_samples * ret.num_channels * (ret.bits_per_sample / 8)) == 2 * r.remaining()) {
+        // Hack: if the sound is stereo and the computed data size is twice the available data size, treat it as mono
+        if ((ret.num_channels == 2) && (num_samples * ret.num_channels * (bits_per_sample / 8)) == 2 * r.remaining()) {
           ret.num_channels = 1;
         }
 
         if (!metadata_only) {
-          WaveFileHeader wav(
-              num_samples,
-              ret.num_channels,
-              ret.sample_rate,
-              ret.bits_per_sample,
-              ret.loop_start_sample_offset,
-              ret.loop_end_sample_offset,
-              ret.base_note);
-          if (wav.get_data_size() == 0) {
-            throw std::runtime_error(std::format(
-                "computed data size is zero ({} samples, {} channels, {} kHz, {} bits per sample)",
-                num_samples, ret.num_channels, ret.sample_rate, ret.bits_per_sample));
+          std::string samples_str = r.readx(num_samples * ret.num_channels * (bits_per_sample / 8));
+          if ((bits_per_sample == 0x10) && (compressed_buffer.format == 0x736F7774)) {
+            // 'swot' is little-endian; all other formats should use default behavior
+            ret.samples = Audio::convert_samples<float, phosg::le_int16_t>(samples_str);
+          } else {
+            ret.samples = Audio::convert_samples_dynamic(samples_str, bits_per_sample);
           }
-          if (wav.get_data_size() > r.remaining()) {
-            throw std::runtime_error(std::format("computed data size exceeds actual data ({} computed, {} available)",
-                wav.get_data_size(), r.remaining()));
-          }
-
-          // Byteswap the samples if it's 16-bit and not 'swot'
-          std::string samples_str = r.readx(wav.get_data_size());
-          if ((wav.bits_per_sample == 0x10) && (compressed_buffer.format != 0x736F7774)) {
-            uint16_t* samples = reinterpret_cast<uint16_t*>(samples_str.data());
-            for (uint32_t x = 0; x < samples_str.size() / 2; x++) {
-              samples[x] = phosg::bswap16(samples[x]);
-            }
-          }
-
-          phosg::StringWriter w;
-          w.write(&wav, wav.size());
-          ret.sample_start_offset = w.size();
-          w.write(samples_str);
-          ret.data = std::move(w.str());
         }
         return ret;
       }
@@ -3408,39 +3195,40 @@ static std::string decrypt_soundmusicsys_cstr(phosg::StringReader& r) {
   }
 }
 
-std::string ResourceFile::decode_SMSD(int16_t id, uint32_t type) const {
+ResourceFile::DecodedSoundResource ResourceFile::decode_SMSD(int16_t id, uint32_t type) const {
   return this->decode_SMSD(this->get_resource(type, id));
 }
 
-std::string ResourceFile::decode_SMSD(std::shared_ptr<const Resource> res) {
+ResourceFile::DecodedSoundResource ResourceFile::decode_SMSD(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_SMSD(res->data.data(), res->data.size());
 }
 
-std::string ResourceFile::decode_SMSD(const void* data, size_t size) {
+ResourceFile::DecodedSoundResource ResourceFile::decode_SMSD(const void* data, size_t size) {
   phosg::StringReader r(data, size);
 
   // There's just an 8-byte header, then the rest of it is 22050Hz 8-bit mono.
   // TODO: Is there anything useful in this 8-byte header? All of the examples I've seen have various values in there
-  // but are all 22050Hz 8-bit mono, so it seems the header doesn't have anything useful in it
+  // but are all 22050Hz 8-bit mono, so it seems the header doesn't have anything useful in it. It's possible that the
+  // metadata is stored in another resource, but if so, it's not obvious where that would be.
   r.skip(8);
   size_t data_bytes = r.remaining();
-  WaveFileHeader wav(data_bytes, 1, 22050, 8);
 
-  phosg::StringWriter w;
-  w.write(&wav, wav.size());
-  w.write(r.getv(data_bytes), data_bytes);
-  return std::move(w.str());
+  DecodedSoundResource ret;
+  ret.sample_rate = 22050;
+  ret.num_channels = 1;
+  ret.samples = Audio::convert_samples<float, uint8_t>(r.get_array<uint8_t>(data_bytes), data_bytes);
+  return ret;
 }
 
-std::string ResourceFile::decode_SOUN(int16_t id, uint32_t type) const {
+ResourceFile::DecodedSoundResource ResourceFile::decode_SOUN(int16_t id, uint32_t type) const {
   return this->decode_SOUN(this->get_resource(type, id));
 }
 
-std::string ResourceFile::decode_SOUN(std::shared_ptr<const Resource> res) {
+ResourceFile::DecodedSoundResource ResourceFile::decode_SOUN(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_SOUN(res->data.data(), res->data.size());
 }
 
-std::string ResourceFile::decode_SOUN(const void* data, size_t size) {
+ResourceFile::DecodedSoundResource ResourceFile::decode_SOUN(const void* data, size_t size) {
   if (size < 0x16) {
     throw std::runtime_error("resource too small for header");
   }
@@ -3457,25 +3245,22 @@ std::string ResourceFile::decode_SOUN(const void* data, size_t size) {
   uint8_t delta_table[0x10];
   r.readx(delta_table, 0x10);
 
-  // We already know how much data is going to be produced, so we can write the
-  // WAV header before decoding the data
-  phosg::StringWriter w;
-  WaveFileHeader wav(r.remaining() * 2, 1, 11025, 8);
-  w.write(&wav, wav.size());
+  DecodedSoundResource ret;
+  ret.sample_rate = 11025;
+  ret.num_channels = 1;
 
-  // The data is a sequence of nybbles, which are indexes into the delta table.
-  // The initial sample is 0x80 (center), and each nybble specifies which delta
-  // to add to the initial sample.
+  // The data is a sequence of nybbles, which are indexes into the delta table. The initial sample is 0x80 (center),
+  // and each nybble specifies which delta to add to the initial sample.
   uint8_t sample = 0x80;
   while (!r.eof()) {
     uint8_t d = r.get_u8();
     sample += delta_table[(d >> 4) & 0x0F];
-    w.put_u8(sample);
+    ret.samples.push_back(Audio::sample_to_float<uint8_t>(sample));
     sample += delta_table[d & 0x0F];
-    w.put_u8(sample);
+    ret.samples.push_back(Audio::sample_to_float<uint8_t>(sample));
   }
 
-  return std::move(w.str());
+  return ret;
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_csnd(int16_t id, uint32_t type, bool metadata_only) const {
@@ -3638,6 +3423,18 @@ std::string ResourceFile::decode_ecmi(const void* data, size_t size) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Sequenced music decoding
+
+Audio::SSAIInstrument ResourceFile::decode_ssai(int16_t id, uint32_t type) const {
+  return this->decode_ssai(this->get_resource(type, id));
+}
+
+Audio::SSAIInstrument ResourceFile::decode_ssai(std::shared_ptr<const Resource> res) {
+  return ResourceFile::decode_ssai(res->data.data(), res->data.size());
+}
+
+Audio::SSAIInstrument ResourceFile::decode_ssai(const void* data, size_t size) {
+  return Audio::SSAIInstrument(data, size);
+}
 
 ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(
     uint8_t key_low, uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type)

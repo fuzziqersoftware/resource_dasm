@@ -76,7 +76,7 @@ void parse_until(
       std::filesystem::current_path(pwd);
       parse_until(f, fst, string_table, x + 1, fst[x].size.end_entry_num, base_offset, target_filenames);
       pwd.resize(pwd_end);
-      std::filesystem::current_path(pwd.c_str());
+      std::filesystem::current_path(pwd);
 
       x = fst[x].size.end_entry_num - 1;
 

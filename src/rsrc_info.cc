@@ -52,7 +52,7 @@ int main(int argc, const char** argv) {
         if (!strcmp(argv[x], "--data-fork")) {
           use_data_fork = true;
         } else {
-          fprintf(stderr, "unknown option: %s\n", argv[x]);
+          phosg::fwrite_fmt(stderr, "unknown option: {}\n", argv[x]);
           print_usage();
           return 2;
         }
@@ -72,14 +72,14 @@ int main(int argc, const char** argv) {
 
       // Load resource file
       if (std::filesystem::is_directory(input_filename) || (std::filesystem::file_size(input_filename) == 0)) {
-        fprintf(stderr, "Input file '%s' does not exist, is empty or is not a file\n", input_filename.c_str());
+        phosg::fwrite_fmt(stderr, "Input file '{}' does not exist, is empty or is not a file\n", input_filename);
         return 1;
       }
 
       auto input_file = ResourceDASM::parse_resource_fork(phosg::load_file(input_filename));
 
       // Print information
-      printf("File '%s':\n", input_filename.c_str());
+      phosg::fwrite_fmt(stdout, "File '{}':\n", input_filename);
       {
         auto all_types = input_file.all_resource_types();
         uint32_t totalRsrcCount = input_file.count_resources();
@@ -91,12 +91,14 @@ int main(int argc, const char** argv) {
           uint32_t count = input_file.count_resources_of_type(res_type);
           uint32_t size = calc_resource_size_of_type(input_file, res_type);
 
-          printf("  %s: %4u (%7u bytes)\n", ResourceDASM::string_for_resource_type(res_type).c_str(), count, size);
+          phosg::fwrite_fmt(stdout, "  {}: {:4} ({:7} bytes)\n",
+              ResourceDASM::string_for_resource_type(res_type), count, size);
         }
-        printf("  ----------\n");
-        printf("        %4u (%7u bytes)%s\n", totalRsrcCount, totalRsrcSize, totalRsrcCount > 2727 ? " ! >2727" : "");
+        phosg::fwrite_fmt(stdout, "  ----------\n");
+        phosg::fwrite_fmt(stdout, "        {:4} ({:7} bytes){}\n",
+            totalRsrcCount, totalRsrcSize, totalRsrcCount > 2727 ? " ! >2727" : "");
       }
-      printf("\n");
+      phosg::fwrite_fmt(stdout, "\n");
     }
 
     if (has_too_many)
@@ -108,7 +110,7 @@ by MacOS's Resource Manager.\n\
 
     return 0;
   } catch (const std::exception& e) {
-    fprintf(stderr, "Error: %s\n", e.what());
+    phosg::fwrite_fmt(stderr, "Error: {}\n", e.what());
     return 1;
   }
 }

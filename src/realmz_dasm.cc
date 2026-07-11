@@ -53,7 +53,7 @@ int disassemble_scenario(
       if (!it.first.starts_with("custom")) {
         continue; // skip default tilesets
       }
-      phosg::fwritex(f.get(), scen.global.disassemble_tileset_definition(it.second, it.first.c_str()));
+      phosg::fwritex(f.get(), scen.global.disassemble_tileset_definition(it.second, it.first));
       phosg::log_info_f("... {} ({} land tileset)", filename, it.first);
     }
 
@@ -117,7 +117,7 @@ int disassemble_scenario(
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_snd)) {
     auto decoded = scen.scenario_rsf.decode_snd(id);
     std::string filename = std::format("{}/media/snd_{}.wav", out_dir, id);
-    phosg::save_file(filename, decoded.data);
+    phosg::save_file(filename, decoded.serialize_wav());
     phosg::log_info_f("... {}", filename);
   }
   for (int16_t id : scen.scenario_rsf.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_TEXT)) {
@@ -338,7 +338,7 @@ int disassemble_global_data(
 
     for (auto it : global.land_type_to_tileset_definition) {
       filename = std::format("{}/tileset_{}.txt", out_dir, it.first);
-      phosg::save_file(filename, global.disassemble_tileset_definition(it.second, it.first.c_str()));
+      phosg::save_file(filename, global.disassemble_tileset_definition(it.second, it.first));
       phosg::log_info_f("... {}", filename);
     }
 
@@ -391,7 +391,7 @@ int disassemble_global_data(
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_snd)) {
     std::string filename = std::format("{}/media/snd_{}.wav", out_dir, id);
-    phosg::save_file(filename, global.global_rsf.decode_snd(id).data);
+    phosg::save_file(filename, global.global_rsf.decode_snd(id).serialize_wav());
     phosg::log_info_f("... {}", filename);
   }
   for (int16_t id : global.global_rsf.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_TEXT)) {
@@ -581,5 +581,3 @@ int main(int argc, char** argv) {
     }
   }
 }
-
-// NOCOMMIT: Audit for unnecessary .c_str() calls

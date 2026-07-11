@@ -15,19 +15,19 @@
 
 namespace ResourceDASM {
 
-XBEFile::XBEFile(const char* filename) : filename(filename), data(phosg::load_file(filename)) {
+XBEFile::XBEFile(const std::string& filename) : filename(filename), data(phosg::load_file(filename)) {
   this->parse();
 }
 
-XBEFile::XBEFile(const char* filename, const std::string& data) : filename(filename), data(data) {
+XBEFile::XBEFile(const std::string& filename, const std::string& data) : filename(filename), data(data) {
   this->parse();
 }
 
-XBEFile::XBEFile(const char* filename, std::string&& data) : filename(filename), data(std::move(data)) {
+XBEFile::XBEFile(const std::string& filename, std::string&& data) : filename(filename), data(std::move(data)) {
   this->parse();
 }
 
-XBEFile::XBEFile(const char* filename, const void* data, size_t size)
+XBEFile::XBEFile(const std::string& filename, const void* data, size_t size)
     : filename(filename), data(reinterpret_cast<const char*>(data), size) {
   this->parse();
 }

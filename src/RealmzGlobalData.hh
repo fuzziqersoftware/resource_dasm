@@ -146,7 +146,7 @@ struct RealmzGlobalData {
   static int16_t pict_resource_id_for_land_type(const std::string& land_type);
   static phosg::ImageRGB888 generate_tileset_definition_legend(
       const TileSetDefinition& ts, const phosg::ImageRGBA8888N& positive_pattern);
-  static std::string disassemble_tileset_definition(const TileSetDefinition& ts, const char* name);
+  static std::string disassemble_tileset_definition(const TileSetDefinition& ts, const std::string& name);
 
   //////////////////////////////////////////////////////////////////////////////
   // CUSTOM NAMES.RSF
@@ -262,7 +262,7 @@ struct RealmzGlobalData {
   } __attribute__((packed));
 
   static std::vector<CasteDefinition> load_caste_definitions(const std::string& filename);
-  std::string disassemble_caste_definition(const CasteDefinition& c, size_t index, const char* name) const;
+  std::string disassemble_caste_definition(const CasteDefinition& c, size_t index, const std::string& name) const;
   std::string disassemble_all_caste_definitions() const;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -403,7 +403,7 @@ struct RealmzGlobalData {
   } __attribute__((packed));
 
   static std::vector<RaceDefinition> load_race_definitions(const std::string& filename);
-  std::string disassemble_race_definition(const RaceDefinition& r, size_t index, const char* name) const;
+  std::string disassemble_race_definition(const RaceDefinition& r, size_t index, const std::string& name) const;
   std::string disassemble_all_race_definitions() const;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -444,7 +444,7 @@ struct RealmzGlobalData {
   } __attribute__((packed));
 
   static std::map<uint16_t, SpellDefinition> load_spell_definitions(const std::string& filename);
-  std::string disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const char* name) const;
+  std::string disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const std::string& name) const;
   std::string disassemble_all_spell_definitions() const;
 
   //////////////////////////////////////////////////////////////////////////////

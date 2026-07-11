@@ -539,7 +539,7 @@ phosg::ImageRGB888 RealmzGlobalData::generate_tileset_definition_legend(
   return result;
 }
 
-std::string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition& ts, const char* name) {
+std::string RealmzGlobalData::disassemble_tileset_definition(const TileSetDefinition& ts, const std::string& name) {
   phosg::BlockStringWriter w;
   w.write_fmt("===== TILESET {}", name);
   w.write("  ID |  ID | BASE |  SOUND | SOLID | PATH | SHORE |  BOAT | FLY | OPAQUE |  FOREST | TM | BATTLE EXPANSION           | BATTLE EXPANSION                   ");
@@ -699,9 +699,9 @@ std::vector<RealmzGlobalData::CasteDefinition> RealmzGlobalData::load_caste_defi
   return phosg::load_vector_file<CasteDefinition>(filename);
 }
 
-std::string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, size_t index, const char* name) const {
+std::string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition& c, size_t index, const std::string& name) const {
   phosg::BlockStringWriter w;
-  if (name) {
+  if (!name.empty()) {
     w.write_fmt("===== CASTE {} [CST{}] ({})", index, index, name);
   } else {
     w.write_fmt("===== CASTE {} [CST{}]", index, index);
@@ -792,9 +792,9 @@ std::string RealmzGlobalData::disassemble_caste_definition(const CasteDefinition
 std::string RealmzGlobalData::disassemble_all_caste_definitions() const {
   phosg::BlockStringWriter w;
   for (size_t z = 0; z < this->caste_definitions.size(); z++) {
-    const char* name = nullptr;
+    std::string name;
     try {
-      name = this->caste_names.at(z).c_str();
+      name = this->caste_names.at(z);
     } catch (const std::out_of_range&) {
     }
     w.write(this->disassemble_caste_definition(this->caste_definitions[z], z, name));
@@ -1077,9 +1077,9 @@ std::vector<RealmzGlobalData::RaceDefinition> RealmzGlobalData::load_race_defini
   return phosg::load_vector_file<RaceDefinition>(filename);
 }
 
-std::string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, size_t index, const char* name) const {
+std::string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& r, size_t index, const std::string& name) const {
   phosg::BlockStringWriter w;
-  if (name) {
+  if (!name.empty()) {
     w.write_fmt("===== RACE {} [RCE{}] ({})", index, index, name);
   } else {
     w.write_fmt("===== RACE {} [RCE{}]", index, index);
@@ -1184,9 +1184,9 @@ std::string RealmzGlobalData::disassemble_race_definition(const RaceDefinition& 
 std::string RealmzGlobalData::disassemble_all_race_definitions() const {
   phosg::BlockStringWriter w;
   for (size_t z = 0; z < this->race_definitions.size(); z++) {
-    const char* name = nullptr;
+    std::string name;
     try {
-      name = this->race_names.at(z).c_str();
+      name = this->race_names.at(z);
     } catch (const std::out_of_range&) {
     }
     w.write(this->disassemble_race_definition(this->race_definitions[z], z, name));
@@ -1213,9 +1213,9 @@ std::map<uint16_t, RealmzGlobalData::SpellDefinition> RealmzGlobalData::load_spe
   return ret;
 }
 
-std::string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const char* name) const {
+std::string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition& s, uint16_t spell_id, const std::string& name) const {
   phosg::BlockStringWriter w;
-  if (name) {
+  if (!name.empty()) {
     w.write_fmt("===== SPELL id={} [SPL{}] ({})", spell_id, spell_id, name);
   } else {
     w.write_fmt("===== SPELL id={} [SPL{}]", spell_id, spell_id);
@@ -1248,9 +1248,9 @@ std::string RealmzGlobalData::disassemble_spell_definition(const SpellDefinition
 std::string RealmzGlobalData::disassemble_all_spell_definitions() const {
   phosg::BlockStringWriter w;
   for (const auto& it : this->spell_definitions) {
-    const char* name = nullptr;
+    std::string name;
     try {
-      name = this->name_for_spell(it.first).c_str();
+      name = this->name_for_spell(it.first);
     } catch (const std::out_of_range&) {
     }
     w.write(this->disassemble_spell_definition(it.second, it.first, name));

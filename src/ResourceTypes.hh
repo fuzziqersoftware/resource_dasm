@@ -267,6 +267,7 @@ constexpr uint32_t RESOURCE_TYPE_snd = resource_type("snd ");
 constexpr uint32_t RESOURCE_TYPE_snth = resource_type("snth");
 constexpr uint32_t RESOURCE_TYPE_SONG = resource_type("SONG");
 constexpr uint32_t RESOURCE_TYPE_SOUN = resource_type("SOUN");
+constexpr uint32_t RESOURCE_TYPE_ssai = resource_type("ssai");
 constexpr uint32_t RESOURCE_TYPE_STR = resource_type("STR ");
 constexpr uint32_t RESOURCE_TYPE_STRN = resource_type("STR#");
 constexpr uint32_t RESOURCE_TYPE_styl = resource_type("styl");

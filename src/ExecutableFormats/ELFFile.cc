@@ -16,11 +16,11 @@
 
 namespace ResourceDASM {
 
-ELFFile::ELFFile(const char* filename) : ELFFile(filename, phosg::load_file(filename)) {}
+ELFFile::ELFFile(const std::string& filename) : ELFFile(filename, phosg::load_file(filename)) {}
 
-ELFFile::ELFFile(const char* filename, const std::string& data) : ELFFile(filename, data.data(), data.size()) {}
+ELFFile::ELFFile(const std::string& filename, const std::string& data) : ELFFile(filename, data.data(), data.size()) {}
 
-ELFFile::ELFFile(const char* filename, const void* data, size_t size) : filename(filename) {
+ELFFile::ELFFile(const std::string& filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 

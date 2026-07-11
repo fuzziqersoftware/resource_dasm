@@ -25,16 +25,16 @@ void DOLFile::check_address_range(uint32_t start, uint32_t size, const char* nam
   }
 }
 
-DOLFile::DOLFile(const char* filename) : filename(filename) {
+DOLFile::DOLFile(const std::string& filename) : filename(filename) {
   std::string data = phosg::load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-DOLFile::DOLFile(const char* filename, const std::string& data) : filename(filename) {
+DOLFile::DOLFile(const std::string& filename, const std::string& data) : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
-DOLFile::DOLFile(const char* filename, const void* data, size_t size) : filename(filename) {
+DOLFile::DOLFile(const std::string& filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 

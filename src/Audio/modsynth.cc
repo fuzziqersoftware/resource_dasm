@@ -335,7 +335,7 @@ int main(int argc, char** argv) {
           ResourceDASM::Audio::normalize_amplitude(result);
         }
         phosg::fwrite_fmt(stderr, "... {}\n", output_filename);
-        ResourceDASM::Audio::save_wav(output_filename, result, opts->sample_rate, 2);
+        phosg::save_file(output_filename, ResourceDASM::Audio::serialize_wav(result, opts->sample_rate, 2));
       }
       break;
     }

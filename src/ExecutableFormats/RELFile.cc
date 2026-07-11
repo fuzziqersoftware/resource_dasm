@@ -51,16 +51,16 @@ const char* RELRelocationInstruction::name_for_type(Type type) {
   }
 }
 
-RELFile::RELFile(const char* filename) : filename(filename) {
+RELFile::RELFile(const std::string& filename) : filename(filename) {
   std::string data = phosg::load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-RELFile::RELFile(const char* filename, const std::string& data) : filename(filename) {
+RELFile::RELFile(const std::string& filename, const std::string& data) : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
-RELFile::RELFile(const char* filename, const void* data, size_t size) : filename(filename) {
+RELFile::RELFile(const std::string& filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 

@@ -151,6 +151,7 @@ resource_dasm can convert these resource types:
       snd  | .wav or .mp3                                            | *5
       SONG | .json (smssynth)                                        | *6
       SOUN | .wav                                                    | *A
+      ssai | .json (smssynth) and .wav                               | *6
       Tune | .midi                                                   | *7
       Ysnd | .wav                                                    |
     ------------------------------------------------------------------------
@@ -315,31 +316,32 @@ resource_dasm can convert these resource types:
 
     Notes:
     *0: Produces a 32-bit image if a corresponding monochrome resource exists
-        (ICN# for icl4/8, icm# for icm4/8, ics# for ics4/8, kcs# for kcs4/8). If
-        no monochrome resource exists, produces a 24-bit image instead. All
+        (ICN# for icl4/8, icm# for icm4/8, ics# for ics4/8, kcs# for kcs4/8).
+        If no monochrome resource exists, produces a 24-bit image instead. All
         color information in the original resource is reproduced in the output,
         even for fully-transparent pixels. If the icon was originally intended
         to be used with a nonstandard compositing mode, the colors of fully-
-        transparent pixels may have been relevant, but most modern image viewers
-        and editors don't have a way to display this information.
+        transparent pixels may have been relevant, but most modern image
+        viewers and editors don't have a way to display this information.
     *1: The hotspot coordinates are appended to the output filename. As in *0,
         resource_dasm faithfully reproduces the color values of transparent
         pixels in the output file, but most modern image editors won't show
         these "transparent" pixels.
     *2: resource_dasm implements multiple PICT decoders. It will first attempt
         to decode the PICT using its internal decoder, which usually produces
-        correct results but fails on PICTs that contain complex drawing opcodes.
-        This decoder can handle basic QuickTime images as well (e.g. embedded
-        JPEGs and PNGs), but can't do any drawing under or over them, or
-        matte/mask effects. PICTs that contain embedded JPEGs or PNGs will
+        correct results but fails on PICTs that contain complex drawing
+        opcodes. This decoder can handle basic QuickTime images as well (e.g.
+        embedded JPEGs and PNGs), but can't do any drawing under or over them,
+        or matte/mask effects. PICTs that contain embedded JPEGs or PNGs will
         result in a JPEG or PNG file rather than the format specified by
-        --image-format (which is BMP by default). If the internal decoder fails,
-        resource_dasm will fall back to a decoder that uses picttoppm, which is
-        part of NetPBM. There is a rare failure mode in which picttoppm hangs
-        forever; resource_dasm gives it 10 seconds to do its job before killing
-        it and giving up. If picttoppm is not installed, fails to decode the
-        PICT, or is killed due to a timeout, resource_dasm will prepend the
-        necessary header and save the data as a PICT file instead.
+        --image-format (which is BMP by default). If the internal decoder
+        fails, resource_dasm will fall back to a decoder that uses picttoppm,
+        which is part of NetPBM. There is a rare failure mode in which
+        picttoppm hangs forever; resource_dasm gives it 10 seconds to do its
+        job before killing it and giving up. If picttoppm is not installed,
+        fails to decode the PICT, or is killed due to a timeout, resource_dasm
+        will prepend the necessary header and save the data as a PICT file
+        instead.
     *3: Text is assumed to use the Mac OS Roman encoding. It is converted to
         UTF-8, and line endings (\r) are converted to Unix style (\n).
     *4: Some rare style options may not be translated correctly. styl resources
@@ -348,14 +350,14 @@ resource_dasm can convert these resource types:
     *5: RMF archives can contain snd resources that are actually in MP3 format;
         in this case, the exported sound will be a .mp3 file. Otherwise, the
         exported sound is an uncompressed WAV file, even if the resource's data
-        is compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE 6:1,
-        A-law, and mu-law (ulaw) compression.
-    *6: JSON files from SoundMusicSys SONG resources can be played with smssynth
-        (http://www.github.com/fuzziqersoftware/gctools). The JSON file refers
-        to the instrument sounds and MIDI sequence by filename and does not
-        include directory names, so if you want to play these, you'll have to
-        manually put the sounds and MIDI files in the same directory as the JSON
-        file if you're using --filename-format.
+        is compressed. resource_dasm can decompress IMA 4:1, MACE 3:1, MACE
+        6:1, A-law, and mu-law (ulaw) compression.
+    *6: JSON files from SoundMusicSys SONG resources can be played with
+        smssynth. The JSON file refers to the instrument sounds and MIDI
+        sequence by filename and does not include directory names, so if you
+        want to play these, you'll have to manually put the sounds and MIDI
+        files in the same directory as the JSON file if you're using
+        --filename-format.
     *7: Tune decoding is experimental and will likely produce unplayable MIDIs.
     *8: For color table resources, the raw data is always saved even if it is
         decoded properly, since the original data contains 16-bit values for
@@ -364,20 +366,20 @@ resource_dasm can convert these resource types:
         the contents of the resource. For subfields that have split alpha
         channels (that is, the transparency data is in a different subfield),
         resource_dasm produces an original image and one with transparency
-        applied. Some icns resources also contain metadata, which is exported as
-        .bin, .txt, and .plist files, except for the Icon Composer version used
-        to create the file, which is ignored. If you want the result in Icon
-        Composer format, use --save-raw=yes and resource_dasm will save it as a
-        .icns file.
+        applied. Some icns resources also contain metadata, which is exported
+        as .bin, .txt, and .plist files, except for the Icon Composer version
+        used to create the file, which is ignored. If you want the result in
+        Icon Composer format, use --save-raw=yes and resource_dasm will save it
+        as a .icns file.
     *A: These resources appear to have a fixed format, with a constant sample
         rate, sample width and channel count. You may have to adjust these
         parameters in the output if it turns out that these are configurable.
-    *B: The disassembler attempts to find exported functions by parsing the jump
-        table in the CODE 0 resource, but if this resource is missing or not in
-        the expected format, it skips this step and does not fail. Generally, if
-        any "export_X:" labels appear in the disassembly, then export resolution
-        succeeded and all of the labels should be correct (otherwise they will
-        all be missing).
+    *B: The disassembler attempts to find exported functions by parsing the
+        jump table in the CODE 0 resource, but if this resource is missing or
+        not in the expected format, it skips this step and does not fail.
+        Generally, if any "export_X:" labels appear in the disassembly, then
+        export resolution succeeded and all of the labels should be correct
+        (otherwise they will all be missing).
     *C: Some coprocessor and floating-point opcodes (F-class) are not
         implemented and will disassemble with the comment "// unimplemented".
     *D: Most PowerPC applications have their executable code in the data fork.
@@ -417,7 +419,7 @@ There may be other decompressors out there that I haven't seen, which may not wo
 Run `sudo make install` to copy the header files and library to the relevant paths after building. After installation, you can `#include <resource_file/IndexFormats/ResourceFork.hh>` (for example) and link with `-lresource_file`. There is no documentation for this library beyond what's written in the header files.
 
 The library contains the following useful functions and classes:
-* AudioCodecs.hh: MACE3/6, IMA4, mu-law and A-law audio decoders
+* Audio/Codecs.hh: MACE3/6, IMA4, mu-law and A-law audio decoders
 * DataCodecs/Codecs.hh: Decompressors and compressors for some common and custom data formats
 * Emulators/M68KEmulator.hh: 68000 CPU emulator and disassembler
 * Emulators/PPC32Emulator.hh: PowerPC CPU emulator, assembler, and disassembler
@@ -679,10 +681,10 @@ Supported formats:
     Word Munchers                  | Imag | --Imag-fm  | Sometimes        | $1 $2 $3
 
     Notes:
-    $0: render_sprite can't tell from the contents of the resource whether it is
-        color or monochrome, so it assumes the resource is color if you give a
-        color table on the command line. If decoding fails with a color table,
-        try decoding without one (or vice versa).
+    $0: render_sprite can't tell from the contents of the resource whether it
+        is color or monochrome, so it assumes the resource is color if you give
+        a color table on the command line. If decoding fails with a color
+        table, try decoding without one (or vice versa).
     $1: These games contain some color and some monochrome graphics. It should
         be obvious which are which (usually color graphics are in a separate
         file), but if not, you can give a clut anyway in these cases and
@@ -708,8 +710,8 @@ Supported formats:
         them with `resource_dasm --index-format=cbag <CBAG_file.bin>`.
     $8: This game has only one clut and it's huge - far longer than the usual
         256 entries. It seems PPSS image sets are meant to be rendered with a
-        subset of this clut, but I haven't been able to figure out (yet) how the
-        game chooses what subset of it to use.
+        subset of this clut, but I haven't been able to figure out (yet) how
+        the game chooses what subset of it to use.
     $9: The game doesn't contain any color tables. You can use a 256-color clut
         resource from the Mac OS System file, or use the --default-clut option.
     $A: The game stores its sprites in normal PICT resources with an incorrect

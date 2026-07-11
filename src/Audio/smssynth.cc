@@ -2217,7 +2217,7 @@ int main(int argc, char** argv) {
   if (output_filename) {
     auto samples = r->render_until_seconds(time_limit);
     phosg::fwrite_fmt(stderr, "\nsaving output file: {}\n", output_filename);
-    ResourceDASM::Audio::save_wav(output_filename, samples, sample_rate, 2);
+    phosg::save_file(output_filename, ResourceDASM::Audio::serialize_wav(samples, sample_rate, 2));
 
 #ifdef SDL3_AVAILABLE
   } else if (play) {

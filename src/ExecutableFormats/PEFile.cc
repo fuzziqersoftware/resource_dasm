@@ -14,11 +14,11 @@
 
 namespace ResourceDASM {
 
-PEFile::PEFile(const char* filename) : PEFile(filename, phosg::load_file(filename)) {}
+PEFile::PEFile(const std::string& filename) : PEFile(filename, phosg::load_file(filename)) {}
 
-PEFile::PEFile(const char* filename, const std::string& data) : PEFile(filename, data.data(), data.size()) {}
+PEFile::PEFile(const std::string& filename, const std::string& data) : PEFile(filename, data.data(), data.size()) {}
 
-PEFile::PEFile(const char* filename, const void* data, size_t size) : filename(filename) {
+PEFile::PEFile(const std::string& filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 

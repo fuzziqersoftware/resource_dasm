@@ -84,9 +84,9 @@ struct RELRelocationInstruction {
 
 class RELFile {
 public:
-  explicit RELFile(const char* filename);
-  RELFile(const char* filename, const std::string& data);
-  RELFile(const char* filename, const void* data, size_t size);
+  explicit RELFile(const std::string& filename);
+  RELFile(const std::string& filename, const std::string& data);
+  RELFile(const std::string& filename, const void* data, size_t size);
   ~RELFile() = default;
 
   void print(

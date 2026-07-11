@@ -13,9 +13,8 @@
 
 namespace ResourceDASM {
 
-// The file begins with an ELFIdentifier immediately followed by an ELFHeader.
-// The ELFHeader may have different endianness or widths for some fields, hence
-// the split structs here.
+// The file begins with an ELFIdentifier immediately followed by an ELFHeader. The ELFHeader may have different
+// endianness or widths for some fields, hence the split structs here.
 
 struct ELFIdentifier {
   phosg::be_uint32_t magic; // '\x7FELF' (0x7F454C46)
@@ -94,9 +93,9 @@ struct ELFSectionHeaderEntry {
 
 class ELFFile {
 public:
-  explicit ELFFile(const char* filename);
-  ELFFile(const char* filename, const std::string& data);
-  ELFFile(const char* filename, const void* data, size_t size);
+  explicit ELFFile(const std::string& filename);
+  ELFFile(const std::string& filename, const std::string& data);
+  ELFFile(const std::string& filename, const void* data, size_t size);
   ~ELFFile() = default;
 
   void print(

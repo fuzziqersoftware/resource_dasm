@@ -169,9 +169,9 @@ struct PEExportTableHeader {
 
 class PEFile {
 public:
-  explicit PEFile(const char* filename);
-  PEFile(const char* filename, const std::string& data);
-  PEFile(const char* filename, const void* data, size_t size);
+  explicit PEFile(const std::string& filename);
+  PEFile(const std::string& filename, const std::string& data);
+  PEFile(const std::string& filename, const void* data, size_t size);
   ~PEFile() = default;
 
   uint32_t load_into(std::shared_ptr<MemoryContext> mem) const;

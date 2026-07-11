@@ -187,9 +187,9 @@ struct PEFLoaderExportSymbol {
 
 class PEFFile {
 public:
-  explicit PEFFile(const char* filename);
-  PEFFile(const char* filename, const std::string& data);
-  PEFFile(const char* filename, const void* data, size_t size);
+  explicit PEFFile(const std::string& filename);
+  PEFFile(const std::string& filename, const std::string& data);
+  PEFFile(const std::string& filename, const void* data, size_t size);
   ~PEFFile() = default;
 
   void print(

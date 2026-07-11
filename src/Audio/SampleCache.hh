@@ -10,60 +10,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Codecs.hh"
+
 namespace ResourceDASM {
 namespace Audio {
-
-template <typename SampleT>
-  requires(std::is_same_v<SampleT, uint8_t>)
-float sample_to_float(SampleT sample) {
-  return (static_cast<float>(sample) - 0x80) / 0x80;
-}
-template <typename SampleT>
-  requires(std::is_same_v<SampleT, int8_t>)
-float sample_to_float(SampleT sample) {
-  return static_cast<float>(sample) / 0x80;
-}
-template <typename SampleT>
-  requires(std::is_same_v<SampleT, int16_t>)
-float sample_to_float(SampleT sample) {
-  return static_cast<float>(sample) / 0x8000;
-}
-template <typename SampleT>
-  requires(std::is_same_v<SampleT, float>)
-float sample_to_float(SampleT sample) {
-  return sample;
-}
-
-template <typename SampleT>
-  requires(std::is_same_v<SampleT, uint8_t>)
-SampleT sample_from_float(float sample) {
-  return std::clamp<int64_t>((sample * 0x80) - 0x80, 0x00, 0xFF);
-}
-template <typename SampleT>
-  requires(std::is_same_v<SampleT, int8_t>)
-SampleT sample_from_float(float sample) {
-  return std::clamp<int64_t>((sample * 0x80), -0x80, 0x7F);
-}
-template <typename SampleT>
-  requires(std::is_same_v<SampleT, int16_t>)
-SampleT sample_from_float(float sample) {
-  return std::clamp<int64_t>(sample * 0x8000, -0x8000, 0x7FFF);
-}
-template <typename SampleT>
-  requires(std::is_same_v<SampleT, float>)
-SampleT sample_from_float(float sample) {
-  return sample;
-}
-
-template <typename ToT, typename FromT>
-std::vector<ToT> convert_samples(const std::vector<FromT>& samples) {
-  std::vector<ToT> ret;
-  ret.reserve(samples.size());
-  for (const auto& sample : samples) {
-    ret.emplace_back(sample_from_float<ToT>(sample_to_float<FromT>(sample)));
-  }
-  return ret;
-}
 
 enum class ResampleMethod {
   EXTEND = 0,

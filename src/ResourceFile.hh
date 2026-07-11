@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Audio/QuickTimeInstrument.hh"
+#include "Audio/WAVFile.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "ExecutableFormats/PEFFile.hh"
 #include "QuickDrawFormats.hh"
@@ -190,12 +192,13 @@ public:
   };
 
   struct DecodedSoundResource {
-    bool is_mp3 = false;
+    // If not empty, then contains a raw MP3 file; in this case, the rest of this struct should be ignored
+    std::string mp3_data;
+
     uint32_t sample_rate = 0;
-    uint8_t base_note = 0;
+    uint8_t base_note = 0x3C;
 
     uint8_t num_channels = 0;
-    uint8_t bits_per_sample = 0;
 
     size_t loop_start_sample_offset = 0;
     size_t loop_end_sample_offset = 0;
@@ -207,10 +210,17 @@ public:
     };
     LoopType loop_type = LoopType::NORMAL;
 
-    // This string contains a raw WAV or MP3 file (determined by is_mp3); in the WAV case, the actual samples start at
-    // sample_start_offset within the data string
-    size_t sample_start_offset = 0;
-    std::string data;
+    std::vector<float> samples;
+
+    inline std::string serialize_wav() const {
+      return Audio::serialize_wav(
+          this->samples,
+          this->sample_rate,
+          this->num_channels,
+          this->loop_start_sample_offset,
+          this->loop_end_sample_offset,
+          this->base_note);
+    }
   };
 
   struct DecodedInstrumentResource {
@@ -221,8 +231,7 @@ public:
       int16_t snd_id;
       uint32_t snd_type; // can be RESOURCE_TYPE_snd or RESOURCE_TYPE_csnd
 
-      KeyRegion(uint8_t key_low, uint8_t key_high, uint8_t base_note,
-          int16_t snd_id, uint32_t snd_type);
+      KeyRegion(uint8_t key_low, uint8_t key_high, uint8_t base_note, int16_t snd_id, uint32_t snd_type);
     };
 
     std::vector<KeyRegion> key_regions;
@@ -738,6 +747,9 @@ public:
   // Sound resources
   // Note: return types may change here in the future to improve structuring and to make it easier for callers of the
   // library to use the returned data in any way other than just saving it to WAV/MIDI files
+  Audio::SSAIInstrument decode_ssai(int16_t id, uint32_t type = RESOURCE_TYPE_ssai) const;
+  static Audio::SSAIInstrument decode_ssai(std::shared_ptr<const Resource> res);
+  static Audio::SSAIInstrument decode_ssai(const void* data, size_t size);
   DecodedInstrumentResource decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST) const;
   DecodedInstrumentResource decode_INST(std::shared_ptr<const Resource> res) const;
   // Note: The SONG format depends on the resource index format, so there are no static versions of this function.
@@ -763,13 +775,12 @@ public:
   DecodedSoundResource decode_Ysnd(int16_t id, uint32_t type, bool metadata_only = false) const;
   DecodedSoundResource decode_Ysnd(std::shared_ptr<const Resource> res, bool metadata_only = false) const;
   DecodedSoundResource decode_Ysnd(const void* vdata, size_t size, bool metadata_only = false) const;
-  // These functions return a string containing a raw WAV file.
-  std::string decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD) const;
-  static std::string decode_SMSD(std::shared_ptr<const Resource> res);
-  static std::string decode_SMSD(const void* data, size_t size);
-  std::string decode_SOUN(int16_t id, uint32_t type = RESOURCE_TYPE_SOUN) const;
-  static std::string decode_SOUN(std::shared_ptr<const Resource> res);
-  static std::string decode_SOUN(const void* data, size_t size);
+  DecodedSoundResource decode_SMSD(int16_t id, uint32_t type = RESOURCE_TYPE_SMSD) const;
+  static DecodedSoundResource decode_SMSD(std::shared_ptr<const Resource> res);
+  static DecodedSoundResource decode_SMSD(const void* data, size_t size);
+  DecodedSoundResource decode_SOUN(int16_t id, uint32_t type = RESOURCE_TYPE_SOUN) const;
+  static DecodedSoundResource decode_SOUN(std::shared_ptr<const Resource> res);
+  static DecodedSoundResource decode_SOUN(const void* data, size_t size);
   // The strings returned by these functions contain raw MIDI files
   std::string decode_cmid(int16_t id, uint32_t type = RESOURCE_TYPE_cmid) const;
   static std::string decode_cmid(std::shared_ptr<const Resource> res);

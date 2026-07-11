@@ -212,7 +212,7 @@ static bool is_x86_filename(const std::string& filename) {
 }
 
 uint32_t load_pe(std::shared_ptr<ResourceDASM::MemoryContext> mem, const std::string& filename) {
-  ResourceDASM::PEFile pe(filename.c_str());
+  ResourceDASM::PEFile pe(filename);
   uint32_t base = pe.load_into(mem);
 
   // Set the base and exported function address symbols
@@ -244,7 +244,8 @@ uint32_t load_pe(std::shared_ptr<ResourceDASM::MemoryContext> mem, const std::st
     // .u32    addr_addr
     stubs_w.put_u32l(0); // This is filled in during the second loop
     // .data   name
-    stubs_w.write(name.c_str(), name.size() + 1);
+    stubs_w.write(name);
+    stubs_w.put_u8(0);
     // int     FF
     stubs_w.put_u16b(0xCDFF);
   }
@@ -266,7 +267,7 @@ uint32_t load_pe(std::shared_ptr<ResourceDASM::MemoryContext> mem, const std::st
 }
 
 uint32_t load_dol(std::shared_ptr<ResourceDASM::MemoryContext> mem, const std::string& filename) {
-  ResourceDASM::DOLFile dol(filename.c_str());
+  ResourceDASM::DOLFile dol(filename);
   dol.load_into(mem);
   return dol.entrypoint;
 }

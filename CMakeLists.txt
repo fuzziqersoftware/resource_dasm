@@ -26,11 +26,12 @@ endif()
 # Library and executable definitions
 
 add_library(resource_file
-  src/AudioCodecs.cc
   src/Audio/AAFArchive.cc
+  src/Audio/Codecs.cc
   src/Audio/Constants.cc
   src/Audio/Instrument.cc
   src/Audio/MODSynthesizer.cc
+  src/Audio/QuickTimeInstrument.cc
   src/Audio/WAVFile.cc
   src/BitmapFontRenderer.cc
   src/Cli.cc

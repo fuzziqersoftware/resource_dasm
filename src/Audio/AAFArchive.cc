@@ -713,7 +713,7 @@ SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_js
       } catch (const std::exception& e) {
         phosg::fwrite_fmt(stderr,
             "[create_json_sound_environment] creating region {:02X}:{:02X}@{:02X} -> {} ({}) for instrument {} failed: {}\n",
-            key_low, key_high, base_note, filename.c_str(), sound_id, id, e.what());
+            key_low, key_high, base_note, filename, sound_id, id, e.what());
         continue;
       }
 

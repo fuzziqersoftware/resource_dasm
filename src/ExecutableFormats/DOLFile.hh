@@ -28,9 +28,9 @@ public:
 
   static void check_address_range(uint32_t start, uint32_t size, const char* name);
 
-  explicit DOLFile(const char* filename);
-  DOLFile(const char* filename, const std::string& data);
-  DOLFile(const char* filename, const void* data, size_t size);
+  explicit DOLFile(const std::string& filename);
+  DOLFile(const std::string& filename, const std::string& data);
+  DOLFile(const std::string& filename, const void* data, size_t size);
   ~DOLFile() = default;
 
   void load_into(std::shared_ptr<MemoryContext> mem) const;

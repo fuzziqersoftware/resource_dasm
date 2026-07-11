@@ -53,16 +53,16 @@ const char* name_for_share_kind(PEFShareKind k) {
   }
 }
 
-PEFFile::PEFFile(const char* filename) : filename(filename) {
+PEFFile::PEFFile(const std::string& filename) : filename(filename) {
   const std::string data = phosg::load_file(filename);
   this->parse(data.data(), data.size());
 }
 
-PEFFile::PEFFile(const char* filename, const std::string& data) : filename(filename) {
+PEFFile::PEFFile(const std::string& filename, const std::string& data) : filename(filename) {
   this->parse(data.data(), data.size());
 }
 
-PEFFile::PEFFile(const char* filename, const void* data, size_t size) : filename(filename) {
+PEFFile::PEFFile(const std::string& filename, const void* data, size_t size) : filename(filename) {
   this->parse(data, size);
 }
 

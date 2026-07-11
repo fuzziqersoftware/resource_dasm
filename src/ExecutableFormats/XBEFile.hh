@@ -52,10 +52,10 @@ struct XBEHeader {
 
 class XBEFile {
 public:
-  explicit XBEFile(const char* filename);
-  XBEFile(const char* filename, const std::string& data);
-  XBEFile(const char* filename, std::string&& data);
-  XBEFile(const char* filename, const void* data, size_t size);
+  explicit XBEFile(const std::string& filename);
+  XBEFile(const std::string& filename, const std::string& data);
+  XBEFile(const std::string& filename, std::string&& data);
+  XBEFile(const std::string& filename, const void* data, size_t size);
   ~XBEFile() = default;
 
   bool is_within_addr_range(uint32_t addr, uint32_t size) const;

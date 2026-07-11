@@ -23,6 +23,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "Audio/Codecs.hh"
+#include "Audio/WAVFile.hh"
 #include "Cli.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
@@ -220,6 +222,18 @@ private:
     this->ensure_directories_exist(filename);
     phosg::save_file(filename, data);
     phosg::fwrite_fmt(stderr, "... {}\n", filename);
+  }
+
+  void write_decoded_sound(
+      const std::string& base_filename,
+      std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res,
+      const std::string& after,
+      const ResourceDASM::ResourceFile::DecodedSoundResource& sound) {
+    if (!sound.mp3_data.empty()) {
+      this->write_decoded_data(base_filename, res, after + ".mp3", sound.mp3_data);
+    } else {
+      this->write_decoded_data(base_filename, res, after + ".wav", sound.serialize_wav());
+    }
   }
 
   template <phosg::PixelFormat Format>
@@ -805,44 +819,37 @@ private:
 
   void write_decoded_snd(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_snd(res);
-    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_sound(base_filename, res, "", this->current_rf->decode_snd(res));
   }
 
   void write_decoded_csnd(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_csnd(res);
-    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_sound(base_filename, res, "", this->current_rf->decode_csnd(res));
   }
 
   void write_decoded_esnd(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_esnd(res);
-    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_sound(base_filename, res, "", this->current_rf->decode_esnd(res));
   }
 
   void write_decoded_ESnd(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_ESnd(res);
-    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_sound(base_filename, res, "", this->current_rf->decode_ESnd(res));
   }
 
   void write_decoded_Ysnd(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    auto decoded = this->current_rf->decode_Ysnd(res);
-    this->write_decoded_data(base_filename, res, decoded.is_mp3 ? ".mp3" : ".wav", decoded.data);
+    this->write_decoded_sound(base_filename, res, "", this->current_rf->decode_Ysnd(res));
   }
 
   void write_decoded_SMSD(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    std::string decoded = this->current_rf->decode_SMSD(res);
-    this->write_decoded_data(base_filename, res, ".wav", decoded);
+    this->write_decoded_sound(base_filename, res, "", this->current_rf->decode_SMSD(res));
   }
 
   void write_decoded_SOUN(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    std::string decoded = this->current_rf->decode_SOUN(res);
-    this->write_decoded_data(base_filename, res, ".wav", decoded);
+    this->write_decoded_sound(base_filename, res, "", this->current_rf->decode_SOUN(res));
   }
 
   void write_decoded_cmid(
@@ -1538,6 +1545,33 @@ private:
     }
   }
 
+  void write_decoded_ssai(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    auto ssai = this->current_rf->decode_ssai(res);
+
+    auto key_regions_list = phosg::JSON::list();
+    for (const auto& [rgn_num, rgn] : ssai.key_regions) {
+      const auto& sample_data = ssai.sample_datas.at(rgn.sample_data_number);
+      auto samples = ResourceDASM::Audio::convert_samples_dynamic(sample_data, rgn.bits_per_sample);
+      auto wav_data = ResourceDASM::Audio::serialize_wav(samples,
+          rgn.sample_rate, rgn.num_channels, rgn.loop_start_offset, rgn.loop_end_offset, rgn.base_note);
+      auto wav_suffix = std::format("_key_{}.wav", rgn_num);
+      this->write_decoded_data(base_filename, res, wav_suffix, wav_data);
+
+      auto key_region_dict = phosg::JSON::dict();
+      key_region_dict.emplace("key_low", rgn.key_low);
+      key_region_dict.emplace("key_high", rgn.key_high);
+      key_region_dict.emplace("base_note", rgn.base_note);
+      key_region_dict.emplace("filename", phosg::basename(this->output_filename(base_filename, res, wav_suffix)));
+      key_regions_list.emplace_back(std::move(key_region_dict));
+    }
+
+    auto ssai_dict = phosg::JSON::dict();
+    ssai_dict.emplace("id", res->id);
+    ssai_dict.emplace("regions", std::move(key_regions_list));
+    this->write_decoded_data(base_filename, res, ".json", ssai_dict.serialize(phosg::JSON::SerializeOption::FORMAT));
+  }
+
   phosg::JSON generate_json_for_INST(
       const std::string& base_filename,
       int32_t id,
@@ -1576,7 +1610,7 @@ private:
         }
         snd_sample_rate = decoded_snd.sample_rate;
         snd_base_note = decoded_snd.base_note;
-        snd_is_mp3 = decoded_snd.is_mp3;
+        snd_is_mp3 = !decoded_snd.mp3_data.empty();
 
       } catch (const std::exception& e) {
         phosg::fwrite_fmt(stderr,
@@ -2302,6 +2336,7 @@ const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> Resourc
     {ResourceDASM::RESOURCE_TYPE_snth, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_SONG, &ResourceExporter::write_decoded_SONG},
     {ResourceDASM::RESOURCE_TYPE_SOUN, &ResourceExporter::write_decoded_SOUN},
+    {ResourceDASM::RESOURCE_TYPE_ssai, &ResourceExporter::write_decoded_ssai},
     {ResourceDASM::RESOURCE_TYPE_STR, &ResourceExporter::write_decoded_STR},
     {ResourceDASM::RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
     {ResourceDASM::RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},
