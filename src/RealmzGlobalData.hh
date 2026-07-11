@@ -436,8 +436,8 @@ struct RealmzGlobalData {
     /* 17 */ int8_t target_type;
     /* 18 */ int8_t size;
     /* 19 */ int8_t effect;
-    /* 1A */ int8_t spell_class;
-    /* 1B */ int8_t damage_type;
+    /* 1A */ int8_t damage_type;
+    /* 1B */ int8_t spell_class;
     /* 1C */ int8_t usable_in_combat;
     /* 1D */ int8_t usable_in_camp;
     /* 1E */
