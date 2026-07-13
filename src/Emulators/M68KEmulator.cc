@@ -1812,9 +1812,25 @@ void M68KEmulator::exec_4(uint16_t opcode) {
       // Note: ccr not affected
       return;
 
-    } else if (b == 5) { // chk.w DREG, ADDR
-      // void* addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_WORD);
-      throw std::runtime_error("unimplemented: chk.w DREG ADDR"); // dreg is a field
+    } else if (b == 6) { // chk.w ADDR, DREG
+      // CHK.W <ea>, Dn: compare the low word of Dn (signed) against the upper
+      // bound word at <ea> (signed). If Dn < 0 or Dn > bound, raise a CHK
+      // exception (vector 6). Ref: Motorola M68000 PRM.
+      // This core has no full trap-vector model, so — like the TRAP/TRAPV/
+      // overflow-trap cases above — we signal the exception by throwing, after
+      // setting N as the PRM specifies (N=1 if Dn<0, N=0 if Dn>bound). Z/V/C are
+      // left undefined and thus unchanged.
+      auto addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_WORD);
+      int16_t bound = static_cast<int16_t>(this->read(addr, SIZE_WORD));
+      int16_t value = static_cast<int16_t>(this->regs.d[op_get_a(opcode)].u & 0xFFFF);
+      if (value < 0) {
+        this->regs.set_ccr_flags(-1, 1, -1, -1, -1);
+        throw std::runtime_error("chk.w: register value below zero (CHK exception, vector 6)");
+      } else if (value > bound) {
+        this->regs.set_ccr_flags(-1, 0, -1, -1, -1);
+        throw std::runtime_error("chk.w: register value above bound (CHK exception, vector 6)");
+      }
+      return;
     }
   }
 
@@ -2008,7 +2024,7 @@ std::string M68KEmulator::dasm_4(DisassemblyState& s) {
       std::string addr = M68KEmulator::dasm_address(s, op_get_c(op), op_get_d(op), ValueType::LONG);
       return std::format("lea.l      A{}, {}", op_get_a(op), addr);
 
-    } else if (b == 5) {
+    } else if (b == 6) { // chk.w <ea>, Dn (per the M68000 PRM, bits 8-6 = 110)
       std::string addr = M68KEmulator::dasm_address(s, op_get_c(op), op_get_d(op), ValueType::WORD);
       return std::format("chk.w      D{}, {}", op_get_a(op), addr);
 
