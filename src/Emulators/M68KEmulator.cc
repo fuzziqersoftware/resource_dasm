@@ -1660,7 +1660,50 @@ void M68KEmulator::exec_4(uint16_t opcode) {
 
       } else if (a == 6) {
         if ((b & (~1)) == 0) {
-          throw std::runtime_error("unimplemented: muls/mulu/divs/divu (long)");
+          // 68020 long multiply/divide. b==0: MULU.L/MULS.L (0x4C0x); b==1: DIVU.L/DIVS.L
+          // (0x4C4x). Extension word: Dl/Dq @ bits 12-14, signed @ bit 11, 64-bit @ bit 10,
+          // Dh/Dr @ bits 0-2.
+          uint16_t ext = this->fetch_instruction_word();
+          auto ea = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_LONG);
+          uint32_t src = this->read(ea, SIZE_LONG);
+          uint8_t reg_hi = ext & 7;            // Dh (mul) / Dr (div, remainder or hi dividend)
+          uint8_t reg_main = (ext >> 12) & 7;  // Dl (mul) / Dq (div, quotient or lo dividend)
+          bool is_signed = (ext >> 11) & 1;
+          bool is_64 = (ext >> 10) & 1;
+          if (b == 0) { // MUL.L
+            if (is_signed) {
+              int64_t p = (int64_t)(int32_t)this->regs.d[reg_main].u * (int64_t)(int32_t)src;
+              this->regs.d[reg_main].u = (uint32_t)p;
+              if (is_64) this->regs.d[reg_hi].u = (uint32_t)((uint64_t)p >> 32);
+              bool ovf = !is_64 && ((int64_t)(int32_t)(uint32_t)p != p);
+              this->regs.set_ccr_flags(-1, is_64 ? (p < 0) : ((int32_t)(uint32_t)p < 0), (p == 0), ovf, 0);
+            } else {
+              uint64_t p = (uint64_t)this->regs.d[reg_main].u * (uint64_t)src;
+              this->regs.d[reg_main].u = (uint32_t)p;
+              if (is_64) this->regs.d[reg_hi].u = (uint32_t)(p >> 32);
+              bool ovf = !is_64 && ((p >> 32) != 0);
+              this->regs.set_ccr_flags(-1, is_64 ? ((p >> 63) & 1) : (((uint32_t)p >> 31) & 1), (p == 0), ovf, 0);
+            }
+          } else { // DIV.L
+            if (src == 0) throw std::runtime_error("division by zero");
+            if (is_signed) {
+              int64_t dividend = is_64
+                  ? (int64_t)(((uint64_t)this->regs.d[reg_hi].u << 32) | this->regs.d[reg_main].u)
+                  : (int64_t)(int32_t)this->regs.d[reg_main].u;
+              int32_t divisor = (int32_t)src;
+              int64_t q = dividend / divisor; int32_t rem = (int32_t)(dividend % divisor);
+              this->regs.d[reg_hi].u = (uint32_t)rem; this->regs.d[reg_main].u = (uint32_t)q;
+              this->regs.set_ccr_flags(-1, ((int32_t)(uint32_t)q < 0), (q == 0), 0, 0);
+            } else {
+              uint64_t dividend = is_64
+                  ? (((uint64_t)this->regs.d[reg_hi].u << 32) | this->regs.d[reg_main].u)
+                  : (uint64_t)this->regs.d[reg_main].u;
+              uint64_t q = dividend / src; uint32_t rem = (uint32_t)(dividend % src);
+              this->regs.d[reg_hi].u = rem; this->regs.d[reg_main].u = (uint32_t)q;
+              this->regs.set_ccr_flags(-1, (((uint32_t)q >> 31) & 1), (q == 0), 0, 0);
+            }
+          }
+          return;
 
         } else {
           // movem.S REGMASK ADDR
