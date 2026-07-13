@@ -2598,14 +2598,53 @@ void M68KEmulator::exec_E(uint16_t opcode) {
         break;
       }
 
-      case 0x0: // asl
-      case 0x1: // asr
-      case 0x2: // lsl
-      case 0x3: // lsr
-      case 0x4: // roxl
-      case 0x5: // roxr
-      case 0x6: // rol
-      case 0x7: // ror
+      case 0x0: // asr <ea>  (memory shift/rotate by 1, always word)
+      case 0x1: // asl <ea>
+      case 0x2: // lsr <ea>
+      case 0x3: // lsl <ea>
+      case 0x4: // roxr <ea>
+      case 0x5: // roxl <ea>
+      case 0x6: // ror <ea>
+      case 0x7: { // rol <ea>
+        // Memory shift/rotate: shift the word at <ea> by exactly one bit. `which`
+        // encodes op<<1|direction: 0=asr 1=asl 2=lsr 3=lsl 4=roxr 5=roxl 6=ror 7=rol.
+        bool left = which & 1;
+        uint8_t op = which >> 1; // 0=arith 1=logical 2=rox 3=rotate
+        auto ea = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_WORD);
+        uint16_t v = this->read(ea, SIZE_WORD) & 0xFFFF;
+        uint16_t res;
+        int64_t c_flag, x_flag, v_flag = 0;
+        uint8_t x_in = (this->regs.sr >> 4) & 1;
+        if (left) {
+          c_flag = (v >> 15) & 1;
+          if (op == 2) { // roxl
+            res = static_cast<uint16_t>((v << 1) | x_in);
+          } else if (op == 3) { // rol
+            res = static_cast<uint16_t>((v << 1) | (v >> 15));
+          } else { // asl / lsl
+            res = static_cast<uint16_t>(v << 1);
+          }
+          if (op == 0) { // asl sets V if the sign bit changed
+            v_flag = (((v ^ res) >> 15) & 1);
+          }
+        } else {
+          c_flag = v & 1;
+          if (op == 0) { // asr (arithmetic: preserve sign)
+            res = static_cast<uint16_t>(static_cast<int16_t>(v) >> 1);
+          } else if (op == 2) { // roxr
+            res = static_cast<uint16_t>((v >> 1) | (x_in << 15));
+          } else if (op == 3) { // ror
+            res = static_cast<uint16_t>((v >> 1) | (v << 15));
+          } else { // lsr
+            res = static_cast<uint16_t>(v >> 1);
+          }
+        }
+        this->write(ea, res, SIZE_WORD);
+        // rol/ror (op==3) leave X unchanged; all others set X = C.
+        x_flag = (op == 3) ? -1 : c_flag;
+        this->regs.set_ccr_flags(x_flag, (res >> 15) & 1, (res == 0), v_flag, c_flag);
+        break;
+      }
       case 0x8: // bftst
       case 0xA: // bfchg
       case 0xC: // bfclr
