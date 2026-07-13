@@ -8,8 +8,8 @@
 #include <phosg/Strings.hh>
 #include <vector>
 
-#include "AAFArchive.hh"
 #include "Constants.hh"
+#include "SoundEnvironment.hh"
 #include "WAVFile.hh"
 
 std::string base_filename_for_sound(const ResourceDASM::Audio::Sound& s) {

@@ -693,19 +693,6 @@ struct RMFSongResourceHeader {
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////////////
-// Tune
-
-struct TuneResourceHeader {
-  phosg::be_uint32_t header_size; // Includes the sample description commands in the MIDI stream
-  phosg::be_uint32_t magic; // 'musi'
-  phosg::be_uint32_t reserved1;
-  phosg::be_uint16_t reserved2;
-  phosg::be_uint16_t index;
-  phosg::be_uint32_t flags;
-  // MIDI track data immediately follows
-} __attribute__((packed));
-
-////////////////////////////////////////////////////////////////////////////////
 // styl
 
 struct StyleResourceCommand {

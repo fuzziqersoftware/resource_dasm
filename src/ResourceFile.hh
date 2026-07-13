@@ -791,9 +791,9 @@ public:
   std::string decode_ecmi(int16_t id, uint32_t type = RESOURCE_TYPE_ecmi) const;
   static std::string decode_ecmi(std::shared_ptr<const Resource> res);
   static std::string decode_ecmi(const void* data, size_t size);
-  std::string decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune) const;
-  static std::string decode_Tune(std::shared_ptr<const Resource> res);
-  static std::string decode_Tune(const void* data, size_t size);
+  Audio::TuneResource decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune) const;
+  static Audio::TuneResource decode_Tune(std::shared_ptr<const Resource> res);
+  static Audio::TuneResource decode_Tune(const void* data, size_t size);
 
   // Text resources
   DecodedString decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR) const;

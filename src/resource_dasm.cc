@@ -1545,33 +1545,6 @@ private:
     }
   }
 
-  void write_decoded_ssai(
-      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    auto ssai = this->current_rf->decode_ssai(res);
-
-    auto key_regions_list = phosg::JSON::list();
-    for (const auto& [rgn_num, rgn] : ssai.key_regions) {
-      const auto& sample_data = ssai.sample_datas.at(rgn.sample_data_number);
-      auto samples = ResourceDASM::Audio::convert_samples_dynamic(sample_data, rgn.bits_per_sample);
-      auto wav_data = ResourceDASM::Audio::serialize_wav(samples,
-          rgn.sample_rate, rgn.num_channels, rgn.loop_start_offset, rgn.loop_end_offset, rgn.base_note);
-      auto wav_suffix = std::format("_key_{}.wav", rgn_num);
-      this->write_decoded_data(base_filename, res, wav_suffix, wav_data);
-
-      auto key_region_dict = phosg::JSON::dict();
-      key_region_dict.emplace("key_low", rgn.key_low);
-      key_region_dict.emplace("key_high", rgn.key_high);
-      key_region_dict.emplace("base_note", rgn.base_note);
-      key_region_dict.emplace("filename", phosg::basename(this->output_filename(base_filename, res, wav_suffix)));
-      key_regions_list.emplace_back(std::move(key_region_dict));
-    }
-
-    auto ssai_dict = phosg::JSON::dict();
-    ssai_dict.emplace("id", res->id);
-    ssai_dict.emplace("regions", std::move(key_regions_list));
-    this->write_decoded_data(base_filename, res, ".json", ssai_dict.serialize(phosg::JSON::SerializeOption::FORMAT));
-  }
-
   phosg::JSON generate_json_for_INST(
       const std::string& base_filename,
       int32_t id,
@@ -1802,8 +1775,8 @@ private:
 
   void write_decoded_Tune(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    std::string decoded = this->current_rf->decode_Tune(res);
-    this->write_decoded_data(base_filename, res, ".midi", decoded);
+    auto decoded = this->current_rf->decode_Tune(res);
+    this->write_decoded_data(base_filename, res, ".midi", decoded.midi());
   }
 
   typedef void (ResourceExporter::*resource_decode_fn)(
@@ -1935,17 +1908,15 @@ private:
         ret |= this->export_resource(base_filename, res);
       }
 
-      // Special case: if we disassembled any INSTs and the save-raw behavior is not Never, generate an smssynth
-      // template file from all the INSTs
-      if (has_INST && (this->save_raw != SaveRawBehavior::NEVER)) {
+      // Special case: if we disassembled any INSTs and there are any decoders (that is, --skip-decode wasn't
+      // specified), generate an smssynth template file from all the INSTs
+      if (has_INST && !this->type_to_decode_fn.empty()) {
         std::string json_filename = output_filename(
             base_filename, nullptr, nullptr, "generated", "", 0, "smssynth_env_template.json");
-
         try {
           auto json = generate_json_for_SONG(base_filename, nullptr);
           phosg::save_file(json_filename, json.serialize(phosg::JSON::SerializeOption::FORMAT));
           phosg::fwrite_fmt(stderr, "... {}\n", json_filename);
-
         } catch (const std::exception& e) {
           phosg::fwrite_fmt(stderr, "failed to write smssynth env template {}: {}\n", json_filename, e.what());
         }
@@ -2336,7 +2307,6 @@ const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> Resourc
     {ResourceDASM::RESOURCE_TYPE_snth, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_SONG, &ResourceExporter::write_decoded_SONG},
     {ResourceDASM::RESOURCE_TYPE_SOUN, &ResourceExporter::write_decoded_SOUN},
-    {ResourceDASM::RESOURCE_TYPE_ssai, &ResourceExporter::write_decoded_ssai},
     {ResourceDASM::RESOURCE_TYPE_STR, &ResourceExporter::write_decoded_STR},
     {ResourceDASM::RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
     {ResourceDASM::RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},

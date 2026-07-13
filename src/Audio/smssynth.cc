@@ -12,9 +12,9 @@
 #include <string>
 #include <unordered_map>
 
-#include "AAFArchive.hh"
 #include "Constants.hh"
 #include "SampleCache.hh"
+#include "SoundEnvironment.hh"
 #include "WAVFile.hh"
 
 #ifdef SDL3_AVAILABLE
@@ -970,7 +970,7 @@ protected:
 
     std::unordered_map<uint8_t, int16_t> registers;
 
-    Track(int16_t id, std::shared_ptr<std::string> data, size_t start_offset, uint32_t bank = -1)
+    Track(int16_t id, const std::string& data, size_t start_offset, uint32_t bank = -1)
         : id(id), r(data, start_offset), reading_wait_opcode(true), freq_mult(1), bank(bank), instrument(-1) {}
 
     void attenuate_perf() {
@@ -1332,9 +1332,8 @@ public:
             freq_bias,
             volume_bias,
             decay_when_off),
-        seq(seq),
-        seq_data(new std::string(seq->data)) {
-    std::shared_ptr<Track> default_track(new Track(-1, this->seq_data, 0, this->seq->index));
+        seq(seq) {
+    std::shared_ptr<Track> default_track(new Track(-1, this->seq->data, 0, this->seq->index));
     this->tracks.emplace(default_track);
     this->next_event_to_track.emplace(0, default_track);
     default_track->freq_mult = this->freq_bias;
@@ -1511,7 +1510,7 @@ protected:
         // Only start the track if not in disable_tracks, and solo_tracks is either not given or contains the track
         if ((this->solo_tracks.empty() || this->solo_tracks.count(track_id)) &&
             !this->disable_tracks.count(track_id)) {
-          std::shared_ptr<Track> new_track(new Track(track_id, this->seq_data, offset, this->seq->index));
+          std::shared_ptr<Track> new_track(new Track(track_id, this->seq->data, offset, this->seq->index));
           this->tracks.emplace(new_track);
           this->next_event_to_track.emplace(this->current_time, new_track);
           new_track->freq_mult = this->freq_bias;
@@ -1697,13 +1696,13 @@ protected:
 
 class MIDIRenderer : public Renderer {
 protected:
-  std::shared_ptr<std::string> midi_contents;
+  std::shared_ptr<ResourceDASM::Audio::SequenceProgram> seq;
   bool allow_program_change;
   uint8_t channel_instrument[0x10];
 
 public:
   explicit MIDIRenderer(
-      std::shared_ptr<std::string> midi_contents,
+      std::shared_ptr<ResourceDASM::Audio::SequenceProgram> seq,
       size_t sample_rate,
       ResourceDASM::Audio::ResampleMethod resample_method,
       std::shared_ptr<const ResourceDASM::Audio::SoundEnvironment> env,
@@ -1728,7 +1727,7 @@ public:
             freq_bias,
             volume_bias,
             decay_when_off),
-        midi_contents(midi_contents),
+        seq(seq),
         allow_program_change(allow_program_change) {
     for (uint8_t x = 0; x < 0x10; x++) {
       this->channel_instrument[x] = x;
@@ -1738,7 +1737,7 @@ public:
     }
     this->decay_seconds = decay_seconds;
 
-    phosg::StringReader r(this->midi_contents);
+    phosg::StringReader r(this->seq->data);
 
     // Read the header and create all the tracks
     MIDIHeaderChunk header = r.get<MIDIHeaderChunk>();
@@ -1765,7 +1764,7 @@ public:
       }
 
       if ((this->solo_tracks.empty() || this->solo_tracks.count(track_id)) && !this->disable_tracks.count(track_id)) {
-        std::shared_ptr<Track> t(new Track(track_id, this->midi_contents, r.where(), 0));
+        std::shared_ptr<Track> t(new Track(track_id, this->seq->data, r.where(), 0));
         this->tracks.emplace(t);
         this->next_event_to_track.emplace(0, t);
         t->freq_mult = this->freq_bias;
@@ -1966,6 +1965,7 @@ int main(int argc, char** argv) {
   std::string filename;
   const char* output_filename = nullptr;
   const char* aaf_directory = nullptr;
+  const char* quicktime_directory = nullptr;
   bool midi = false;
   std::unordered_map<int16_t, ResourceDASM::Audio::InstrumentMetadata> midi_instrument_metadata;
   std::unordered_set<int16_t> disable_tracks;
@@ -1999,6 +1999,8 @@ int main(int argc, char** argv) {
       sample_rate = atoi(&argv[x][14]);
     } else if (!strncmp(argv[x], "--audiores-directory=", 21)) {
       aaf_directory = &argv[x][21];
+    } else if (!strncmp(argv[x], "--quicktime-directory=", 22)) {
+      quicktime_directory = &argv[x][22];
     } else if (!strncmp(argv[x], "--json-environment=", 19)) {
       env_json_filename = &argv[x][19];
     } else if (!strncmp(argv[x], "--output-filename=", 18)) {
@@ -2100,6 +2102,9 @@ int main(int argc, char** argv) {
   } else if (aaf_directory) {
     env.reset(new ResourceDASM::Audio::SoundEnvironment(
         ResourceDASM::Audio::load_sound_environment(aaf_directory)));
+  } else if (quicktime_directory) {
+    env.reset(new ResourceDASM::Audio::SoundEnvironment(
+        ResourceDASM::Audio::create_quicktime_sound_environment(quicktime_directory)));
   } else if (midi) {
     env.reset(new ResourceDASM::Audio::SoundEnvironment(
         ResourceDASM::Audio::create_midi_sound_environment(midi_instrument_metadata)));
@@ -2126,23 +2131,20 @@ int main(int argc, char** argv) {
 
   // For BMS, try to get the sequence from the env if it's there; for MIDI, just load the contents of the MIDI file
   std::shared_ptr<ResourceDASM::Audio::SequenceProgram> seq;
-  std::shared_ptr<std::string> midi_contents;
-  if (midi) {
-    midi_contents.reset(new std::string(phosg::load_file(filename)));
-  } else {
-    if (env.get()) {
-      try {
-        seq.reset(new ResourceDASM::Audio::SequenceProgram(env->sequence_programs.at(filename)));
-      } catch (const std::out_of_range&) {
-      }
+  if (env.get()) {
+    try {
+      seq.reset(new ResourceDASM::Audio::SequenceProgram(env->sequence_programs.at(filename)));
+    } catch (const std::out_of_range&) {
     }
-    if (!seq.get()) {
-      try {
-        seq.reset(new ResourceDASM::Audio::SequenceProgram(default_bank, phosg::load_file(filename)));
-      } catch (const phosg::cannot_open_file&) {
-        phosg::fwrite_fmt(stderr, "sequence does not exist in environment, nor on disk: {}\n", filename);
-        return 2;
-      }
+  }
+  if (!seq.get()) {
+    try {
+      seq.reset(new ResourceDASM::Audio::SequenceProgram{
+          midi ? ResourceDASM::Audio::SequenceProgram::Type::MIDI : ResourceDASM::Audio::SequenceProgram::Type::BMS,
+          static_cast<uint32_t>(default_bank), phosg::load_file(filename)});
+    } catch (const phosg::cannot_open_file&) {
+      phosg::fwrite_fmt(stderr, "sequence does not exist in environment, nor on disk: {}\n", filename);
+      return 2;
     }
   }
 
@@ -2152,61 +2154,72 @@ int main(int argc, char** argv) {
 
   // If not playing and not writing to a file, disassemble
   if (!output_filename && !play) {
-    if (midi) {
-      phosg::StringReader r(midi_contents);
-      disassemble_midi(r);
-    } else {
-      std::shared_ptr<std::string> seq_data(new std::string(seq->data));
-      phosg::StringReader r(seq_data);
-      disassemble_bms(r, seq->index);
+    phosg::StringReader r(seq->data);
+    switch (seq->type) {
+      case ResourceDASM::Audio::SequenceProgram::Type::MIDI:
+        disassemble_midi(r);
+        break;
+      case ResourceDASM::Audio::SequenceProgram::Type::BMS:
+        disassemble_bms(r, seq->index);
+        break;
+      default:
+        throw std::logic_error("Invalid sequence type");
     }
     return 0;
   }
 
   std::shared_ptr<Renderer> r;
-  if (seq.get()) {
-    r.reset(new BMSRenderer(
-        seq,
-        sample_rate,
-        resample_method,
-        env,
-        mute_tracks,
-        solo_tracks,
-        disable_tracks,
-        tempo_bias,
-        freq_bias,
-        volume_bias,
-        decay_when_off));
-  } else {
-    // MIDI has some extra params; get them from the JSON if possible
-    uint8_t percussion_instrument = 0;
-    bool allow_program_change = true;
-    if (!env_json.is_null()) {
-      percussion_instrument = env_json.get_int("percussion_instrument", 0);
-      allow_program_change = env_json.get_bool("allow_program_change", true);
-      if (decay_seconds < 0) {
-        decay_seconds = env_json.get_float("note_decay", 12.0f) / 60.0f;
+  switch (seq->type) {
+    case ResourceDASM::Audio::SequenceProgram::Type::BMS:
+      r.reset(new BMSRenderer(
+          seq,
+          sample_rate,
+          resample_method,
+          env,
+          mute_tracks,
+          solo_tracks,
+          disable_tracks,
+          tempo_bias,
+          freq_bias,
+          volume_bias,
+          decay_when_off));
+      break;
+
+    case ResourceDASM::Audio::SequenceProgram::Type::MIDI: {
+      // MIDI has some extra params; get them from the JSON if possible
+      uint8_t percussion_instrument = 0;
+      bool allow_program_change = true;
+      if (!env_json.is_null()) {
+        percussion_instrument = env_json.get_int("percussion_instrument", 0);
+        allow_program_change = env_json.get_bool("allow_program_change", true);
+        if (decay_seconds < 0) {
+          decay_seconds = env_json.get_float("note_decay", 12.0f) / 60.0f;
+        }
+        tempo_bias *= env_json.get_float("tempo_bias", 1.0);
       }
-      tempo_bias *= env_json.get_float("tempo_bias", 1.0);
+      if (decay_seconds < 0) {
+        decay_seconds = 0.2f;
+      }
+      r.reset(new MIDIRenderer(
+          seq,
+          sample_rate,
+          resample_method,
+          env,
+          mute_tracks,
+          solo_tracks,
+          disable_tracks,
+          tempo_bias,
+          freq_bias,
+          volume_bias,
+          decay_when_off,
+          decay_seconds,
+          percussion_instrument,
+          allow_program_change));
+      break;
     }
-    if (decay_seconds < 0) {
-      decay_seconds = 0.2f;
-    }
-    r.reset(new MIDIRenderer(
-        midi_contents,
-        sample_rate,
-        resample_method,
-        env,
-        mute_tracks,
-        solo_tracks,
-        disable_tracks,
-        tempo_bias,
-        freq_bias,
-        volume_bias,
-        decay_when_off,
-        decay_seconds,
-        percussion_instrument,
-        allow_program_change));
+
+    default:
+      throw std::logic_error("Invalid sequence type");
   }
 
   // Skip the first bit if requested

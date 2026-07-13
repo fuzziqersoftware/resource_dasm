@@ -1,4 +1,4 @@
-#include "AAFArchive.hh"
+#include "SoundEnvironment.hh"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -12,7 +12,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "Codecs.hh"
 #include "Instrument.hh"
+#include "QuickTimeInstrument.hh"
 #include "WAVFile.hh"
 
 namespace ResourceDASM {
@@ -264,13 +266,11 @@ std::unordered_map<std::string, SequenceProgram> barc_decode(
     while (ret.count(effective_name)) {
       effective_name = std::format("{}@{}", e.name, ++suffix);
     }
-    ret.emplace(effective_name, SequenceProgram{x, std::move(data)});
+    ret.emplace(effective_name, SequenceProgram{SequenceProgram::Type::BMS, x, std::move(data)});
   }
 
   return ret;
 }
-
-SequenceProgram::SequenceProgram(uint32_t index, std::string&& data) : index(index), data(std::move(data)) {}
 
 void SoundEnvironment::resolve_pointers() {
   // Postprocessing: resolve all sample bank pointers
@@ -508,7 +508,7 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
         uint32_t offset = data_fields[field_offset++];
         uint32_t end_offset = data_fields[field_offset++];
         ret.sequence_programs.emplace(std::format("seq{}", id),
-            SequenceProgram{id, std::string(reinterpret_cast<const char*>(data + offset), end_offset - offset)});
+            SequenceProgram{SequenceProgram::Type::BMS, id, std::string(reinterpret_cast<const char*>(data + offset), end_offset - offset)});
         break;
       }
 
@@ -685,13 +685,11 @@ SoundEnvironment create_midi_sound_environment(
 }
 
 SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_json, const std::string& directory) {
+  // JSON environments have only one instrument and sample bank; everything goes in there
   SoundEnvironment env;
-
-  // Create instrument bank 0 and sample bank 0
   auto& inst_bank = env.instrument_banks.emplace(0, 0).first->second;
   auto& sample_bank = env.sample_banks.emplace(0, 0).first->second;
 
-  // Create instruments
   size_t sound_id = 1;
   for (const auto& inst_json : instruments_json.as_list()) {
     int64_t id = inst_json->at("id").as_int();
@@ -755,6 +753,112 @@ SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_js
       // Use up the sound id
       sound_id++;
     }
+  }
+
+  env.resolve_pointers();
+  return env;
+}
+
+SoundEnvironment create_quicktime_sound_environment(const std::string& instruments_directory) {
+  phosg::PrefixedLogger log("[SoundEnvironment] ");
+
+  SoundEnvironment env;
+  auto& inst_bank = env.instrument_banks.emplace(0, 0).first->second;
+  auto& sample_bank = env.sample_banks.emplace(0, 0).first->second;
+
+  std::unordered_map<std::string, SSAIInstrument> ssais;
+  std::unordered_map<std::string, TuneResource> tunes;
+  for (const auto& item : std::filesystem::directory_iterator(instruments_directory)) {
+    if (phosg::tolower(item.path().filename().extension().string()) == ".ssai") {
+      ssais.emplace(item.path().filename().string(), phosg::load_file(item.path().string()));
+      log.info_f("Added instrument {}", item.path().filename().string());
+    } else if (phosg::tolower(item.path().filename().extension().string()) == ".tune") {
+      tunes.emplace(item.path().filename().string(), phosg::load_file(item.path().string()));
+      log.info_f("Added sequence {}", item.path().filename().string());
+    }
+  }
+
+  // Assign instrument IDs and index the sounds (instruments can load each other's sounds if they're in smin blocks)
+  size_t next_inst_id = 1;
+  std::unordered_map<uint64_t, const SSAIInstrument::SampleData*> sample_data_for_key;
+  std::unordered_map<std::string, uint32_t> name_to_inst_id;
+  for (auto& [_, ssai] : ssais) {
+    ssai.id = next_inst_id++;
+    name_to_inst_id.emplace(ssai.name, ssai.id);
+    for (const auto& [_, sample_data] : ssai.sample_datas) {
+      uint64_t key = (sample_data.smin_block_number >= 0)
+          ? sample_data.smin_block_number
+          : ((static_cast<uint64_t>(ssai.id) << 32) | sample_data.sdat_block_number);
+      if (!sample_data_for_key.emplace(key, &sample_data).second) {
+        throw std::runtime_error(std::format("Duplicate sample data key {:016X}", key));
+      }
+      log.info_f("Indexed sample data {:016X} from instrument {} ({})", key, ssai.id, ssai.name);
+    }
+  }
+
+  size_t sound_id = 1;
+  for (const auto& [_, ssai] : ssais) {
+    auto& inst = inst_bank.id_to_instrument.emplace(ssai.id, ssai.id).first->second;
+    for (const auto& [_, rgn] : ssai.key_regions) {
+      uint64_t local_key = ((static_cast<uint64_t>(ssai.id) << 32) | rgn.sample_data_number);
+      uint64_t global_key = rgn.sample_data_number;
+      auto sample_data_it = sample_data_for_key.find(local_key);
+      if (sample_data_it == sample_data_for_key.end()) {
+        sample_data_it = sample_data_for_key.find(global_key);
+      }
+      if (sample_data_it == sample_data_for_key.end()) {
+        throw std::runtime_error(std::format(
+            "Cannot find sample data for key {:016X} or {:016X}", local_key, global_key));
+      }
+      const auto* sample_data = sample_data_it->second;
+
+      // Create the sound object
+      Sound& s = sample_bank.emplace_back();
+      s.decoded_samples = convert_samples_dynamic(sample_data->data, rgn.bits_per_sample);
+      s.num_channels = rgn.num_channels;
+      s.sample_rate = rgn.sample_rate;
+      s.base_note = rgn.base_note;
+      s.loop_start = rgn.loop_start_offset;
+      s.loop_end = rgn.loop_end_offset;
+      s.sound_id = sound_id;
+      s.source_filename = ssai.name;
+      s.source_offset = 0;
+      s.source_size = 0;
+      s.aw_file_index = 0;
+      s.wave_table_index = 0;
+
+      // Create the key region and vel region objects
+      auto& key_rgn = inst.key_regions.emplace_back(rgn.key_low, rgn.key_high);
+      key_rgn.vel_regions.emplace_back(VelocityRegion{
+          0, 0x7F, 0, static_cast<uint16_t>(sound_id), 1.0f, 1.0f, false, static_cast<int8_t>(s.base_note)});
+
+      sound_id++;
+    }
+    log.info_f("Added instrument {} => {} \"{}\"", ssai.name, ssai.id, ssai.name);
+  }
+
+  for (const auto& [name, tune] : tunes) {
+    // Rewrite instrument selection events in Tunes so they point to the right instruments.
+    // TODO: It seems that there isn't a good ID to match these with, so we have to match by name instead. That can't
+    // be how QuickTime actually did it, right? There has to be some kind of numeric ID, right?
+    for (auto& event : tune.events) {
+      log.info_f("Linking instruments for sequence \"{}\"", name);
+      auto* setup_ev = dynamic_cast<ResourceDASM::Audio::TuneResource::ChannelSetupEvent*>(event.get());
+      if (setup_ev) {
+        auto it = name_to_inst_id.find(setup_ev->instrument_name);
+        if (it != name_to_inst_id.end()) {
+          setup_ev->instrument_number = it->second;
+          log.info_f("  Rewrote channel {} setup event \"{}\" => {}",
+              setup_ev->channel, setup_ev->instrument_name, it->second);
+        } else {
+          throw std::runtime_error(std::format("Tune refers to missing instrument \"{}\" from collection \"{}\"",
+              setup_ev->instrument_name, setup_ev->collection_name));
+        }
+      }
+    }
+
+    log.info_f("Generating MIDI for sequence \"{}\"", name);
+    env.sequence_programs.emplace(name, SequenceProgram{SequenceProgram::Type::MIDI, 0, tune.midi()});
   }
 
   env.resolve_pointers();
