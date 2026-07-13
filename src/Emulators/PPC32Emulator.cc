@@ -5,6 +5,7 @@
 #include <deque>
 #include <filesystem>
 #include <forward_list>
+#include <cmath>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
@@ -5083,7 +5084,7 @@ uint32_t PPC32Emulator::Assembler::asm_fadds(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_16_fsqrts(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)sqrt(this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = (float)std::sqrt(this->regs.f[op_get_reg3(op)].f);
 }
 
 std::string PPC32Emulator::dasm_EC_16_fsqrts(DisassemblyState&, uint32_t op) {
@@ -5377,7 +5378,7 @@ uint32_t PPC32Emulator::Assembler::asm_fadd(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_16_fsqrt(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = sqrt(this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = std::sqrt(this->regs.f[op_get_reg3(op)].f);
 }
 
 std::string PPC32Emulator::dasm_FC_16_fsqrt(DisassemblyState&, uint32_t op) {
@@ -5417,7 +5418,7 @@ uint32_t PPC32Emulator::Assembler::asm_fmul(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_1A_frsqrte(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = 1.0/sqrt(this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = 1.0/std::sqrt(this->regs.f[op_get_reg3(op)].f);
 }
 
 std::string PPC32Emulator::dasm_FC_1A_frsqrte(DisassemblyState&, uint32_t op) {
@@ -5528,7 +5529,7 @@ uint32_t PPC32Emulator::Assembler::asm_frsp(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_00E_fctiw(uint32_t op) {
-  { double v=this->regs.f[op_get_reg3(op)].f; int32_t r=(int32_t)llround(v); this->regs.f[op_get_reg1(op)].i=(uint32_t)r; }
+  { double v=this->regs.f[op_get_reg3(op)].f; int32_t r=(int32_t)std::llround(v); this->regs.f[op_get_reg1(op)].i=(uint32_t)r; }
 }
 
 std::string PPC32Emulator::dasm_FC_00E_fctiw(DisassemblyState&, uint32_t op) {
@@ -5691,7 +5692,7 @@ uint32_t PPC32Emulator::Assembler::asm_mtfsfi(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_088_fnabs(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = -fabs(this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = -std::fabs(this->regs.f[op_get_reg3(op)].f);
 }
 
 std::string PPC32Emulator::dasm_FC_088_fnabs(DisassemblyState&, uint32_t op) {
@@ -5704,7 +5705,7 @@ uint32_t PPC32Emulator::Assembler::asm_fnabs(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_108_fabs(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = fabs(this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = std::fabs(this->regs.f[op_get_reg3(op)].f);
 }
 
 std::string PPC32Emulator::dasm_FC_108_fabs(DisassemblyState&, uint32_t op) {
