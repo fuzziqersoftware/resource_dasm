@@ -585,8 +585,12 @@ uint32_t M68KEmulator::resolve_address_extension(uint16_t ext) {
   uint8_t scale = 1 << ((ext >> 9) & 3);
 
   int32_t disp_reg_value = this->regs.get_reg_value(is_a_reg, reg_num);
-  if (index_is_word && (disp_reg_value & 0x8000)) {
-    disp_reg_value |= 0xFFFF0000;
+  if (index_is_word) {
+    // Word index: use only the low 16 bits of the register, sign-extended. The
+    // high word is ignored (it commonly holds stale data after a move.w Dn), so
+    // we must truncate before sign-extending rather than OR-in sign bits on the
+    // full 32-bit value.
+    disp_reg_value = static_cast<int32_t>(static_cast<int16_t>(disp_reg_value & 0xFFFF));
   }
   uint32_t ret = disp_reg_value * scale;
   if (!(ext & 0x0100)) {
@@ -1242,8 +1246,12 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
   // Note: the bit operations (btst, bchg, bclr, bset) are always byte operations, and the size field (s) instead says
   // which operation it is.
   if (a == 4) {
-    auto addr = this->resolve_address(M, Xn, SIZE_BYTE);
+    // The immediate bit-number word comes BEFORE any EA extension words, so it must be
+    // fetched before resolving the address (see the same note at the dynamic form below).
+    // Fetching in the wrong order made `bset #b,(d16,An)` read the EA displacement from the
+    // bit-number word and the bit number from the displacement word — corrupting memory.
     uint32_t value = this->fetch_instruction_data(SIZE_WORD);
+    auto addr = this->resolve_address(M, Xn, SIZE_BYTE);
 
     uint32_t mask;
     uint8_t data_size;
@@ -1485,8 +1493,12 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           throw std::runtime_error("unimplemented: stop IMM");
         case 3: // rte
           throw std::runtime_error("unimplemented: rte");
-        case 4: // rtd IMM
-          throw std::runtime_error("unimplemented: rtd IMM");
+        case 4: { // rtd IMM: PC <- (SP); SP <- SP + 4 + d16 (sign-extended displacement word)
+          int16_t disp = this->fetch_instruction_word_signed();
+          this->regs.pc = this->read(this->regs.a[7], SIZE_LONG);
+          this->regs.a[7] += 4 + disp;
+          return;
+        }
         case 5: // rts
           this->regs.pc = this->read(this->regs.a[7], SIZE_LONG);
           this->regs.a[7] += 4;
@@ -1528,8 +1540,16 @@ void M68KEmulator::exec_4(uint16_t opcode) {
 
       } else { // s is a valid SIZE_*
         switch (a) {
-          case 0: // negx.S ADDR
-            throw std::runtime_error("unimplemented: negx.S ADDR");
+          case 0: { // negx.S ADDR  (0 - value - X)
+            uint32_t src = this->read(addr, size);
+            uint32_t x = (this->regs.sr & 0x0010) ? 1 : 0;
+            int32_t value = -static_cast<int32_t>(src) - static_cast<int32_t>(x);
+            this->write(addr, value, size);
+            this->regs.set_ccr_flags(
+                (value != 0), is_negative(value, size), (value == 0),
+                (-static_cast<int32_t>(src) == static_cast<int32_t>(src)), (value != 0));
+            return;
+          }
           case 1: // clr.S ADDR
             this->write(addr, 0, size);
             this->regs.set_ccr_flags(-1, 0, 1, 0, 0);
@@ -2444,8 +2464,14 @@ void M68KEmulator::exec_B(uint16_t opcode) {
     auto addr = this->resolve_address(M, Xn, size);
     right_value = this->read(addr, size);
 
-  } else { // probably xor
-    throw std::runtime_error("unimplemented: opcode B");
+  } else { // eor.S DREG, ADDR  (memory ^= Dn)
+    size = opmode & 3;
+    auto addr = this->resolve_address(M, Xn, size);
+    uint32_t v = this->read(addr, size) ^ this->regs.d[dest].u;
+    if (size == SIZE_BYTE) v &= 0xFF; else if (size == SIZE_WORD) v &= 0xFFFF;
+    this->write(addr, v, size);
+    this->regs.set_ccr_flags(-1, is_negative(v, size), (v == 0), 0, 0);
+    return;
   }
 
   this->regs.set_ccr_flags_integer_subtract(left_value, right_value, size);
@@ -2543,9 +2569,13 @@ void M68KEmulator::exec_C(uint16_t opcode) {
       this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
     }
 
-  } else if (b == 7) { // muls DREG, ADDR (word * word = long form)
-    // I'm too lazy to figure out the sign-extension right now
-    throw std::runtime_error("unimplemented: muls DREG, ADDR (word * word = long form)");
+  } else if (b == 7) { // muls.w DREG, ADDR (word * word = long form)
+    auto addr = this->resolve_address(c, d, SIZE_WORD);
+    int32_t left = static_cast<int16_t>(this->regs.d[a].u & 0x0000FFFF);
+    int32_t right = static_cast<int16_t>(this->read(addr, SIZE_WORD));
+    this->regs.d[a].u = static_cast<uint32_t>(left * right);
+    this->regs.set_ccr_flags(-1, is_negative(this->regs.d[a].u, SIZE_LONG),
+        (this->regs.d[a].u == 0), 0, 0);
   }
 }
 
