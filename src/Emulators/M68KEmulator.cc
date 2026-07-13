@@ -2300,7 +2300,60 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
   uint8_t Xn = op_get_d(opcode);
 
   if (((M & 6) == 0) && (opmode & 4) && (opmode != 7)) {
-    throw std::runtime_error("unimplemented: opcode 9/D");
+    // ADDX (0xD group) / SUBX (0x9 group). Ref: Motorola M68000 PRM.
+    //   ADDX: Dx <- Dx + Dy + X  /  SUBX: Dx <- Dx - Dy - X
+    // Size is opmode & 3 (byte/word/long). Bit 3 of the opcode (M & 1) is the
+    // R/M bit: 0 => Dy, Dx (data register direct); 1 => -(Ay), -(Ax) (memory to
+    // memory with predecrement of both address registers). Rx is op_get_a
+    // (bits 11-9), Ry is op_get_d (bits 2-0).
+    uint8_t size = opmode & 3;
+    bool rm = M & 1;
+    uint32_t mask = (size == SIZE_LONG) ? 0xFFFFFFFF
+        : ((1u << (8 * bytes_for_size[size])) - 1);
+    uint32_t src, dst, dst_addr = 0;
+    if (rm) { // -(Ay), -(Ax)
+      uint8_t ry = Xn, rx = dest;
+      // A7 stays word-aligned, so byte accesses through it decrement by 2.
+      uint8_t dec_y = (size == SIZE_BYTE && ry == 7) ? 2 : bytes_for_size[size];
+      uint8_t dec_x = (size == SIZE_BYTE && rx == 7) ? 2 : bytes_for_size[size];
+      this->regs.a[ry] -= dec_y;
+      src = this->read(this->regs.a[ry], size) & mask;
+      this->regs.a[rx] -= dec_x;
+      dst_addr = this->regs.a[rx];
+      dst = this->read(dst_addr, size) & mask;
+    } else { // Dy, Dx
+      src = this->read({Xn, ResolvedAddress::Location::D_REGISTER}, size) & mask;
+      dst = this->read({dest, ResolvedAddress::Location::D_REGISTER}, size) & mask;
+    }
+
+    uint32_t x_in = (this->regs.sr & 0x0010) ? 1 : 0;
+    int32_t s_src = sign_extend(src, size);
+    int32_t s_dst = sign_extend(dst, size);
+    uint32_t result;
+    bool carry, overflow;
+    if (is_add) {
+      uint64_t sum = static_cast<uint64_t>(src) + dst + x_in;
+      result = static_cast<uint32_t>(sum) & mask;
+      carry = (sum > mask);
+      overflow = (sign_extend(result, size) != (s_dst + s_src + static_cast<int32_t>(x_in)));
+    } else {
+      carry = (static_cast<uint64_t>(src) + x_in) > dst; // borrow
+      result = static_cast<uint32_t>(dst - src - x_in) & mask;
+      overflow = (sign_extend(result, size) != (s_dst - s_src - static_cast<int32_t>(x_in)));
+    }
+
+    if (rm) {
+      this->write(dst_addr, result, size);
+    } else {
+      this->write({dest, ResolvedAddress::Location::D_REGISTER}, result, size);
+    }
+
+    // Z is accumulate-style: cleared when the result is nonzero, otherwise left
+    // unchanged (never set). X and C take the carry/borrow; N and V are normal.
+    this->regs.set_ccr_flags(
+        carry, is_negative(result, size) ? 1 : 0, (result != 0) ? 0 : -1,
+        overflow ? 1 : 0, carry);
+    return;
   }
 
   if ((opmode & 3) == 3) {
