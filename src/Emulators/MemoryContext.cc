@@ -609,9 +609,9 @@ void MemoryContext::set_symbol_addr(const char* name, uint32_t addr) {
   if (!this->symbol_addrs.emplace(name, addr).second) {
     throw std::runtime_error("cannot redefine symbol");
   }
-  if (!this->addr_symbols.emplace(addr, name).second) {
-    throw std::logic_error("symbol index is inconsistent");
-  }
+  // Multiple symbols legitimately share one address (C++ aliases, vtables,
+  // TVectors); keep the first name for the reverse index, don't treat as fatal.
+  this->addr_symbols.emplace(addr, name);
 }
 
 void MemoryContext::set_symbol_addr(const std::string& name, uint32_t addr) {
