@@ -25,22 +25,30 @@ public:
     struct CR {
       uint32_t u;
 
-      inline void replace_field(uint8_t index, uint8_t value) {
-        uint8_t shift = (28 - (4 * index));
+      inline void replace_field(uint8_t crf, uint8_t value) {
+        uint8_t shift = (28 - (4 * crf));
         this->u = (this->u & ~(0xF << shift)) | ((value & 0xF) << shift);
       }
 
-      inline bool get_lt(uint8_t index) {
-        return (this->u >> (28 - (index << 2) + 3)) & 1;
+      inline bool get_lt(uint8_t crf) {
+        return (this->u >> (28 - (crf << 2) + 3)) & 1;
       }
-      inline bool get_gt(uint8_t index) {
-        return (this->u >> (28 - (index << 2) + 2)) & 1;
+      inline bool get_gt(uint8_t crf) {
+        return (this->u >> (28 - (crf << 2) + 2)) & 1;
       }
-      inline bool get_z(uint8_t index) {
-        return (this->u >> (28 - (index << 2) + 1)) & 1;
+      inline bool get_z(uint8_t crf) {
+        return (this->u >> (28 - (crf << 2) + 1)) & 1;
       }
-      inline bool get_so(uint8_t index) {
-        return (this->u >> (28 - (index << 2) + 0)) & 1;
+      inline bool get_so(uint8_t crf) {
+        return (this->u >> (28 - (crf << 2) + 0)) & 1;
+      }
+
+      inline bool get_bit(uint8_t bit) const {
+        return (this->u >> (31 - bit)) & 1;
+      }
+      inline void set_bit(uint8_t bit, bool v) {
+        uint32_t mask = 1 << (31 - bit);
+        this->u = v ? (this->u | mask) : (this->u & ~mask);
       }
     };
 
@@ -85,7 +93,8 @@ public:
       int32_t s;
     } r[32];
     union {
-      uint64_t i;
+      uint64_t u;
+      int64_t s;
       double f;
     } f[32];
     CR cr;
@@ -112,10 +121,15 @@ public:
       this->r[1].u = sp;
     }
 
-    static void print_header(FILE* stream);
-    void print(FILE* stream) const;
+    inline uint8_t rounding_mode() const {
+      return this->fpscr & 3;
+    }
 
     void set_crf_int_result(uint8_t crf_num, int32_t a);
+    void set_cr1_if_float_rec(uint32_t op);
+
+    static void print_header(FILE* stream);
+    void print(FILE* stream) const;
   };
 
   explicit PPC32Emulator(std::shared_ptr<MemoryContext> mem);
@@ -440,19 +454,18 @@ private:
   static std::string dasm_7C_297_stfsx(DisassemblyState& s, uint32_t op);
   void exec_7C_2B7_stfsux(uint32_t op);
   static std::string dasm_7C_2B7_stfsux(DisassemblyState& s, uint32_t op);
+  void exec_7C_2D7_stfdx(uint32_t op);
+  static std::string dasm_7C_2D7_stfdx(DisassemblyState& s, uint32_t op);
   void exec_7C_2E5_stswi(uint32_t op);
   static std::string dasm_7C_2D5_stswi(DisassemblyState& s, uint32_t op);
-  void exec_7C_2E7_stfdx(uint32_t op);
-  static std::string dasm_7C_2E7_stfdx(DisassemblyState& s, uint32_t op);
   void exec_7C_2F6_dcba(uint32_t op);
   static std::string dasm_7C_2F6_dcba(DisassemblyState& s, uint32_t op);
   void exec_7C_2F7_stfdux(uint32_t op);
   static std::string dasm_7C_2F7_stfdux(DisassemblyState& s, uint32_t op);
   void exec_7C_316_lhbrx(uint32_t op);
   static std::string dasm_7C_316_lhbrx(DisassemblyState& s, uint32_t op);
-  void exec_7C_318_sraw(uint32_t op);
+  void exec_7C_318_338_sraw_srawi(uint32_t op);
   static std::string dasm_7C_318_sraw(DisassemblyState& s, uint32_t op);
-  void exec_7C_338_srawi(uint32_t op);
   static std::string dasm_7C_338_srawi(DisassemblyState& s, uint32_t op);
   void exec_7C_356_eieio(uint32_t op);
   static std::string dasm_7C_356_eieio(DisassemblyState& s, uint32_t op);
@@ -468,8 +481,7 @@ private:
   static std::string dasm_7C_3D7_stfiwx(DisassemblyState& s, uint32_t op);
   void exec_7C_3F6_dcbz(uint32_t op);
   static std::string dasm_7C_3F6_dcbz(DisassemblyState& s, uint32_t op);
-  static std::string dasm_memory_reference_imm_offset(
-      const DisassemblyState& s, uint8_t ra, int16_t imm);
+  static std::string dasm_memory_reference_imm_offset(const DisassemblyState& s, uint8_t ra, int16_t imm);
   static std::string dasm_load_store_imm_u(
       const DisassemblyState& s, uint32_t op, const char* base_name, bool is_store, bool data_reg_is_f);
   static std::string dasm_load_store_imm(
@@ -550,16 +562,12 @@ private:
   static std::string dasm_FC_1E_fnmsub(DisassemblyState& s, uint32_t op);
   void exec_FC_1F_fnmadd(uint32_t op);
   static std::string dasm_FC_1F_fnmadd(DisassemblyState& s, uint32_t op);
-  void exec_FC_000_fcmpu(uint32_t op);
-  static std::string dasm_FC_000_fcmpu(DisassemblyState& s, uint32_t op);
+  void exec_FC_000_020_fcmpu_fcmpo(uint32_t op);
+  static std::string dasm_FC_000_020_fcmpu_fcmpo(DisassemblyState& s, uint32_t op);
   void exec_FC_00C_frsp(uint32_t op);
   static std::string dasm_FC_00C_frsp(DisassemblyState& s, uint32_t op);
-  void exec_FC_00E_fctiw(uint32_t op);
-  static std::string dasm_FC_00E_fctiw(DisassemblyState& s, uint32_t op);
-  void exec_FC_00F_fctiwz(uint32_t op);
-  static std::string dasm_FC_00F_fctiwz(DisassemblyState& s, uint32_t op);
-  void exec_FC_020_fcmpo(uint32_t op);
-  static std::string dasm_FC_020_fcmpo(DisassemblyState& s, uint32_t op);
+  void exec_FC_00E_00F_fctiw_fctiwz(uint32_t op);
+  static std::string dasm_FC_00E_00F_fctiw_fctiwz(DisassemblyState& s, uint32_t op);
   void exec_FC_026_mtfsb1(uint32_t op);
   static std::string dasm_FC_026_mtfsb1(DisassemblyState& s, uint32_t op);
   void exec_FC_028_fneg(uint32_t op);
@@ -858,11 +866,9 @@ private:
     uint32_t asm_fmadd(const StreamItem& si);
     uint32_t asm_fnmsub(const StreamItem& si);
     uint32_t asm_fnmadd(const StreamItem& si);
-    uint32_t asm_fcmpu(const StreamItem& si);
+    uint32_t asm_fcmpu_fcmpo(const StreamItem& si);
     uint32_t asm_frsp(const StreamItem& si);
-    uint32_t asm_fctiw(const StreamItem& si);
-    uint32_t asm_fctiwz(const StreamItem& si);
-    uint32_t asm_fcmpo(const StreamItem& si);
+    uint32_t asm_fctiw_fctiwz(const StreamItem& si);
     uint32_t asm_mtfsb1(const StreamItem& si);
     uint32_t asm_fneg(const StreamItem& si);
     uint32_t asm_mcrfs(const StreamItem& si);

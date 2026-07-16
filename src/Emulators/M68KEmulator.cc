@@ -52,14 +52,6 @@ constexpr std::array<uint8_t, 4> bytes_for_size{1, 2, 4, 0xFF};
 constexpr std::array<const char*, 16> string_for_condition{
     "t ", "f ", "hi", "ls", "cc", "cs", "ne", "eq", "vc", "vs", "pl", "mi", "ge", "lt", "gt", "le"};
 
-enum Condition {
-  C = 0x01,
-  V = 0x02,
-  Z = 0x04,
-  N = 0x08,
-  X = 0x10,
-};
-
 // Opcode bit fields:
 // 0000000000000000
 // iiiiaaabbbcccddd
@@ -220,7 +212,7 @@ M68KEmulator::Regs::Regs() {
     this->d[x].u = 0;
   }
   this->pc = 0;
-  this->sr = 0;
+  this->sr.u = 0;
 }
 
 void M68KEmulator::Regs::import_state(FILE* stream) {
@@ -236,7 +228,7 @@ void M68KEmulator::Regs::import_state(FILE* stream) {
     this->a[x] = phosg::freadx<phosg::le_uint32_t>(stream);
   }
   this->pc = phosg::freadx<phosg::le_uint32_t>(stream);
-  this->sr = phosg::freadx<phosg::le_uint16_t>(stream);
+  this->sr.u = phosg::freadx<phosg::le_uint16_t>(stream);
   if (version == 0) {
     // Version 0 had two extra registers (debug read and write addresses). These no longer exist, so skip them.
     fseek(stream, 8, SEEK_CUR);
@@ -253,7 +245,7 @@ void M68KEmulator::Regs::export_state(FILE* stream) const {
     phosg::fwritex<phosg::le_uint32_t>(stream, this->a[x]);
   }
   phosg::fwritex<phosg::le_uint32_t>(stream, this->pc);
-  phosg::fwritex<phosg::le_uint16_t>(stream, this->sr);
+  phosg::fwritex<phosg::le_uint16_t>(stream, this->sr.u);
 }
 
 void M68KEmulator::Regs::set_by_name(const std::string& reg_name, uint32_t value) {
@@ -288,7 +280,7 @@ void M68KEmulator::Regs::set_ccr_flags(int64_t x, int64_t n, int64_t z, int64_t 
     }
   }
 
-  this->sr = (this->sr & mask) | replace;
+  this->sr.u = (this->sr.u & mask) | replace;
 }
 
 void M68KEmulator::Regs::set_ccr_flags_integer_add(int32_t left_value, int32_t right_value, uint8_t size) {
@@ -450,9 +442,9 @@ void M68KEmulator::print_state(FILE* stream) const {
       this->regs.d[4].u, this->regs.d[5].u, this->regs.d[6].u, this->regs.d[7].u,
       this->regs.a[0], this->regs.a[1], this->regs.a[2], this->regs.a[3],
       this->regs.a[4], this->regs.a[5], this->regs.a[6], this->regs.a[7],
-      ((this->regs.sr & 0x10) ? 'x' : '-'), ((this->regs.sr & 0x08) ? 'n' : '-'),
-      ((this->regs.sr & 0x04) ? 'z' : '-'), ((this->regs.sr & 0x02) ? 'v' : '-'),
-      ((this->regs.sr & 0x01) ? 'c' : '-'), this->regs.pc, disassembly);
+      (this->regs.sr.get_x() ? 'x' : '-'), (this->regs.sr.get_n() ? 'n' : '-'),
+      (this->regs.sr.get_z() ? 'z' : '-'), (this->regs.sr.get_v() ? 'v' : '-'),
+      (this->regs.sr.get_c() ? 'c' : '-'), this->regs.pc, disassembly);
 }
 
 bool M68KEmulator::ResolvedAddress::is_register() const {
@@ -462,9 +454,9 @@ bool M68KEmulator::ResolvedAddress::is_register() const {
 uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) const {
   if (addr.location == ResolvedAddress::Location::D_REGISTER) {
     if (size == SIZE_BYTE) {
-      return *reinterpret_cast<const uint8_t*>(&this->regs.d[addr.addr].u);
+      return this->regs.d[addr.addr].u & 0x000000FF;
     } else if (size == SIZE_WORD) {
-      return *reinterpret_cast<const uint16_t*>(&this->regs.d[addr.addr].u);
+      return this->regs.d[addr.addr].u & 0x0000FFFF;
     } else if (size == SIZE_LONG) {
       return this->regs.d[addr.addr].u;
     } else {
@@ -472,9 +464,9 @@ uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) const {
     }
   } else if (addr.location == ResolvedAddress::Location::A_REGISTER) {
     if (size == SIZE_BYTE) {
-      return *reinterpret_cast<const uint8_t*>(&this->regs.a[addr.addr]);
+      return this->regs.a[addr.addr] & 0x000000FF;
     } else if (size == SIZE_WORD) {
-      return *reinterpret_cast<const uint16_t*>(&this->regs.a[addr.addr]);
+      return this->regs.a[addr.addr] & 0x0000FFFF;
     } else if (size == SIZE_LONG) {
       return this->regs.a[addr.addr];
     } else {
@@ -484,7 +476,7 @@ uint32_t M68KEmulator::read(const ResolvedAddress& addr, uint8_t size) const {
   } else if (addr.location == ResolvedAddress::Location::MEMORY) {
     return this->read(addr.addr, size);
   } else { // Location::SR
-    return this->regs.sr;
+    return this->regs.sr.u;
   }
 }
 
@@ -503,9 +495,9 @@ uint32_t M68KEmulator::read(uint32_t addr, uint8_t size) const {
 void M68KEmulator::write(const ResolvedAddress& addr, uint32_t value, uint8_t size) {
   if (addr.location == ResolvedAddress::Location::D_REGISTER) {
     if (size == SIZE_BYTE) {
-      *reinterpret_cast<uint8_t*>(&this->regs.d[addr.addr].u) = value;
+      this->regs.d[addr.addr].u = (this->regs.d[addr.addr].u & 0xFFFFFF00) | (value & 0x000000FF);
     } else if (size == SIZE_WORD) {
-      *reinterpret_cast<uint16_t*>(&this->regs.d[addr.addr].u) = value;
+      this->regs.d[addr.addr].u = (this->regs.d[addr.addr].u & 0xFFFF0000) | (value & 0x0000FFFF);
     } else if (size == SIZE_LONG) {
       this->regs.d[addr.addr].u = value;
     } else {
@@ -513,9 +505,9 @@ void M68KEmulator::write(const ResolvedAddress& addr, uint32_t value, uint8_t si
     }
   } else if (addr.location == ResolvedAddress::Location::A_REGISTER) {
     if (size == SIZE_BYTE) {
-      *reinterpret_cast<uint8_t*>(&this->regs.a[addr.addr]) = value;
+      this->regs.a[addr.addr] = (this->regs.a[addr.addr] & 0xFFFFFF00) | (value & 0x000000FF);
     } else if (size == SIZE_WORD) {
-      *reinterpret_cast<uint16_t*>(&this->regs.a[addr.addr]) = value;
+      this->regs.a[addr.addr] = (this->regs.a[addr.addr] & 0xFFFF0000) | (value & 0x0000FFFF);
     } else if (size == SIZE_LONG) {
       this->regs.a[addr.addr] = value;
     } else {
@@ -524,7 +516,7 @@ void M68KEmulator::write(const ResolvedAddress& addr, uint32_t value, uint8_t si
   } else if (addr.location == ResolvedAddress::Location::MEMORY) {
     this->write(addr.addr, value, size);
   } else { // Location::SR
-    this->regs.sr = value;
+    this->regs.sr.u = value;
   }
 }
 
@@ -586,10 +578,8 @@ uint32_t M68KEmulator::resolve_address_extension(uint16_t ext) {
 
   int32_t disp_reg_value = this->regs.get_reg_value(is_a_reg, reg_num);
   if (index_is_word) {
-    // Word index: use only the low 16 bits of the register, sign-extended. The
-    // high word is ignored (it commonly holds stale data after a move.w Dn), so
-    // we must truncate before sign-extending rather than OR-in sign bits on the
-    // full 32-bit value.
+    // Word index: use only the low 16 bits of the register, sign-extended. The high word is ignored; it commonly holds
+    // stale data after a move.w
     disp_reg_value = static_cast<int32_t>(static_cast<int16_t>(disp_reg_value & 0xFFFF));
   }
   uint32_t ret = disp_reg_value * scale;
@@ -1124,40 +1114,40 @@ std::string M68KEmulator::dasm_address(
 
 bool M68KEmulator::check_condition(uint8_t condition) {
   // Bits in the CCR are xnzvc so e.g. 0x16 means x, z, and v are set
+  const auto& sr = this->regs.sr;
   switch (condition) {
     case 0x00: // true
       return true;
     case 0x01: // false
       return false;
     case 0x02: // hi (high, unsigned greater; c=0 and z=0)
-      return (this->regs.sr & 0x0005) == 0;
+      return !sr.get_c() && !sr.get_z();
     case 0x03: // ls (low or same, unsigned less or equal; c=1 or z=1)
-      return (this->regs.sr & 0x0005) != 0;
+      return sr.get_c() || sr.get_z();
     case 0x04: // cc (carry clear; c=0)
-      return (this->regs.sr & 0x0001) == 0;
+      return !sr.get_c();
     case 0x05: // cs (carry set; c=1)
-      return (this->regs.sr & 0x0001) != 0;
+      return sr.get_c();
     case 0x06: // ne (not equal; z=0)
-      return (this->regs.sr & 0x0004) == 0;
+      return !sr.get_z();
     case 0x07: // eq (equal; z=1)
-      return (this->regs.sr & 0x0004) != 0;
+      return sr.get_z();
     case 0x08: // vc (overflow clear; v=0)
-      return (this->regs.sr & 0x0002) == 0;
+      return !sr.get_v();
     case 0x09: // vs (overflow set; v=1)
-      return (this->regs.sr & 0x0002) != 0;
+      return sr.get_v();
     case 0x0A: // pl (plus; n=0)
-      return (this->regs.sr & 0x0008) == 0;
+      return !sr.get_n();
     case 0x0B: // mi (minus; n=1)
-      return (this->regs.sr & 0x0008) != 0;
+      return sr.get_n();
     case 0x0C: // ge (greater or equal; n=v)
-      return ((this->regs.sr & 0x000A) == 0x0000) || ((this->regs.sr & 0x000A) == 0x000A);
+      return sr.get_n() == sr.get_v();
     case 0x0D: // lt (less; n!=v)
-      return ((this->regs.sr & 0x000A) == 0x0008) || ((this->regs.sr & 0x000A) == 0x0002);
+      return sr.get_n() != sr.get_v();
     case 0x0E: // gt (greater; n=v && z=0)
-      return ((this->regs.sr & 0x000E) == 0x000A) || ((this->regs.sr & 0x000E) == 0x0000);
+      return (sr.get_n() == sr.get_v()) && !sr.get_z();
     case 0x0F: // le (less or equal; n!=v || z=1)
-      return ((this->regs.sr & 0x0004) == 0x0004) || ((this->regs.sr & 0x000A) == 0x0008) ||
-          ((this->regs.sr & 0x000A) == 0x0002);
+      return (sr.get_n() != sr.get_v()) || sr.get_z();
     default:
       throw std::runtime_error("invalid condition code");
   }
@@ -1246,10 +1236,8 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
   // Note: the bit operations (btst, bchg, bclr, bset) are always byte operations, and the size field (s) instead says
   // which operation it is.
   if (a == 4) {
-    // The immediate bit-number word comes BEFORE any EA extension words, so it must be
-    // fetched before resolving the address (see the same note at the dynamic form below).
-    // Fetching in the wrong order made `bset #b,(d16,An)` read the EA displacement from the
-    // bit-number word and the bit number from the displacement word — corrupting memory.
+    // The immediate bit-number word comes BEFORE any EA extension words, so it must be fetched before resolving the
+    // address
     uint32_t value = this->fetch_instruction_data(SIZE_WORD);
     auto addr = this->resolve_address(M, Xn, SIZE_BYTE);
 
@@ -1314,14 +1302,14 @@ void M68KEmulator::exec_0123(uint16_t opcode) {
 
     case 2: // subi ADDR, IMM
       this->regs.set_ccr_flags_integer_subtract(mem_value, value, op_size);
-      this->regs.set_ccr_flags(this->regs.sr & 0x0001, -1, -1, -1, -1);
+      this->regs.set_ccr_flags(this->regs.sr.get_c(), -1, -1, -1, -1);
       mem_value -= value;
       this->write(target, mem_value, op_size);
       break;
 
     case 3: // addi ADDR, IMM
       this->regs.set_ccr_flags_integer_add(mem_value, value, op_size);
-      this->regs.set_ccr_flags(this->regs.sr & 0x0001, -1, -1, -1, -1);
+      this->regs.set_ccr_flags(this->regs.sr.get_c(), -1, -1, -1, -1);
       mem_value += value;
       this->write(target, mem_value, op_size);
       break;
@@ -1493,7 +1481,7 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           throw std::runtime_error("unimplemented: stop IMM");
         case 3: // rte
           throw std::runtime_error("unimplemented: rte");
-        case 4: { // rtd IMM: PC <- (SP); SP <- SP + 4 + d16 (sign-extended displacement word)
+        case 4: { // rtd IMM
           int16_t disp = this->fetch_instruction_word_signed();
           this->regs.pc = this->read(this->regs.a[7], SIZE_LONG);
           this->regs.a[7] += 4 + disp;
@@ -1504,13 +1492,13 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           this->regs.a[7] += 4;
           return;
         case 6: // trapv
-          if (this->regs.sr & Condition::V) {
+          if (this->regs.sr.get_v()) {
             throw std::runtime_error("unimplemented: overflow trap");
           }
           return;
         case 7: // rtr
           // The supervisor portion (high byte) of SR is unaffected
-          this->regs.sr = (this->regs.sr & 0xFF00) | (this->read(this->regs.a[7], SIZE_WORD) & 0x00FF);
+          this->regs.sr.u = (this->regs.sr.u & 0xFF00) | (this->read(this->regs.a[7], SIZE_WORD) & 0x00FF);
           this->regs.pc = this->read(this->regs.a[7] + 2, SIZE_LONG);
           this->regs.a[7] += 6;
           return;
@@ -1528,10 +1516,10 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         if (a == 0) { // move.w ADDR, sr
           throw std::runtime_error("cannot read from sr in user mode");
         } else if (a == 1) { // move.w ccr, ADDR
-          this->regs.sr = (this->regs.sr & 0xFF00) | (this->read(addr, SIZE_WORD) & 0x001F);
+          this->regs.sr.u = (this->regs.sr.u & 0xFF00) | (this->read(addr, SIZE_WORD) & 0x001F);
           return;
         } else if (a == 2) { // move.w ADDR, ccr
-          this->write(addr, this->regs.sr & 0x00FF, SIZE_WORD);
+          this->write(addr, this->regs.sr.u & 0x00FF, SIZE_WORD);
           return;
         } else if (a == 3) { // move.w sr, ADDR
           throw std::runtime_error("cannot write to sr in user mode");
@@ -1540,14 +1528,16 @@ void M68KEmulator::exec_4(uint16_t opcode) {
 
       } else { // s is a valid SIZE_*
         switch (a) {
-          case 0: { // negx.S ADDR  (0 - value - X)
+          case 0: { // negx.S ADDR
             uint32_t src = this->read(addr, size);
-            uint32_t x = (this->regs.sr & 0x0010) ? 1 : 0;
-            int32_t value = -static_cast<int32_t>(src) - static_cast<int32_t>(x);
+            int32_t value = -static_cast<int32_t>(src) - this->regs.sr.get_x();
             this->write(addr, value, size);
             this->regs.set_ccr_flags(
-                (value != 0), is_negative(value, size), (value == 0),
-                (-static_cast<int32_t>(src) == static_cast<int32_t>(src)), (value != 0));
+                (value != 0), // X = same as C
+                is_negative(value, size), // N = result is negative
+                (value != 0) ? 0 : this->regs.sr.get_z(), // Cleared if result is nonzero; unchanged otherwise
+                (-static_cast<int32_t>(src) == static_cast<int32_t>(src)), // V = overflow (0 and 0x80000000)
+                (value != 0)); // C = borrow occurred (which always happens if value is nonzero)
             return;
           }
           case 1: // clr.S ADDR
@@ -1679,48 +1669,53 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         return;
 
       } else if (a == 6) {
-        if ((b & (~1)) == 0) {
-          // 68020 long multiply/divide. b==0: MULU.L/MULS.L (0x4C0x); b==1: DIVU.L/DIVS.L
-          // (0x4C4x). Extension word: Dl/Dq @ bits 12-14, signed @ bit 11, 64-bit @ bit 10,
-          // Dh/Dr @ bits 0-2.
+        if ((b & (~1)) == 0) { // mulu.l/muls.l/divu.l/divs.l (32-bit or 64-bit result)
           uint16_t ext = this->fetch_instruction_word();
           auto ea = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_LONG);
           uint32_t src = this->read(ea, SIZE_LONG);
-          uint8_t reg_hi = ext & 7;            // Dh (mul) / Dr (div, remainder or hi dividend)
-          uint8_t reg_main = (ext >> 12) & 7;  // Dl (mul) / Dq (div, quotient or lo dividend)
+          uint8_t reg_high = ext & 7;
+          uint8_t reg_low = (ext >> 12) & 7;
           bool is_signed = (ext >> 11) & 1;
           bool is_64 = (ext >> 10) & 1;
-          if (b == 0) { // MUL.L
+          if (b == 0) { // mulu.l/muls.l
             if (is_signed) {
-              int64_t p = (int64_t)(int32_t)this->regs.d[reg_main].u * (int64_t)(int32_t)src;
-              this->regs.d[reg_main].u = (uint32_t)p;
-              if (is_64) this->regs.d[reg_hi].u = (uint32_t)((uint64_t)p >> 32);
-              bool ovf = !is_64 && ((int64_t)(int32_t)(uint32_t)p != p);
-              this->regs.set_ccr_flags(-1, is_64 ? (p < 0) : ((int32_t)(uint32_t)p < 0), (p == 0), ovf, 0);
+              int64_t p = phosg::sign_extend<int64_t, uint32_t>(this->regs.d[reg_low].u) *
+                  phosg::sign_extend<int64_t, uint32_t>(src);
+              this->regs.d[reg_low].u = static_cast<uint32_t>(p);
+              if (is_64) {
+                this->regs.d[reg_high].u = static_cast<uint32_t>(p >> 32);
+              }
+              bool ovf = !is_64 && (phosg::sign_extend<int64_t, uint32_t>(p) != p);
+              this->regs.set_ccr_flags(-1, is_64 ? (p < 0) : (static_cast<int32_t>(p) < 0), (p == 0), ovf, 0);
             } else {
-              uint64_t p = (uint64_t)this->regs.d[reg_main].u * (uint64_t)src;
-              this->regs.d[reg_main].u = (uint32_t)p;
-              if (is_64) this->regs.d[reg_hi].u = (uint32_t)(p >> 32);
+              uint64_t p = static_cast<uint64_t>(this->regs.d[reg_low].u) * static_cast<uint64_t>(src);
+              this->regs.d[reg_low].u = static_cast<uint32_t>(p);
+              if (is_64) {
+                this->regs.d[reg_high].u = static_cast<uint32_t>(p >> 32);
+              }
               bool ovf = !is_64 && ((p >> 32) != 0);
-              this->regs.set_ccr_flags(-1, is_64 ? ((p >> 63) & 1) : (((uint32_t)p >> 31) & 1), (p == 0), ovf, 0);
+              this->regs.set_ccr_flags(-1, ((p >> (is_64 ? 63 : 31)) & 1), (p == 0), ovf, 0);
             }
           } else { // DIV.L
-            if (src == 0) throw std::runtime_error("division by zero");
+            if (src == 0) {
+              throw std::runtime_error("Extended integer division by zero");
+            }
             if (is_signed) {
               int64_t dividend = is_64
-                  ? (int64_t)(((uint64_t)this->regs.d[reg_hi].u << 32) | this->regs.d[reg_main].u)
-                  : (int64_t)(int32_t)this->regs.d[reg_main].u;
-              int32_t divisor = (int32_t)src;
-              int64_t q = dividend / divisor; int32_t rem = (int32_t)(dividend % divisor);
-              this->regs.d[reg_hi].u = (uint32_t)rem; this->regs.d[reg_main].u = (uint32_t)q;
-              this->regs.set_ccr_flags(-1, ((int32_t)(uint32_t)q < 0), (q == 0), 0, 0);
+                  ? ((phosg::sign_extend<int64_t, uint32_t>(this->regs.d[reg_high].u) << 32) | this->regs.d[reg_low].u)
+                  : phosg::sign_extend<int64_t, uint32_t>(this->regs.d[reg_low].u);
+              int64_t quotient = dividend / static_cast<int32_t>(src);
+              this->regs.d[reg_high].s = dividend % static_cast<int32_t>(src);
+              this->regs.d[reg_low].s = quotient;
+              this->regs.set_ccr_flags(-1, (static_cast<int32_t>(quotient) < 0), (quotient == 0), 0, 0);
             } else {
               uint64_t dividend = is_64
-                  ? (((uint64_t)this->regs.d[reg_hi].u << 32) | this->regs.d[reg_main].u)
-                  : (uint64_t)this->regs.d[reg_main].u;
-              uint64_t q = dividend / src; uint32_t rem = (uint32_t)(dividend % src);
-              this->regs.d[reg_hi].u = rem; this->regs.d[reg_main].u = (uint32_t)q;
-              this->regs.set_ccr_flags(-1, (((uint32_t)q >> 31) & 1), (q == 0), 0, 0);
+                  ? ((static_cast<uint64_t>(this->regs.d[reg_high].u) << 32) | this->regs.d[reg_low].u)
+                  : static_cast<uint64_t>(this->regs.d[reg_low].u);
+              uint64_t quotient = dividend / src;
+              this->regs.d[reg_high].u = dividend % src;
+              this->regs.d[reg_low].u = quotient;
+              this->regs.set_ccr_flags(-1, ((quotient >> 31) & 1), (quotient == 0), 0, 0);
             }
           }
           return;
@@ -1806,23 +1801,13 @@ void M68KEmulator::exec_4(uint16_t opcode) {
     }
 
   } else { // g == 1
+    // b can only be 4, 5, 6, or 7 here (g is the high bit of b)
     uint8_t b = op_get_b(opcode);
-    if (b == 7) { // lea.l AREG, ADDR
-      this->regs.a[op_get_a(opcode)] = this->resolve_address_control(op_get_c(opcode), op_get_d(opcode));
-      // Note: ccr not affected
-      return;
-
-    } else if (b == 6) { // chk.w ADDR, DREG
-      // CHK.W <ea>, Dn: compare the low word of Dn (signed) against the upper
-      // bound word at <ea> (signed). If Dn < 0 or Dn > bound, raise a CHK
-      // exception (vector 6). Ref: Motorola M68000 PRM.
-      // This core has no full trap-vector model, so — like the TRAP/TRAPV/
-      // overflow-trap cases above — we signal the exception by throwing, after
-      // setting N as the PRM specifies (N=1 if Dn<0, N=0 if Dn>bound). Z/V/C are
-      // left undefined and thus unchanged.
+    if (b == 6) { // chk.w ADDR, DREG
       auto addr = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_WORD);
       int16_t bound = static_cast<int16_t>(this->read(addr, SIZE_WORD));
       int16_t value = static_cast<int16_t>(this->regs.d[op_get_a(opcode)].u & 0xFFFF);
+      // TODO: Implement the 68k exception model instead of throwing here (and in other appropriate places)
       if (value < 0) {
         this->regs.set_ccr_flags(-1, 1, -1, -1, -1);
         throw std::runtime_error("chk.w: register value below zero (CHK exception, vector 6)");
@@ -1830,6 +1815,11 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         this->regs.set_ccr_flags(-1, 0, -1, -1, -1);
         throw std::runtime_error("chk.w: register value above bound (CHK exception, vector 6)");
       }
+      return;
+
+    } else if (b == 7) { // lea.l AREG, ADDR
+      this->regs.a[op_get_a(opcode)] = this->resolve_address_control(op_get_c(opcode), op_get_d(opcode));
+      // Note: ccr not affected
       return;
     }
   }
@@ -2024,7 +2014,7 @@ std::string M68KEmulator::dasm_4(DisassemblyState& s) {
       std::string addr = M68KEmulator::dasm_address(s, op_get_c(op), op_get_d(op), ValueType::LONG);
       return std::format("lea.l      A{}, {}", op_get_a(op), addr);
 
-    } else if (b == 6) { // chk.w <ea>, Dn (per the M68000 PRM, bits 8-6 = 110)
+    } else if (b == 6) {
       std::string addr = M68KEmulator::dasm_address(s, op_get_c(op), op_get_d(op), ValueType::WORD);
       return std::format("chk.w      D{}, {}", op_get_a(op), addr);
 
@@ -2051,8 +2041,9 @@ void M68KEmulator::exec_5(uint16_t opcode) {
       int16_t displacement = this->fetch_instruction_word_signed();
       if (!result) {
         // This is not a bug: dbCC actually does only affect the low 16 bits
-        uint16_t& target = *reinterpret_cast<uint16_t*>(&this->regs.d[Xn].u);
+        uint16_t target = this->regs.d[Xn].u & 0x0000FFFF;
         target--;
+        this->regs.d[Xn].u = (this->regs.d[Xn].u & 0xFFFF0000) | target;
         if (target != 0xFFFF) {
           this->regs.pc += displacement - 2;
         }
@@ -2086,7 +2077,7 @@ void M68KEmulator::exec_5(uint16_t opcode) {
         this->regs.set_ccr_flags_integer_add(mem_value, value, size);
       }
     }
-    this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
+    this->regs.set_ccr_flags(this->regs.sr.get_c(), -1, -1, -1, -1);
   }
 }
 
@@ -2316,59 +2307,44 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
   uint8_t Xn = op_get_d(opcode);
 
   if (((M & 6) == 0) && (opmode & 4) && (opmode != 7)) {
-    // ADDX (0xD group) / SUBX (0x9 group). Ref: Motorola M68000 PRM.
-    //   ADDX: Dx <- Dx + Dy + X  /  SUBX: Dx <- Dx - Dy - X
-    // Size is opmode & 3 (byte/word/long). Bit 3 of the opcode (M & 1) is the
-    // R/M bit: 0 => Dy, Dx (data register direct); 1 => -(Ay), -(Ax) (memory to
-    // memory with predecrement of both address registers). Rx is op_get_a
-    // (bits 11-9), Ry is op_get_d (bits 2-0).
     uint8_t size = opmode & 3;
-    bool rm = M & 1;
-    uint32_t mask = (size == SIZE_LONG) ? 0xFFFFFFFF
-        : ((1u << (8 * bytes_for_size[size])) - 1);
-    uint32_t src, dst, dst_addr = 0;
-    if (rm) { // -(Ay), -(Ax)
-      uint8_t ry = Xn, rx = dest;
-      // A7 stays word-aligned, so byte accesses through it decrement by 2.
-      uint8_t dec_y = (size == SIZE_BYTE && ry == 7) ? 2 : bytes_for_size[size];
-      uint8_t dec_x = (size == SIZE_BYTE && rx == 7) ? 2 : bytes_for_size[size];
-      this->regs.a[ry] -= dec_y;
-      src = this->read(this->regs.a[ry], size) & mask;
-      this->regs.a[rx] -= dec_x;
-      dst_addr = this->regs.a[rx];
-      dst = this->read(dst_addr, size) & mask;
-    } else { // Dy, Dx
-      src = this->read({Xn, ResolvedAddress::Location::D_REGISTER}, size) & mask;
-      dst = this->read({dest, ResolvedAddress::Location::D_REGISTER}, size) & mask;
+    uint32_t mask = (size == SIZE_LONG) ? 0xFFFFFFFF : ((1u << (8 * bytes_for_size[size])) - 1);
+    uint32_t src_value;
+    uint32_t dest_value;
+    uint32_t dest_addr = 0;
+    if (M) { // addx.S/subx.S -[Ay], -[Ax]
+      this->regs.a[Xn] -= (size == SIZE_BYTE && Xn == 7) ? 2 : bytes_for_size[size];
+      src_value = this->read(this->regs.a[Xn], size) & mask;
+      this->regs.a[dest] -= (size == SIZE_BYTE && dest == 7) ? 2 : bytes_for_size[size];
+      dest_addr = this->regs.a[dest];
+      dest_value = this->read(dest_addr, size) & mask;
+    } else { // addx.S/subx.S Dy, Dx
+      src_value = this->regs.d[Xn].u & mask;
+      dest_value = this->regs.d[dest].u & mask;
     }
 
-    uint32_t x_in = (this->regs.sr & 0x0010) ? 1 : 0;
-    int32_t s_src = sign_extend(src, size);
-    int32_t s_dst = sign_extend(dst, size);
+    bool x_in = this->regs.sr.get_x();
     uint32_t result;
-    bool carry, overflow;
+    bool carry;
+    bool overflow;
     if (is_add) {
-      uint64_t sum = static_cast<uint64_t>(src) + dst + x_in;
+      uint64_t sum = static_cast<uint64_t>(src_value) + dest_value + x_in;
       result = static_cast<uint32_t>(sum) & mask;
       carry = (sum > mask);
-      overflow = (sign_extend(result, size) != (s_dst + s_src + static_cast<int32_t>(x_in)));
+      overflow = (sign_extend(result, size) != (sign_extend(dest_value, size) + sign_extend(src_value, size) + x_in));
     } else {
-      carry = (static_cast<uint64_t>(src) + x_in) > dst; // borrow
-      result = static_cast<uint32_t>(dst - src - x_in) & mask;
-      overflow = (sign_extend(result, size) != (s_dst - s_src - static_cast<int32_t>(x_in)));
+      carry = ((static_cast<uint64_t>(src_value) + x_in) > dest_value);
+      result = static_cast<uint32_t>(dest_value - src_value - x_in) & mask;
+      overflow = (sign_extend(result, size) != (sign_extend(dest_value, size) - sign_extend(src_value, size) - x_in));
     }
 
-    if (rm) {
-      this->write(dst_addr, result, size);
+    if (M) {
+      this->write(dest_addr, result, size);
     } else {
       this->write({dest, ResolvedAddress::Location::D_REGISTER}, result, size);
     }
 
-    // Z is accumulate-style: cleared when the result is nonzero, otherwise left
-    // unchanged (never set). X and C take the carry/borrow; N and V are normal.
-    this->regs.set_ccr_flags(
-        carry, is_negative(result, size) ? 1 : 0, (result != 0) ? 0 : -1,
-        overflow ? 1 : 0, carry);
+    this->regs.set_ccr_flags(carry, is_negative(result, size) ? 1 : 0, (result != 0) ? 0 : -1, overflow ? 1 : 0, carry);
     return;
   }
 
@@ -2394,7 +2370,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
       this->regs.set_ccr_flags_integer_subtract(this->regs.a[dest], mem_value, SIZE_LONG);
       this->regs.a[dest] -= mem_value;
     }
-    this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
+    this->regs.set_ccr_flags(this->regs.sr.get_c(), -1, -1, -1, -1);
     return;
   }
 
@@ -2423,7 +2399,7 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
     }
     this->write({dest, ResolvedAddress::Location::D_REGISTER}, reg_value, size);
   }
-  this->regs.set_ccr_flags(this->regs.sr & 0x01, -1, -1, -1, -1);
+  this->regs.set_ccr_flags(this->regs.sr.get_c(), -1, -1, -1, -1);
 }
 
 std::string M68KEmulator::dasm_9D(DisassemblyState& s) {
@@ -2527,17 +2503,18 @@ void M68KEmulator::exec_B(uint16_t opcode) {
 
   } else if ((opmode & 3) == 3) { // cmpa.S AREG, ADDR
     size = (opmode & 4) ? SIZE_LONG : SIZE_WORD;
-
     left_value = this->regs.a[dest];
+    right_value = this->read(this->resolve_address(M, Xn, size), size);
 
-    auto addr = this->resolve_address(M, Xn, size);
-    right_value = this->read(addr, size);
-
-  } else { // eor.S DREG, ADDR  (memory ^= Dn)
+  } else { // xor.S DREG, ADDR  (memory ^= Dn)
     size = opmode & 3;
     auto addr = this->resolve_address(M, Xn, size);
     uint32_t v = this->read(addr, size) ^ this->regs.d[dest].u;
-    if (size == SIZE_BYTE) v &= 0xFF; else if (size == SIZE_WORD) v &= 0xFFFF;
+    if (size == SIZE_BYTE) {
+      v &= 0xFF;
+    } else if (size == SIZE_WORD) {
+      v &= 0xFFFF;
+    }
     this->write(addr, v, size);
     this->regs.set_ccr_flags(-1, is_negative(v, size), (v == 0), 0, 0);
     return;
@@ -2643,8 +2620,7 @@ void M68KEmulator::exec_C(uint16_t opcode) {
     int32_t left = static_cast<int16_t>(this->regs.d[a].u & 0x0000FFFF);
     int32_t right = static_cast<int16_t>(this->read(addr, SIZE_WORD));
     this->regs.d[a].u = static_cast<uint32_t>(left * right);
-    this->regs.set_ccr_flags(-1, is_negative(this->regs.d[a].u, SIZE_LONG),
-        (this->regs.d[a].u == 0), 0, 0);
+    this->regs.set_ccr_flags(-1, is_negative(this->regs.d[a].u, SIZE_LONG), (this->regs.d[a].u == 0), 0, 0);
   }
 }
 
@@ -2748,42 +2724,49 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       case 0x5: // roxl <ea>
       case 0x6: // ror <ea>
       case 0x7: { // rol <ea>
-        // Memory shift/rotate: shift the word at <ea> by exactly one bit. `which`
-        // encodes op<<1|direction: 0=asr 1=asl 2=lsr 3=lsl 4=roxr 5=roxl 6=ror 7=rol.
-        bool left = which & 1;
-        uint8_t op = which >> 1; // 0=arith 1=logical 2=rox 3=rotate
+        // Memory shift/rotate: shift the word at <ea> by one bit in either direction
+        uint8_t op = which & 6; // 0 = arithmetic, 2 = logical, 4 = rox, 6 = rotate
         auto ea = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_WORD);
         uint16_t v = this->read(ea, SIZE_WORD) & 0xFFFF;
         uint16_t res;
-        int64_t c_flag, x_flag, v_flag = 0;
-        uint8_t x_in = (this->regs.sr >> 4) & 1;
-        if (left) {
-          c_flag = (v >> 15) & 1;
-          if (op == 2) { // roxl
-            res = static_cast<uint16_t>((v << 1) | x_in);
-          } else if (op == 3) { // rol
-            res = static_cast<uint16_t>((v << 1) | (v >> 15));
-          } else { // asl / lsl
-            res = static_cast<uint16_t>(v << 1);
+        int64_t c_flag = ((which & 1) ? (v >> 15) : v) & 1;
+        // rol/ror leave X unchanged; the others set X = C
+        int64_t x_flag = (op == 6) ? -1 : c_flag;
+        int64_t v_flag = 0;
+        uint8_t x_in = this->regs.sr.get_x();
+        if (which & 1) { // Left shift
+          switch (op) {
+            case 0: // asl
+            case 2: // lsl
+              res = static_cast<uint16_t>(v << 1);
+              if (which == 0) { // asl sets V if the sign bit changed
+                v_flag = (((v ^ res) >> 15) & 1);
+              }
+              break;
+            case 4: // roxl
+              res = static_cast<uint16_t>((v << 1) | x_in);
+              break;
+            case 6: // rol
+              res = static_cast<uint16_t>((v << 1) | (v >> 15));
+              break;
           }
-          if (op == 0) { // asl sets V if the sign bit changed
-            v_flag = (((v ^ res) >> 15) & 1);
-          }
-        } else {
-          c_flag = v & 1;
-          if (op == 0) { // asr (arithmetic: preserve sign)
-            res = static_cast<uint16_t>(static_cast<int16_t>(v) >> 1);
-          } else if (op == 2) { // roxr
-            res = static_cast<uint16_t>((v >> 1) | (x_in << 15));
-          } else if (op == 3) { // ror
-            res = static_cast<uint16_t>((v >> 1) | (v << 15));
-          } else { // lsr
-            res = static_cast<uint16_t>(v >> 1);
+        } else { // Right shift
+          switch (op) {
+            case 0: // asr
+              res = static_cast<uint16_t>(static_cast<int16_t>(v) >> 1);
+              break;
+            case 2: // lsr
+              res = static_cast<uint16_t>(v >> 1);
+              break;
+            case 4: // roxr
+              res = static_cast<uint16_t>((v >> 1) | (x_in << 15));
+              break;
+            case 6: // ror
+              res = static_cast<uint16_t>((v >> 1) | (v << 15));
+              break;
           }
         }
         this->write(ea, res, SIZE_WORD);
-        // rol/ror (op==3) leave X unchanged; all others set X = C.
-        x_flag = (op == 3) ? -1 : c_flag;
         this->regs.set_ccr_flags(x_flag, (res >> 15) & 1, (res == 0), v_flag, c_flag);
         break;
       }
@@ -2833,18 +2816,17 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       bool logical_shift = (k & 2);
       bool rotate = (k & 4);
 
-      this->regs.sr &= 0xFFE0;
       if (shift_amount == 0) {
         this->regs.set_ccr_flags(-1, is_negative(this->regs.d[Xn].u, SIZE_LONG), (this->regs.d[Xn].u == 0), 0, 0);
 
       } else if (size == SIZE_BYTE) {
-        uint8_t& target = *reinterpret_cast<uint8_t*>(&this->regs.d[Xn].u);
+        uint8_t v = this->regs.d[Xn].u & 0x000000FF;
 
-        int8_t last_shifted_bit = (left_shift ? (target & (1 << (8 - shift_amount))) : (target & (1 << (shift_amount - 1))));
+        int8_t last_shifted_bit = (left_shift ? (v & (1 << (8 - shift_amount))) : (v & (1 << (shift_amount - 1))));
 
         bool msb_changed;
         if (!rotate && logical_shift && left_shift) {
-          uint32_t msb_values = (target >> (8 - shift_amount));
+          uint32_t msb_values = (v >> (8 - shift_amount));
           uint32_t mask = (1 << shift_amount) - 1;
           msb_values &= mask;
           msb_changed = ((msb_values == mask) || (msb_values == 0));
@@ -2855,9 +2837,9 @@ void M68KEmulator::exec_E(uint16_t opcode) {
         if (rotate) {
           if (logical_shift) { // rotate without extend (rol, ror)
             if (left_shift) {
-              target = (target << shift_amount) | (target >> (8 - shift_amount));
+              v = (v << shift_amount) | (v >> (8 - shift_amount));
             } else {
-              target = (target >> shift_amount) | (target << (8 - shift_amount));
+              v = (v >> shift_amount) | (v << (8 - shift_amount));
             }
             last_shifted_bit = -1; // X unaffected for these opcodes
 
@@ -2868,31 +2850,30 @@ void M68KEmulator::exec_E(uint16_t opcode) {
         } else {
           if (logical_shift) {
             if (left_shift) {
-              target <<= shift_amount;
+              v <<= shift_amount;
             } else {
-              target >>= shift_amount;
+              v >>= shift_amount;
             }
           } else {
-            int8_t& signed_target = *reinterpret_cast<int8_t*>(&this->regs.d[Xn].u);
             if (left_shift) {
-              signed_target <<= shift_amount;
+              v = static_cast<int8_t>(v) << shift_amount;
             } else {
-              signed_target >>= shift_amount;
+              v = static_cast<int8_t>(v) >> shift_amount;
             }
           }
         }
 
-        this->regs.set_ccr_flags(last_shifted_bit, (target & 0x80), (target == 0), msb_changed, last_shifted_bit);
+        this->regs.d[Xn].u = (this->regs.d[Xn].u & 0xFFFFFF00) | (v & 0x000000FF);
+        this->regs.set_ccr_flags(last_shifted_bit, (v & 0x80), (v == 0), msb_changed, last_shifted_bit);
 
       } else if (size == SIZE_WORD) {
-        uint16_t& target = *reinterpret_cast<uint16_t*>(&this->regs.d[Xn].u);
+        uint16_t v = this->regs.d[Xn].u & 0x0000FFFF;
 
-        int8_t last_shifted_bit =
-            (left_shift ? (target & (1 << (16 - shift_amount))) : (target & (1 << (shift_amount - 1))));
+        int8_t last_shifted_bit = (left_shift ? (v & (1 << (16 - shift_amount))) : (v & (1 << (shift_amount - 1))));
 
         bool msb_changed;
         if (!rotate && logical_shift && left_shift) {
-          uint32_t msb_values = (target >> (16 - shift_amount));
+          uint32_t msb_values = (v >> (16 - shift_amount));
           uint32_t mask = (1 << shift_amount) - 1;
           msb_values &= mask;
           msb_changed = ((msb_values == mask) || (msb_values == 0));
@@ -2903,9 +2884,9 @@ void M68KEmulator::exec_E(uint16_t opcode) {
         if (rotate) {
           if (logical_shift) { // rotate without extend (rol, ror)
             if (left_shift) {
-              target = (target << shift_amount) | (target >> (16 - shift_amount));
+              v = (v << shift_amount) | (v >> (16 - shift_amount));
             } else {
-              target = (target >> shift_amount) | (target << (16 - shift_amount));
+              v = (v >> shift_amount) | (v << (16 - shift_amount));
             }
             last_shifted_bit = -1; // X unaffected for these opcodes
 
@@ -2916,21 +2897,21 @@ void M68KEmulator::exec_E(uint16_t opcode) {
         } else {
           if (logical_shift) {
             if (left_shift) {
-              target <<= shift_amount;
+              v <<= shift_amount;
             } else {
-              target >>= shift_amount;
+              v >>= shift_amount;
             }
           } else {
-            int16_t& signed_target = *reinterpret_cast<int16_t*>(&this->regs.d[Xn].u);
             if (left_shift) {
-              signed_target <<= shift_amount;
+              v = static_cast<int16_t>(v) << shift_amount;
             } else {
-              signed_target >>= shift_amount;
+              v = static_cast<int16_t>(v) >> shift_amount;
             }
           }
         }
 
-        this->regs.set_ccr_flags(last_shifted_bit, (target & 0x8000), (target == 0), msb_changed, last_shifted_bit);
+        this->regs.d[Xn].u = (this->regs.d[Xn].u & 0xFFFF0000) | (v & 0x0000FFFF);
+        this->regs.set_ccr_flags(last_shifted_bit, (v & 0x8000), (v == 0), msb_changed, last_shifted_bit);
 
       } else if (size == SIZE_LONG) {
         uint32_t& target = this->regs.d[Xn].u;
@@ -2969,11 +2950,10 @@ void M68KEmulator::exec_E(uint16_t opcode) {
               target >>= shift_amount;
             }
           } else {
-            int32_t& signed_target = *reinterpret_cast<int32_t*>(&this->regs.d[Xn].u);
             if (left_shift) {
-              signed_target <<= shift_amount;
+              target = static_cast<int32_t>(target) << shift_amount;
             } else {
-              signed_target >>= shift_amount;
+              target = static_cast<int32_t>(target) >> shift_amount;
             }
           }
         }

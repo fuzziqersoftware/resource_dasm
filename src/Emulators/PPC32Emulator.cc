@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <cmath>
 #include <deque>
 #include <filesystem>
 #include <forward_list>
-#include <cmath>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
@@ -16,6 +16,29 @@
 #include "PPC32Emulator.hh"
 
 namespace ResourceDASM {
+
+enum class FloatType {
+  NUMBER = 0, // Not a NaN
+  SIGNALING_NAN,
+  QUIET_NAN,
+};
+
+FloatType get_float_type(double x) {
+  // The bits in an IEEE 754 double are arranged like so:
+  // S XXXXXXXXXXX MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM
+  // S = sign (1 = negative)
+  // X = exponent (all 1 bits = infinity or NaN)
+  // M = mantissa (for X = 0x7FF, M = 0 means infinity, anything else is NaN; if the high bit is set it's a quiet NaN)
+  uint64_t bits = std::bit_cast<uint64_t>(x);
+  if ((bits & 0x7FF0000000000000) != 0x7FF0000000000000) {
+    return FloatType::NUMBER;
+  }
+  uint64_t mantissa = bits & 0x000FFFFFFFFFFFFF;
+  if (mantissa == 0) {
+    return FloatType::NUMBER; // [+/-] infinity
+  }
+  return (mantissa & 0x0008000000000000) ? FloatType::QUIET_NAN : FloatType::SIGNALING_NAN;
+}
 
 const char* PPC32Emulator::Assembler::Argument::name_for_type(Type type) {
   switch (type) {
@@ -435,6 +458,27 @@ uint32_t spr_for_name(const std::string& name) {
   return names.at(name);
 }
 
+static int32_t convert_double_to_int(double v, uint8_t rounding_mode) {
+  if (v <= -0x80000000LL) {
+    return -0x80000000;
+  }
+  if (v >= 0x7FFFFFFFLL) {
+    return 0x7FFFFFFF;
+  }
+  switch (rounding_mode) {
+    case 0: // Round toward nearest
+      return std::lround(v);
+    case 1: // Round toward zero
+      return static_cast<int32_t>(std::trunc(v));
+    case 2: // Round toward +infinity
+      return static_cast<int32_t>(std::ceil(v));
+    case 3: // Round toward -infinity
+      return static_cast<int32_t>(std::floor(v));
+    default:
+      throw std::logic_error(std::format("Invalid rounding mode {}", rounding_mode));
+  }
+}
+
 void PPC32Emulator::set_time_base(uint64_t time_base) {
   this->regs.tbr = time_base;
 }
@@ -799,10 +843,8 @@ uint32_t PPC32Emulator::Assembler::asm_mulli(const StreamItem& si) {
 void PPC32Emulator::exec_20_subfic(uint32_t op) {
   // 001000 DDDDD AAAAA IIIIIIIIIIIIIIII
   // rD = ~rA + EXTS(SIMM) + 1  (== SIMM - rA), and set XER[CA] from the carry-out.
-  uint8_t rd = op_get_reg1(op), ra = op_get_reg2(op);
-  uint64_t sum = (uint64_t)(~this->regs.r[ra].u)
-               + (uint64_t)(uint32_t)(int32_t)op_get_imm_ext(op) + 1;
-  this->regs.r[rd].u = (uint32_t)sum;
+  uint64_t sum = static_cast<uint64_t>(~this->regs.r[op_get_reg2(op)].u) + static_cast<uint64_t>(static_cast<uint32_t>(op_get_imm_ext(op))) + 1;
+  this->regs.r[op_get_reg1(op)].u = sum;
   this->regs.xer.set_ca((sum >> 32) & 1);
 }
 
@@ -1396,22 +1438,10 @@ std::string PPC32Emulator::dasm_4C(DisassemblyState& s, uint32_t op) {
   }
 }
 
-// CR-bit helpers: PPC numbers CR bits 0..31 with 0 = MSB, so bit N lives at
-// (cr.u >> (31 - N)) & 1 (matches the bclr condition eval elsewhere).
-static inline bool cr_get_bit(uint32_t cr, uint8_t n) {
-  return (cr >> (31 - n)) & 1;
-}
-static inline uint32_t cr_set_bit(uint32_t cr, uint8_t n, bool v) {
-  uint32_t mask = 1u << (31 - n);
-  return v ? (cr | mask) : (cr & ~mask);
-}
-
 void PPC32Emulator::exec_4C_000_mcrf(uint32_t op) {
-  // mcrf crfD, crfS: copy 4-bit CR field S into field D
   uint8_t d = op_get_crf1(op);
   uint8_t s = op_get_crf2(op);
-  uint8_t val = (this->regs.cr.u >> (28 - (s << 2))) & 0xF;
-  this->regs.cr.replace_field(d, val);
+  this->regs.cr.replace_field(d, (this->regs.cr.u >> (28 - (s << 2))) & 0xF);
 }
 
 std::string PPC32Emulator::dasm_4C_000_mcrf(DisassemblyState&, uint32_t op) {
@@ -1535,10 +1565,9 @@ uint32_t PPC32Emulator::Assembler::asm_bclr_bcctr_mnemonic(const StreamItem& si)
 }
 
 void PPC32Emulator::exec_4C_021_crnor(uint32_t op) {
-  // crbD = f(crbA, crbB)
-  bool a = cr_get_bit(this->regs.cr.u, op_get_reg2(op));
-  bool b = cr_get_bit(this->regs.cr.u, op_get_reg3(op));
-  this->regs.cr.u = cr_set_bit(this->regs.cr.u, op_get_reg1(op), !(a || b));
+  bool a = this->regs.cr.get_bit(op_get_reg2(op));
+  bool b = this->regs.cr.get_bit(op_get_reg3(op));
+  this->regs.cr.set_bit(op_get_reg1(op), !(a || b));
 }
 
 std::string PPC32Emulator::dasm_4C_021_crnor(DisassemblyState&, uint32_t op) {
@@ -1571,10 +1600,9 @@ uint32_t PPC32Emulator::Assembler::asm_rfi(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_4C_081_crandc(uint32_t op) {
-  // crbD = f(crbA, crbB)
-  bool a = cr_get_bit(this->regs.cr.u, op_get_reg2(op));
-  bool b = cr_get_bit(this->regs.cr.u, op_get_reg3(op));
-  this->regs.cr.u = cr_set_bit(this->regs.cr.u, op_get_reg1(op), (a && !b));
+  bool a = this->regs.cr.get_bit(op_get_reg2(op));
+  bool b = this->regs.cr.get_bit(op_get_reg3(op));
+  this->regs.cr.set_bit(op_get_reg1(op), (a && !b));
 }
 
 std::string PPC32Emulator::dasm_4C_081_crandc(DisassemblyState&, uint32_t op) {
@@ -1608,10 +1636,9 @@ uint32_t PPC32Emulator::Assembler::asm_isync(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_4C_0C1_crxor(uint32_t op) {
-  // crbD = f(crbA, crbB)
-  bool a = cr_get_bit(this->regs.cr.u, op_get_reg2(op));
-  bool b = cr_get_bit(this->regs.cr.u, op_get_reg3(op));
-  this->regs.cr.u = cr_set_bit(this->regs.cr.u, op_get_reg1(op), (a ^ b));
+  bool a = this->regs.cr.get_bit(op_get_reg2(op));
+  bool b = this->regs.cr.get_bit(op_get_reg3(op));
+  this->regs.cr.set_bit(op_get_reg1(op), (a ^ b));
 }
 
 std::string PPC32Emulator::dasm_4C_0C1_crxor(DisassemblyState&, uint32_t op) {
@@ -1631,10 +1658,9 @@ uint32_t PPC32Emulator::Assembler::asm_crxor(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_4C_0E1_crnand(uint32_t op) {
-  // crbD = f(crbA, crbB)
-  bool a = cr_get_bit(this->regs.cr.u, op_get_reg2(op));
-  bool b = cr_get_bit(this->regs.cr.u, op_get_reg3(op));
-  this->regs.cr.u = cr_set_bit(this->regs.cr.u, op_get_reg1(op), !(a && b));
+  bool a = this->regs.cr.get_bit(op_get_reg2(op));
+  bool b = this->regs.cr.get_bit(op_get_reg3(op));
+  this->regs.cr.set_bit(op_get_reg1(op), !(a && b));
 }
 
 std::string PPC32Emulator::dasm_4C_0E1_crnand(DisassemblyState&, uint32_t op) {
@@ -1654,10 +1680,9 @@ uint32_t PPC32Emulator::Assembler::asm_crnand(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_4C_101_crand(uint32_t op) {
-  // crbD = f(crbA, crbB)
-  bool a = cr_get_bit(this->regs.cr.u, op_get_reg2(op));
-  bool b = cr_get_bit(this->regs.cr.u, op_get_reg3(op));
-  this->regs.cr.u = cr_set_bit(this->regs.cr.u, op_get_reg1(op), (a && b));
+  bool a = this->regs.cr.get_bit(op_get_reg2(op));
+  bool b = this->regs.cr.get_bit(op_get_reg3(op));
+  this->regs.cr.set_bit(op_get_reg1(op), (a && b));
 }
 
 std::string PPC32Emulator::dasm_4C_101_crand(DisassemblyState&, uint32_t op) {
@@ -1677,10 +1702,9 @@ uint32_t PPC32Emulator::Assembler::asm_crand(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_4C_121_creqv(uint32_t op) {
-  // crbD = f(crbA, crbB)
-  bool a = cr_get_bit(this->regs.cr.u, op_get_reg2(op));
-  bool b = cr_get_bit(this->regs.cr.u, op_get_reg3(op));
-  this->regs.cr.u = cr_set_bit(this->regs.cr.u, op_get_reg1(op), (a == b));
+  bool a = this->regs.cr.get_bit(op_get_reg2(op));
+  bool b = this->regs.cr.get_bit(op_get_reg3(op));
+  this->regs.cr.set_bit(op_get_reg1(op), (a == b));
 }
 
 std::string PPC32Emulator::dasm_4C_121_creqv(DisassemblyState&, uint32_t op) {
@@ -1700,10 +1724,9 @@ uint32_t PPC32Emulator::Assembler::asm_creqv(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_4C_1A1_crorc(uint32_t op) {
-  // crbD = f(crbA, crbB)
-  bool a = cr_get_bit(this->regs.cr.u, op_get_reg2(op));
-  bool b = cr_get_bit(this->regs.cr.u, op_get_reg3(op));
-  this->regs.cr.u = cr_set_bit(this->regs.cr.u, op_get_reg1(op), (a || !b));
+  bool a = this->regs.cr.get_bit(op_get_reg2(op));
+  bool b = this->regs.cr.get_bit(op_get_reg3(op));
+  this->regs.cr.set_bit(op_get_reg1(op), (a || !b));
 }
 
 std::string PPC32Emulator::dasm_4C_1A1_crorc(DisassemblyState&, uint32_t op) {
@@ -1723,10 +1746,9 @@ uint32_t PPC32Emulator::Assembler::asm_crorc(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_4C_1C1_cror(uint32_t op) {
-  // crbD = f(crbA, crbB)
-  bool a = cr_get_bit(this->regs.cr.u, op_get_reg2(op));
-  bool b = cr_get_bit(this->regs.cr.u, op_get_reg3(op));
-  this->regs.cr.u = cr_set_bit(this->regs.cr.u, op_get_reg1(op), (a || b));
+  bool a = this->regs.cr.get_bit(op_get_reg2(op));
+  bool b = this->regs.cr.get_bit(op_get_reg3(op));
+  this->regs.cr.set_bit(op_get_reg1(op), (a || b));
 }
 
 std::string PPC32Emulator::dasm_4C_1C1_cror(DisassemblyState&, uint32_t op) {
@@ -1988,7 +2010,7 @@ uint32_t PPC32Emulator::Assembler::asm_xori(const StreamItem& si) {
 
 void PPC32Emulator::exec_6C_xoris(uint32_t op) {
   // 011011 SSSSS AAAAA IIIIIIIIIIIIIIII
-  this->regs.r[op_get_reg2(op)].u = this->regs.r[op_get_reg1(op)].u ^ (((uint32_t)op_get_uimm(op)) << 16);
+  this->regs.r[op_get_reg2(op)].u = this->regs.r[op_get_reg1(op)].u ^ (static_cast<uint32_t>(op_get_uimm(op)) << 16);
 }
 
 std::string PPC32Emulator::dasm_6C_xoris(DisassemblyState&, uint32_t op) {
@@ -2292,7 +2314,7 @@ void PPC32Emulator::exec_7C(uint32_t op) {
       this->exec_7C_2E5_stswi(op);
       break;
     case 0x2D7:
-      this->exec_7C_2E7_stfdx(op);
+      this->exec_7C_2D7_stfdx(op);
       break;
     case 0x2F6:
       this->exec_7C_2F6_dcba(op);
@@ -2304,10 +2326,8 @@ void PPC32Emulator::exec_7C(uint32_t op) {
       this->exec_7C_316_lhbrx(op);
       break;
     case 0x318:
-      this->exec_7C_318_sraw(op);
-      break;
     case 0x338:
-      this->exec_7C_338_srawi(op);
+      this->exec_7C_318_338_sraw_srawi(op);
       break;
     case 0x356:
       this->exec_7C_356_eieio(op);
@@ -2511,7 +2531,7 @@ std::string PPC32Emulator::dasm_7C(DisassemblyState& s, uint32_t op) {
     case 0x2D5:
       return PPC32Emulator::dasm_7C_2D5_stswi(s, op);
     case 0x2D7:
-      return PPC32Emulator::dasm_7C_2E7_stfdx(s, op);
+      return PPC32Emulator::dasm_7C_2D7_stfdx(s, op);
     case 0x2F6:
       return PPC32Emulator::dasm_7C_2F6_dcba(s, op);
     case 0x2F7:
@@ -2843,12 +2863,16 @@ uint32_t PPC32Emulator::Assembler::asm_subfc(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_00A_20A_addc(uint32_t op) {
-  if(op_get_o(op)) throw std::runtime_error("overflow not implemented");
-  uint8_t d=op_get_reg1(op),a=op_get_reg2(op),b=op_get_reg3(op);(void)a;(void)b;
-  uint64_t sum = (uint64_t)this->regs.r[a].u + this->regs.r[b].u;
-  this->regs.r[d].u = (uint32_t)sum;
-  this->regs.xer.set_ca((sum>>32)&1);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  if (op_get_o(op)) {
+    throw std::runtime_error("overflow not implemented");
+  }
+  uint8_t d = op_get_reg1(op);
+  uint64_t sum = static_cast<uint64_t>(this->regs.r[op_get_reg2(op)].u) + static_cast<uint64_t>(this->regs.r[op_get_reg3(op)].u);
+  this->regs.r[d].u = sum;
+  this->regs.xer.set_ca((sum >> 32) & 1);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_00A_20A_addc(DisassemblyState&, uint32_t op) {
@@ -2860,10 +2884,14 @@ uint32_t PPC32Emulator::Assembler::asm_addc(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_00B_mulhwu(uint32_t op) {
-  uint8_t rd=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op);
-  uint64_t prod=(uint64_t)this->regs.r[ra].u * (uint64_t)this->regs.r[rb].u;
-  this->regs.r[rd].u = (uint32_t)(prod>>32);
-  if(op&1) this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  uint8_t rd = op_get_reg1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  uint64_t prod = static_cast<uint64_t>(this->regs.r[ra].u) * static_cast<uint64_t>(this->regs.r[rb].u);
+  this->regs.r[rd].u = prod >> 32;
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_00B_mulhwu(DisassemblyState&, uint32_t op) {
@@ -3079,10 +3107,11 @@ uint32_t PPC32Emulator::Assembler::asm_lwzux(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_03C_andc(uint32_t op) {
-  uint8_t a=op_get_reg1(op),ra=op_get_reg2(op),b=op_get_reg3(op);
-  (void)a;(void)b;
-  this->regs.r[ra].u = this->regs.r[a].u & ~this->regs.r[b].u;
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[ra].u = this->regs.r[op_get_reg1(op)].u & ~this->regs.r[op_get_reg3(op)].u;
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_03C_andc(DisassemblyState&, uint32_t op) {
@@ -3094,10 +3123,12 @@ uint32_t PPC32Emulator::Assembler::asm_andc(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_04B_mulhw(uint32_t op) {
-  uint8_t rd=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op);
-  int64_t prod=(int64_t)this->regs.r[ra].s * (int64_t)this->regs.r[rb].s;
-  this->regs.r[rd].u = (uint32_t)(((uint64_t)prod)>>32);
-  if(op&1) this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  uint8_t rd = op_get_reg1(op);
+  int64_t prod = static_cast<int64_t>(this->regs.r[op_get_reg2(op)].s) * static_cast<int64_t>(this->regs.r[op_get_reg3(op)].s);
+  this->regs.r[rd].u = static_cast<uint32_t>(prod >> 32);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_04B_mulhw(DisassemblyState&, uint32_t op) {
@@ -3193,10 +3224,11 @@ uint32_t PPC32Emulator::Assembler::asm_lbzux(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_07C_nor(uint32_t op) {
-  uint8_t a=op_get_reg1(op),ra=op_get_reg2(op),b=op_get_reg3(op);
-  (void)a;(void)b;
-  this->regs.r[ra].u = ~(this->regs.r[a].u | this->regs.r[b].u);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[ra].u = ~(this->regs.r[op_get_reg1(op)].u | this->regs.r[op_get_reg3(op)].u);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_07C_nor(DisassemblyState&, uint32_t op) {
@@ -3236,12 +3268,16 @@ uint32_t PPC32Emulator::Assembler::asm_subfe(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_08A_28A_adde(uint32_t op) {
-  if(op_get_o(op)) throw std::runtime_error("overflow not implemented");
-  uint8_t d=op_get_reg1(op),a=op_get_reg2(op),b=op_get_reg3(op);(void)a;(void)b;
-  uint64_t sum = (uint64_t)this->regs.r[a].u + this->regs.r[b].u + this->regs.xer.get_ca();
-  this->regs.r[d].u = (uint32_t)sum;
-  this->regs.xer.set_ca((sum>>32)&1);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  if (op_get_o(op)) {
+    throw std::runtime_error("overflow not implemented");
+  }
+  uint8_t d = op_get_reg1(op);
+  uint64_t sum = static_cast<uint64_t>(this->regs.r[op_get_reg2(op)].u) + this->regs.r[op_get_reg3(op)].u + this->regs.xer.get_ca();
+  this->regs.r[d].u = static_cast<uint32_t>(sum);
+  this->regs.xer.set_ca((sum >> 32) & 1);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_08A_28A_adde(DisassemblyState&, uint32_t op) {
@@ -3351,12 +3387,16 @@ uint32_t PPC32Emulator::Assembler::asm_stwux(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_0C8_2C8_subfze(uint32_t op) {
-  if(op_get_o(op)) throw std::runtime_error("overflow not implemented");
-  uint8_t d=op_get_reg1(op),a=op_get_reg2(op);(void)a;
-  uint64_t sum = (uint64_t)(~this->regs.r[a].u) + this->regs.xer.get_ca();
-  this->regs.r[d].u = (uint32_t)sum;
-  this->regs.xer.set_ca((sum>>32)&1);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  if (op_get_o(op)) {
+    throw std::runtime_error("overflow not implemented");
+  }
+  uint8_t d = op_get_reg1(op);
+  uint64_t sum = static_cast<uint64_t>(~this->regs.r[op_get_reg2(op)].u) + this->regs.xer.get_ca();
+  this->regs.r[d].u = static_cast<uint32_t>(sum);
+  this->regs.xer.set_ca((sum >> 32) & 1);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_0C8_2C8_subfze(DisassemblyState&, uint32_t op) {
@@ -3368,12 +3408,16 @@ uint32_t PPC32Emulator::Assembler::asm_subfze(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_0CA_2CA_addze(uint32_t op) {
-  if(op_get_o(op)) throw std::runtime_error("overflow not implemented");
-  uint8_t d=op_get_reg1(op),a=op_get_reg2(op);(void)a;
-  uint64_t sum = (uint64_t)this->regs.r[a].u + this->regs.xer.get_ca();
-  this->regs.r[d].u = (uint32_t)sum;
-  this->regs.xer.set_ca((sum>>32)&1);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  if (op_get_o(op)) {
+    throw std::runtime_error("overflow not implemented");
+  }
+  uint8_t d = op_get_reg1(op);
+  uint64_t sum = static_cast<uint64_t>(this->regs.r[op_get_reg2(op)].u) + this->regs.xer.get_ca();
+  this->regs.r[d].u = static_cast<uint32_t>(sum);
+  this->regs.xer.set_ca((sum >> 32) & 1);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_0CA_2CA_addze(DisassemblyState&, uint32_t op) {
@@ -3420,12 +3464,16 @@ uint32_t PPC32Emulator::Assembler::asm_stbx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_0E8_2E8_subfme(uint32_t op) {
-  if(op_get_o(op)) throw std::runtime_error("overflow not implemented");
-  uint8_t d=op_get_reg1(op),a=op_get_reg2(op);(void)a;
-  uint64_t sum = (uint64_t)(~this->regs.r[a].u) + 0xFFFFFFFFULL + this->regs.xer.get_ca();
-  this->regs.r[d].u = (uint32_t)sum;
-  this->regs.xer.set_ca((sum>>32)&1);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  if (op_get_o(op)) {
+    throw std::runtime_error("overflow not implemented");
+  }
+  uint8_t d = op_get_reg1(op);
+  uint64_t sum = static_cast<uint64_t>(~this->regs.r[op_get_reg2(op)].u) + 0xFFFFFFFFULL + this->regs.xer.get_ca();
+  this->regs.r[d].u = static_cast<uint32_t>(sum);
+  this->regs.xer.set_ca((sum >> 32) & 1);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_0E8_2E8_subfme(DisassemblyState&, uint32_t op) {
@@ -3437,12 +3485,16 @@ uint32_t PPC32Emulator::Assembler::asm_subfme(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_0EA_2EA_addme(uint32_t op) {
-  if(op_get_o(op)) throw std::runtime_error("overflow not implemented");
-  uint8_t d=op_get_reg1(op),a=op_get_reg2(op);(void)a;
-  uint64_t sum = (uint64_t)this->regs.r[a].u + 0xFFFFFFFFULL + this->regs.xer.get_ca();
-  this->regs.r[d].u = (uint32_t)sum;
-  this->regs.xer.set_ca((sum>>32)&1);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  if (op_get_o(op)) {
+    throw std::runtime_error("overflow not implemented");
+  }
+  uint8_t d = op_get_reg1(op);
+  uint64_t sum = static_cast<uint64_t>(this->regs.r[op_get_reg2(op)].u) + 0xFFFFFFFFULL + this->regs.xer.get_ca();
+  this->regs.r[d].u = static_cast<uint32_t>(sum);
+  this->regs.xer.set_ca((sum >> 32) & 1);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[d].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_0EA_2EA_addme(DisassemblyState&, uint32_t op) {
@@ -3454,9 +3506,11 @@ uint32_t PPC32Emulator::Assembler::asm_addme(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_0EB_2EB_mullw(uint32_t op) {
-  uint8_t rd=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op);
-  this->regs.r[rd].s = this->regs.r[ra].s * this->regs.r[rb].s;
-  if(op&1) this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  uint8_t rd = op_get_reg1(op);
+  this->regs.r[rd].s = this->regs.r[op_get_reg2(op)].s * this->regs.r[op_get_reg3(op)].s;
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_0EB_2EB_mullw(DisassemblyState&, uint32_t op) {
@@ -3567,10 +3621,11 @@ uint32_t PPC32Emulator::Assembler::asm_lhzx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_11C_eqv(uint32_t op) {
-  uint8_t a=op_get_reg1(op),ra=op_get_reg2(op),b=op_get_reg3(op);
-  (void)a;(void)b;
-  this->regs.r[ra].u = ~(this->regs.r[a].u ^ this->regs.r[b].u);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[ra].u = ~(this->regs.r[op_get_reg1(op)].u ^ this->regs.r[op_get_reg3(op)].u);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_11C_eqv(DisassemblyState&, uint32_t op) {
@@ -3629,10 +3684,11 @@ uint32_t PPC32Emulator::Assembler::asm_lhzux(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_13C_xor(uint32_t op) {
-  uint8_t a=op_get_reg1(op),ra=op_get_reg2(op),b=op_get_reg3(op);
-  (void)a;(void)b;
-  this->regs.r[ra].u = this->regs.r[a].u ^ this->regs.r[b].u;
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[ra].u = this->regs.r[op_get_reg1(op)].u ^ this->regs.r[op_get_reg3(op)].u;
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_13C_xor(DisassemblyState&, uint32_t op) {
@@ -3689,7 +3745,6 @@ void PPC32Emulator::exec_7C_157_lhax(uint32_t op) {
   uint8_t ra = op_get_reg2(op);
   uint8_t rb = op_get_reg3(op);
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + this->regs.r[rb].u;
-  // lhax is not an update form, so it must not write back to rA.
   this->regs.r[rd].u = phosg::sign_extend<uint32_t, uint16_t>(this->mem->read<phosg::be_uint16_t>(this->regs.debug.addr));
 }
 
@@ -3788,10 +3843,11 @@ uint32_t PPC32Emulator::Assembler::asm_sthx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_19C_orc(uint32_t op) {
-  uint8_t a=op_get_reg1(op),ra=op_get_reg2(op),b=op_get_reg3(op);
-  (void)a;(void)b;
-  this->regs.r[ra].u = this->regs.r[a].u | ~this->regs.r[b].u;
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[ra].u = this->regs.r[op_get_reg1(op)].u | ~this->regs.r[op_get_reg3(op)].u;
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_19C_orc(DisassemblyState&, uint32_t op) {
@@ -3872,10 +3928,12 @@ uint32_t PPC32Emulator::Assembler::asm_or(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_1CB_3CB_divwu(uint32_t op) {
-  uint8_t rd=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op);
-  uint32_t d=this->regs.r[rb].u;
-  this->regs.r[rd].u = d ? (this->regs.r[ra].u / d) : 0;
-  if(op&1) this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  uint8_t rd = op_get_reg1(op);
+  uint32_t d = this->regs.r[op_get_reg3(op)].u;
+  this->regs.r[rd].u = d ? (this->regs.r[op_get_reg2(op)].u / d) : 0;
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_1CB_3CB_divwu(DisassemblyState&, uint32_t op) {
@@ -3940,10 +3998,11 @@ uint32_t PPC32Emulator::Assembler::asm_dcbi(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_1DC_nand(uint32_t op) {
-  uint8_t a=op_get_reg1(op),ra=op_get_reg2(op),b=op_get_reg3(op);
-  (void)a;(void)b;
-  this->regs.r[ra].u = ~(this->regs.r[a].u & this->regs.r[b].u);
-  if(op_get_rec(op)) this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  uint8_t ra = op_get_reg2(op);
+  this->regs.r[ra].u = ~(this->regs.r[op_get_reg1(op)].u & this->regs.r[op_get_reg3(op)].u);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_1DC_nand(DisassemblyState&, uint32_t op) {
@@ -3955,10 +4014,13 @@ uint32_t PPC32Emulator::Assembler::asm_nand(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_1EB_3EB_divw(uint32_t op) {
-  uint8_t rd=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op);
-  int32_t n=this->regs.r[ra].s, d=this->regs.r[rb].s;
-  this->regs.r[rd].s = (d==0 || (n==INT32_MIN && d==-1)) ? 0 : (n / d);
-  if(op&1) this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  uint8_t rd = op_get_reg1(op);
+  int32_t n = this->regs.r[op_get_reg2(op)].s;
+  int32_t d = this->regs.r[op_get_reg3(op)].s;
+  this->regs.r[rd].s = ((d == 0) || (n == INT32_MIN && d == -1)) ? 0 : (n / d);
+  if (op_get_rec(op)) {
+    this->regs.set_crf_int_result(0, this->regs.r[rd].s);
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_1EB_3EB_divw(DisassemblyState&, uint32_t op) {
@@ -4016,8 +4078,9 @@ uint32_t PPC32Emulator::Assembler::asm_lwbrx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_217_lfsx(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  uint32_t bits=this->mem->read<phosg::be_uint32_t>(ea); float fv; memcpy(&fv,&bits,4); this->regs.f[d].f=(double)fv;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->regs.f[op_get_reg1(op)].f = static_cast<double>(this->mem->read<phosg::be_float>(ea));
 }
 
 std::string PPC32Emulator::dasm_7C_217_lfsx(DisassemblyState&, uint32_t op) {
@@ -4029,15 +4092,11 @@ uint32_t PPC32Emulator::Assembler::asm_lfsx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_218_srw(uint32_t op) {
-  // srw rA, rS, rB: logical shift right of rS by (rB & 0x3F); shift>=32 -> 0.
-  uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
-  uint8_t rb = op_get_reg3(op);
-  bool rec = op_get_rec(op);
-  uint32_t n = this->regs.r[rb].u & 0x3F;
-  uint32_t result = (n < 32) ? (this->regs.r[rs].u >> n) : 0;
+  uint32_t n = this->regs.r[op_get_reg3(op)].u & 0x3F;
+  uint32_t result = (n < 32) ? (this->regs.r[op_get_reg1(op)].u >> n) : 0;
   this->regs.r[ra].u = result;
-  if (rec) {
+  if (op_get_rec(op)) {
     this->regs.set_crf_int_result(0, this->regs.r[ra].s);
   }
 }
@@ -4063,9 +4122,12 @@ uint32_t PPC32Emulator::Assembler::asm_tlbsync(const StreamItem&) {
 }
 
 void PPC32Emulator::exec_7C_237_lfsux(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  uint32_t bits=this->mem->read<phosg::be_uint32_t>(ea); float fv; memcpy(&fv,&bits,4); this->regs.f[d].f=(double)fv;
-  if(ra) this->regs.r[ra].u=ea;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->regs.f[op_get_reg1(op)].f = static_cast<double>(this->mem->read<phosg::be_float>(ea));
+  if (ra) {
+    this->regs.r[ra].u = ea;
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_237_lfsux(DisassemblyState&, uint32_t op) {
@@ -4134,8 +4196,9 @@ uint32_t PPC32Emulator::Assembler::asm_sync(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_257_lfdx(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  uint64_t hi=this->mem->read<phosg::be_uint32_t>(ea), lo=this->mem->read<phosg::be_uint32_t>(ea+4); this->regs.f[d].i=(hi<<32)|lo;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->regs.f[op_get_reg1(op)].f = this->mem->read<phosg::be_double>(ea);
 }
 
 std::string PPC32Emulator::dasm_7C_257_lfdx(DisassemblyState&, uint32_t op) {
@@ -4147,9 +4210,12 @@ uint32_t PPC32Emulator::Assembler::asm_lfdx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_277_lfdux(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  uint64_t hi=this->mem->read<phosg::be_uint32_t>(ea), lo=this->mem->read<phosg::be_uint32_t>(ea+4); this->regs.f[d].i=(hi<<32)|lo;
-  if(ra) this->regs.r[ra].u=ea;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->regs.f[op_get_reg1(op)].f = this->mem->read<phosg::be_double>(ea);
+  if (ra) {
+    this->regs.r[ra].u = ea;
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_277_lfdux(DisassemblyState&, uint32_t op) {
@@ -4208,8 +4274,9 @@ uint32_t PPC32Emulator::Assembler::asm_stwbrx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_297_stfsx(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  float fv=(float)this->regs.f[d].f; uint32_t bits; memcpy(&bits,&fv,4); this->mem->write<phosg::be_uint32_t>(ea,bits);
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->mem->write<phosg::be_float>(ea, static_cast<float>(this->regs.f[op_get_reg1(op)].f));
 }
 
 std::string PPC32Emulator::dasm_7C_297_stfsx(DisassemblyState&, uint32_t op) {
@@ -4221,9 +4288,12 @@ uint32_t PPC32Emulator::Assembler::asm_stfsx(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_2B7_stfsux(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  float fv=(float)this->regs.f[d].f; uint32_t bits; memcpy(&bits,&fv,4); this->mem->write<phosg::be_uint32_t>(ea,bits);
-  if(ra) this->regs.r[ra].u=ea;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->mem->write<phosg::be_float>(ea, static_cast<float>(this->regs.f[op_get_reg1(op)].f));
+  if (ra) {
+    this->regs.r[ra].u = ea;
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_2B7_stfsux(DisassemblyState&, uint32_t op) {
@@ -4258,12 +4328,13 @@ uint32_t PPC32Emulator::Assembler::asm_stswi(const StreamItem& si) {
   return 0x7C0005AA | op_set_reg1(a[1].reg_num) | op_set_reg2(a[0].reg_num) | op_set_reg3((a2val == 32) ? 0 : a2val);
 }
 
-void PPC32Emulator::exec_7C_2E7_stfdx(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  uint64_t v=this->regs.f[d].i; this->mem->write<phosg::be_uint32_t>(ea,v>>32); this->mem->write<phosg::be_uint32_t>(ea+4,v&0xFFFFFFFF);
+void PPC32Emulator::exec_7C_2D7_stfdx(uint32_t op) {
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->mem->write<phosg::be_double>(ea, this->regs.f[op_get_reg1(op)].f);
 }
 
-std::string PPC32Emulator::dasm_7C_2E7_stfdx(DisassemblyState&, uint32_t op) {
+std::string PPC32Emulator::dasm_7C_2D7_stfdx(DisassemblyState&, uint32_t op) {
   return PPC32Emulator::dasm_7C_lx_stx(op, "stfdx", true, false, true);
 }
 
@@ -4284,9 +4355,12 @@ uint32_t PPC32Emulator::Assembler::asm_dcba(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_2F7_stfdux(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  uint64_t v=this->regs.f[d].i; this->mem->write<phosg::be_uint32_t>(ea,v>>32); this->mem->write<phosg::be_uint32_t>(ea+4,v&0xFFFFFFFF);
-  if(ra) this->regs.r[ra].u=ea;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->mem->write<phosg::be_double>(ea, this->regs.f[op_get_reg1(op)].f);
+  if (ra) {
+    this->regs.r[ra].u = ea;
+  }
 }
 
 std::string PPC32Emulator::dasm_7C_2F7_stfdux(DisassemblyState&, uint32_t op) {
@@ -4309,27 +4383,27 @@ uint32_t PPC32Emulator::Assembler::asm_lhbrx(const StreamItem& si) {
   return this->asm_load_store_indexed(si, 0x316, false, false, false);
 }
 
-void PPC32Emulator::exec_7C_318_sraw(uint32_t op) {
-  // sraw rA, rS, rB: arithmetic shift right of rS by (rB & 0x3F); XER[CA] = rS<0 &&
-  // any 1-bits shifted out (the sraw/addze signed-divide idiom depends on CA).
+void PPC32Emulator::exec_7C_318_338_sraw_srawi(uint32_t op) {
   uint8_t rs = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
-  uint8_t rb = op_get_reg3(op);
+  uint8_t sh = op_get_reg3(op);
   bool rec = op_get_rec(op);
-  uint32_t n = this->regs.r[rb].u & 0x3F;
+
+  uint32_t n = (op & 0x00000040) ? sh : (this->regs.r[sh].u & 0x3F);
   int32_t s = this->regs.r[rs].s;
-  uint32_t result; bool ca;
-  if (n == 0) { result = (uint32_t)s; ca = false; }
-  else if (n >= 32) { result = (s < 0) ? 0xFFFFFFFF : 0; ca = (s < 0); }
-  else {
-    result = (uint32_t)(s >> n);
-    uint32_t mask = (1u << n) - 1;
-    ca = (s < 0) && ((this->regs.r[rs].u & mask) != 0);
+  int32_t result;
+  bool ca;
+  if (n < 32) {
+    ca = (s < 0) && ((this->regs.r[rs].u & ((1 << n) - 1)) != 0);
+    result = s >> n;
+  } else { // n >= 32; result is all sign bits
+    ca = (s < 0);
+    result = ca ? 0xFFFFFFFF : 0;
   }
-  this->regs.r[ra].u = result;
+  this->regs.r[ra].s = result;
   this->regs.xer.set_ca(ca);
   if (rec) {
-    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
+    this->regs.set_crf_int_result(0, result);
   }
 }
 
@@ -4339,25 +4413,6 @@ std::string PPC32Emulator::dasm_7C_318_sraw(DisassemblyState&, uint32_t op) {
 
 uint32_t PPC32Emulator::Assembler::asm_sraw(const StreamItem& si) {
   return this->asm_7C_s_a_b_r(si, 0x318);
-}
-
-void PPC32Emulator::exec_7C_338_srawi(uint32_t op) {
-  // 011111 SSSSS AAAAA <<<<< 1100111000 R
-  uint8_t rs = op_get_reg1(op);
-  uint8_t ra = op_get_reg2(op);
-  uint8_t sh = op_get_reg3(op);
-  bool rec = op_get_rec(op);
-
-  uint32_t v = this->regs.r[rs].u;
-  if (v & 0x80000000) {
-    v = (v >> sh) | (0xFFFFFFFF << (32 - sh));
-  } else {
-    v = v >> sh;
-  }
-  this->regs.r[ra].u = v;
-  if (rec) {
-    this->regs.set_crf_int_result(0, this->regs.r[ra].s);
-  }
 }
 
 std::string PPC32Emulator::dasm_7C_338_srawi(DisassemblyState&, uint32_t op) {
@@ -4461,8 +4516,9 @@ uint32_t PPC32Emulator::Assembler::asm_icbi(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_7C_3D7_stfiwx(uint32_t op) {
-  uint8_t d=op_get_reg1(op),ra=op_get_reg2(op),rb=op_get_reg3(op); uint32_t ea=(ra?this->regs.r[ra].u:0)+this->regs.r[rb].u;
-  uint64_t v=this->regs.f[d].i; this->mem->write<phosg::be_uint32_t>(ea,v&0xFFFFFFFF);
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = (ra ? this->regs.r[ra].u : 0) + this->regs.r[op_get_reg3(op)].u;
+  this->mem->write<phosg::be_uint32_t>(ea, this->regs.f[op_get_reg1(op)].u & 0xFFFFFFFF);
 }
 
 std::string PPC32Emulator::dasm_7C_3D7_stfiwx(DisassemblyState&, uint32_t op) {
@@ -4602,10 +4658,8 @@ void PPC32Emulator::exec_80_84_lwz_lwzu(uint32_t op) {
   uint8_t rd = op_get_reg1(op);
   uint8_t ra = op_get_reg2(op);
   int32_t imm = op_get_imm_ext(op);
-  // Only the update form (lwzu) is invalid with rA == 0 or rA == rD; plain lwz
-  // with rA == 0 is legal absolute addressing.
   if (u && ((ra == 0) || (ra == rd))) {
-    throw std::runtime_error("invalid opcode: lwz(u) [r0 + X], rY");
+    throw std::runtime_error("invalid lwzu opcode arguments");
   }
   this->regs.debug.addr = (ra == 0 ? 0 : this->regs.r[ra].u) + imm;
   this->regs.r[rd].u = this->mem->read<phosg::be_uint32_t>(this->regs.debug.addr);
@@ -4836,12 +4890,12 @@ uint32_t PPC32Emulator::Assembler::asm_stmw(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_C0_C4_lfs_lfsu(uint32_t op) {
-  bool u = op_get_u(op);
-  uint8_t rd=op_get_reg1(op), ra=op_get_reg2(op); int32_t imm=op_get_imm_ext(op);
-  uint32_t ea=(ra==0?0:this->regs.r[ra].u)+imm;
-  uint32_t bits=this->mem->read<phosg::be_uint32_t>(ea); float fv; memcpy(&fv,&bits,4);
-  this->regs.f[rd].f=(double)fv;
-  if(u && ra) this->regs.r[ra].u=ea;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = ((ra == 0) ? 0 : this->regs.r[ra].u) + op_get_imm_ext(op);
+  this->regs.f[op_get_reg1(op)].f = static_cast<double>(this->mem->read<phosg::be_float>(ea));
+  if (op_get_u(op) && ra) {
+    this->regs.r[ra].u = ea;
+  }
 }
 
 std::string PPC32Emulator::dasm_C0_C4_lfs_lfsu(DisassemblyState& s, uint32_t op) {
@@ -4857,12 +4911,12 @@ uint32_t PPC32Emulator::Assembler::asm_lfsu(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_C8_CC_lfd_lfdu(uint32_t op) {
-  bool u = op_get_u(op);
-  uint8_t rd=op_get_reg1(op), ra=op_get_reg2(op); int32_t imm=op_get_imm_ext(op);
-  uint32_t ea=(ra==0?0:this->regs.r[ra].u)+imm;
-  uint64_t hi=this->mem->read<phosg::be_uint32_t>(ea), lo=this->mem->read<phosg::be_uint32_t>(ea+4);
-  this->regs.f[rd].i=(hi<<32)|lo;
-  if(u && ra) this->regs.r[ra].u=ea;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = ((ra == 0) ? 0 : this->regs.r[ra].u) + op_get_imm_ext(op);
+  this->regs.f[op_get_reg1(op)].f = this->mem->read<phosg::be_double>(ea);
+  if (op_get_u(op) && ra) {
+    this->regs.r[ra].u = ea;
+  }
 }
 
 std::string PPC32Emulator::dasm_C8_CC_lfd_lfdu(DisassemblyState& s, uint32_t op) {
@@ -4878,12 +4932,12 @@ uint32_t PPC32Emulator::Assembler::asm_lfdu(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_D0_D4_stfs_stfsu(uint32_t op) {
-  bool u = op_get_u(op);
-  uint8_t rs=op_get_reg1(op), ra=op_get_reg2(op); int32_t imm=op_get_imm_ext(op);
-  uint32_t ea=(ra==0?0:this->regs.r[ra].u)+imm;
-  float fv=(float)this->regs.f[rs].f; uint32_t bits; memcpy(&bits,&fv,4);
-  this->mem->write<phosg::be_uint32_t>(ea, bits);
-  if(u && ra) this->regs.r[ra].u=ea;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = ((ra == 0) ? 0 : this->regs.r[ra].u) + op_get_imm_ext(op);
+  this->mem->write<phosg::be_float>(ea, static_cast<float>(this->regs.f[op_get_reg1(op)].f));
+  if (op_get_u(op) && ra) {
+    this->regs.r[ra].u = ea;
+  }
 }
 
 std::string PPC32Emulator::dasm_D0_D4_stfs_stfsu(DisassemblyState& s, uint32_t op) {
@@ -4899,12 +4953,12 @@ uint32_t PPC32Emulator::Assembler::asm_stfsu(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_D8_DC_stfd_stfdu(uint32_t op) {
-  bool u = op_get_u(op);
-  uint8_t rs=op_get_reg1(op), ra=op_get_reg2(op); int32_t imm=op_get_imm_ext(op);
-  uint32_t ea=(ra==0?0:this->regs.r[ra].u)+imm;
-  uint64_t v=this->regs.f[rs].i;
-  this->mem->write<phosg::be_uint32_t>(ea, v>>32); this->mem->write<phosg::be_uint32_t>(ea+4, v&0xFFFFFFFF);
-  if(u && ra) this->regs.r[ra].u=ea;
+  uint8_t ra = op_get_reg2(op);
+  uint32_t ea = ((ra == 0) ? 0 : this->regs.r[ra].u) + op_get_imm_ext(op);
+  this->mem->write<phosg::be_double>(ea, this->regs.f[op_get_reg1(op)].f);
+  if (op_get_u(op) && ra) {
+    this->regs.r[ra].u = ea;
+  }
 }
 
 std::string PPC32Emulator::dasm_D8_DC_stfd_stfdu(DisassemblyState& s, uint32_t op) {
@@ -5045,7 +5099,8 @@ std::string PPC32Emulator::dasm_EC_FC_d_a_b_c_r(uint32_t op, const char* base_na
 }
 
 void PPC32Emulator::exec_EC_12_fdivs(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(this->regs.f[op_get_reg2(op)].f / this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(this->regs.f[op_get_reg2(op)].f / this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_12_fdivs(DisassemblyState&, uint32_t op) {
@@ -5058,7 +5113,8 @@ uint32_t PPC32Emulator::Assembler::asm_fdivs(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_14_fsubs(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(this->regs.f[op_get_reg2(op)].f - this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(this->regs.f[op_get_reg2(op)].f - this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_14_fsubs(DisassemblyState&, uint32_t op) {
@@ -5071,7 +5127,8 @@ uint32_t PPC32Emulator::Assembler::asm_fsubs(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_15_fadds(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(this->regs.f[op_get_reg2(op)].f + this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(this->regs.f[op_get_reg2(op)].f + this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_15_fadds(DisassemblyState&, uint32_t op) {
@@ -5084,7 +5141,8 @@ uint32_t PPC32Emulator::Assembler::asm_fadds(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_16_fsqrts(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)std::sqrt(this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(std::sqrt(this->regs.f[op_get_reg3(op)].f));
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_16_fsqrts(DisassemblyState&, uint32_t op) {
@@ -5097,7 +5155,8 @@ uint32_t PPC32Emulator::Assembler::asm_fsqrts(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_18_fres(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(1.0/this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(1.0 / this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_18_fres(DisassemblyState&, uint32_t op) {
@@ -5110,7 +5169,8 @@ uint32_t PPC32Emulator::Assembler::asm_fres(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_19_fmuls(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(this->regs.f[op_get_reg2(op)].f * this->regs.f[(op>>6)&0x1F].f);
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_19_fmuls(DisassemblyState&, uint32_t op) {
@@ -5123,7 +5183,8 @@ uint32_t PPC32Emulator::Assembler::asm_fmuls(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_1C_fmsubs(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(this->regs.f[op_get_reg2(op)].f*this->regs.f[(op>>6)&0x1F].f - this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f - this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_1C_fmsubs(DisassemblyState&, uint32_t op) {
@@ -5137,7 +5198,8 @@ uint32_t PPC32Emulator::Assembler::asm_fmsubs(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_1D_fmadds(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(this->regs.f[op_get_reg2(op)].f*this->regs.f[(op>>6)&0x1F].f + this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f + this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_1D_fmadds(DisassemblyState&, uint32_t op) {
@@ -5151,7 +5213,8 @@ uint32_t PPC32Emulator::Assembler::asm_fmadds(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_1E_fnmsubs(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(-(this->regs.f[op_get_reg2(op)].f*this->regs.f[(op>>6)&0x1F].f - this->regs.f[op_get_reg3(op)].f));
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(-(this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f - this->regs.f[op_get_reg3(op)].f));
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_1E_fnmsubs(DisassemblyState&, uint32_t op) {
@@ -5165,7 +5228,8 @@ uint32_t PPC32Emulator::Assembler::asm_fnmsubs(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_EC_1F_fnmadds(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (float)(-(this->regs.f[op_get_reg2(op)].f*this->regs.f[(op>>6)&0x1F].f + this->regs.f[op_get_reg3(op)].f));
+  this->regs.f[op_get_reg1(op)].f = static_cast<float>(-(this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f + this->regs.f[op_get_reg3(op)].f));
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_EC_1F_fnmadds(DisassemblyState&, uint32_t op) {
@@ -5221,19 +5285,15 @@ void PPC32Emulator::exec_FC(uint32_t op) {
   } else {
     switch (op_get_subopcode(op)) {
       case 0x000:
-        this->exec_FC_000_fcmpu(op);
+      case 0x020:
+        this->exec_FC_000_020_fcmpu_fcmpo(op);
         break;
       case 0x00C:
         this->exec_FC_00C_frsp(op);
         break;
       case 0x00E:
-        this->exec_FC_00E_fctiw(op);
-        break;
       case 0x00F:
-        this->exec_FC_00F_fctiwz(op);
-        break;
-      case 0x020:
-        this->exec_FC_020_fcmpo(op);
+        this->exec_FC_00E_00F_fctiw_fctiwz(op);
         break;
       case 0x026:
         this->exec_FC_026_mtfsb1(op);
@@ -5303,15 +5363,13 @@ std::string PPC32Emulator::dasm_FC(DisassemblyState& s, uint32_t op) {
   } else {
     switch (op_get_subopcode(op)) {
       case 0x000:
-        return PPC32Emulator::dasm_FC_000_fcmpu(s, op);
+      case 0x020:
+        return PPC32Emulator::dasm_FC_000_020_fcmpu_fcmpo(s, op);
       case 0x00C:
         return PPC32Emulator::dasm_FC_00C_frsp(s, op);
       case 0x00E:
-        return PPC32Emulator::dasm_FC_00E_fctiw(s, op);
       case 0x00F:
-        return PPC32Emulator::dasm_FC_00F_fctiwz(s, op);
-      case 0x020:
-        return PPC32Emulator::dasm_FC_020_fcmpo(s, op);
+        return PPC32Emulator::dasm_FC_00E_00F_fctiw_fctiwz(s, op);
       case 0x026:
         return PPC32Emulator::dasm_FC_026_mtfsb1(s, op);
       case 0x028:
@@ -5340,6 +5398,7 @@ std::string PPC32Emulator::dasm_FC(DisassemblyState& s, uint32_t op) {
 
 void PPC32Emulator::exec_FC_12_fdiv(uint32_t op) {
   this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f / this->regs.f[op_get_reg3(op)].f;
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_12_fdiv(DisassemblyState&, uint32_t op) {
@@ -5353,6 +5412,7 @@ uint32_t PPC32Emulator::Assembler::asm_fdiv(const StreamItem& si) {
 
 void PPC32Emulator::exec_FC_14_fsub(uint32_t op) {
   this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f - this->regs.f[op_get_reg3(op)].f;
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_14_fsub(DisassemblyState&, uint32_t op) {
@@ -5366,6 +5426,10 @@ uint32_t PPC32Emulator::Assembler::asm_fsub(const StreamItem& si) {
 
 void PPC32Emulator::exec_FC_15_fadd(uint32_t op) {
   this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f + this->regs.f[op_get_reg3(op)].f;
+  if (op_get_rec(op)) {
+    this->regs.cr.replace_field(1, (this->regs.fpscr >> 28) & 0x0F);
+  }
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_15_fadd(DisassemblyState&, uint32_t op) {
@@ -5379,6 +5443,7 @@ uint32_t PPC32Emulator::Assembler::asm_fadd(const StreamItem& si) {
 
 void PPC32Emulator::exec_FC_16_fsqrt(uint32_t op) {
   this->regs.f[op_get_reg1(op)].f = std::sqrt(this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_16_fsqrt(DisassemblyState&, uint32_t op) {
@@ -5391,7 +5456,9 @@ uint32_t PPC32Emulator::Assembler::asm_fsqrt(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_17_fsel(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (this->regs.f[op_get_reg2(op)].f>=0.0)?this->regs.f[(op>>6)&0x1F].f:this->regs.f[op_get_reg3(op)].f;
+  uint8_t which = (this->regs.f[op_get_reg2(op)].f >= 0.0) ? op_get_reg4(op) : op_get_reg3(op);
+  this->regs.f[op_get_reg1(op)].f = this->regs.f[which].f;
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_17_fsel(DisassemblyState&, uint32_t op) {
@@ -5405,7 +5472,8 @@ uint32_t PPC32Emulator::Assembler::asm_fsel(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_19_fmul(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f * this->regs.f[(op>>6)&0x1F].f;
+  this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f;
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_19_fmul(DisassemblyState&, uint32_t op) {
@@ -5418,7 +5486,8 @@ uint32_t PPC32Emulator::Assembler::asm_fmul(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_1A_frsqrte(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = 1.0/std::sqrt(this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = 1.0 / std::sqrt(this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_1A_frsqrte(DisassemblyState&, uint32_t op) {
@@ -5431,7 +5500,8 @@ uint32_t PPC32Emulator::Assembler::asm_frsqrte(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_1C_fmsub(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f*this->regs.f[(op>>6)&0x1F].f - this->regs.f[op_get_reg3(op)].f;
+  this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f - this->regs.f[op_get_reg3(op)].f;
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_1C_fmsub(DisassemblyState&, uint32_t op) {
@@ -5445,7 +5515,8 @@ uint32_t PPC32Emulator::Assembler::asm_fmsub(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_1D_fmadd(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f*this->regs.f[(op>>6)&0x1F].f + this->regs.f[op_get_reg3(op)].f;
+  this->regs.f[op_get_reg1(op)].f = this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f + this->regs.f[op_get_reg3(op)].f;
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_1D_fmadd(DisassemblyState&, uint32_t op) {
@@ -5459,7 +5530,8 @@ uint32_t PPC32Emulator::Assembler::asm_fmadd(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_1E_fnmsub(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = -(this->regs.f[op_get_reg2(op)].f*this->regs.f[(op>>6)&0x1F].f - this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = -(this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f - this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_1E_fnmsub(DisassemblyState&, uint32_t op) {
@@ -5473,7 +5545,8 @@ uint32_t PPC32Emulator::Assembler::asm_fnmsub(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_1F_fnmadd(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = -(this->regs.f[op_get_reg2(op)].f*this->regs.f[(op>>6)&0x1F].f + this->regs.f[op_get_reg3(op)].f);
+  this->regs.f[op_get_reg1(op)].f = -(this->regs.f[op_get_reg2(op)].f * this->regs.f[op_get_reg4(op)].f + this->regs.f[op_get_reg3(op)].f);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_1F_fnmadd(DisassemblyState&, uint32_t op) {
@@ -5486,37 +5559,75 @@ uint32_t PPC32Emulator::Assembler::asm_fnmadd(const StreamItem& si) {
       0xFC000000, a[0].reg_num, a[1].reg_num, a[2].reg_num, a[3].reg_num, 0x1F, si.op_name.ends_with("."));
 }
 
-void PPC32Emulator::exec_FC_000_fcmpu(uint32_t op) {
-  { uint8_t crf=op_get_crf1(op); double a=this->regs.f[op_get_reg2(op)].f, b=this->regs.f[op_get_reg3(op)].f;
-    uint8_t c; if(a<b)c=8; else if(a>b)c=4; else if(a==b)c=2; else c=1;
-    this->regs.cr.replace_field(crf,c); }
-}
+void PPC32Emulator::exec_FC_000_020_fcmpu_fcmpo(uint32_t op) {
+  double a = this->regs.f[op_get_reg2(op)].f;
+  double b = this->regs.f[op_get_reg3(op)].f;
+  auto a_type = get_float_type(a);
+  auto b_type = get_float_type(b);
+  bool signaling_nan_present = (a_type == FloatType::SIGNALING_NAN) || (b_type == FloatType::SIGNALING_NAN);
+  bool quiet_nan_present = (a_type == FloatType::QUIET_NAN) || (b_type == FloatType::QUIET_NAN);
 
-std::string PPC32Emulator::dasm_FC_000_fcmpu(DisassemblyState&, uint32_t op) {
-  uint8_t crf = op_get_crf1(op);
-  uint8_t ra = op_get_reg2(op);
-  uint8_t rb = op_get_reg3(op);
-  if (op & 0x00600001) {
-    return std::format(".invalid  << fcmpu cr{}, f{}, f{} with reserved bits set >>", crf, ra, rb);
-  } else if (crf) {
-    return std::format("fcmpu     cr{}, f{}, f{}", crf, ra, rb);
+  if (signaling_nan_present || quiet_nan_present) {
+    this->regs.fpscr |= (signaling_nan_present ? 0xA1080000 : 0xA0080000); // Set VXSNAN (if signaling), VXVC, VX, FX
+    this->regs.cr.replace_field(op_get_crf1(op), (this->regs.fpscr & 0x80000000) ? 1 : 0);
+    if (signaling_nan_present) {
+      // TODO: Implement PPC exception model and replace this with a real exception
+      throw std::runtime_error("Signaling NaN used in floating-point comparison");
+    }
+
   } else {
-    return std::format("fcmpu     f{}, f{}", ra, rb);
+    uint8_t c;
+    if (a < b) {
+      c = 8;
+    } else if (a > b) {
+      c = 4;
+    } else if (a == b) {
+      c = 2;
+    } else {
+      c = 1;
+    }
+    this->regs.cr.replace_field(op_get_crf1(op), c);
   }
 }
 
-uint32_t PPC32Emulator::Assembler::asm_fcmpu(const StreamItem& si) {
+std::string PPC32Emulator::dasm_FC_000_020_fcmpu_fcmpo(DisassemblyState&, uint32_t op) {
+  uint8_t crf = op_get_crf1(op);
+  uint8_t ra = op_get_reg2(op);
+  uint8_t rb = op_get_reg3(op);
+  const char* op_name = (op & 0x00000040) ? "fcmpo" : "fcmpu";
+  if (op & 0x00600001) {
+    return std::format(".invalid  << {} cr{}, f{}, f{} with reserved bits set >>", op_name, crf, ra, rb);
+  } else if (crf) {
+    return std::format("{}     cr{}, f{}, f{}", op_name, crf, ra, rb);
+  } else {
+    return std::format("{}     f{}, f{}", op_name, ra, rb);
+  }
+}
+
+uint32_t PPC32Emulator::Assembler::asm_fcmpu_fcmpo(const StreamItem& si) {
+  bool is_ordered = (si.op_name == "fcmpo");
   if (si.args.size() == 3) {
     const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
-    return 0xFC000000 | op_set_crf1(a[0].reg_num) | op_set_reg2(a[1].reg_num) | op_set_reg3(a[2].reg_num);
+    return 0xFC000000 |
+        op_set_crf1(a[0].reg_num) |
+        op_set_reg2(a[1].reg_num) |
+        op_set_reg3(a[2].reg_num) |
+        (is_ordered ? op_set_reg4(1) : 0);
   } else {
     const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
-    return 0xFC000000 | op_set_crf1(0) | op_set_reg2(a[0].reg_num) | op_set_reg3(a[1].reg_num);
+    return 0xFC000000 |
+        op_set_crf1(0) |
+        op_set_reg2(a[0].reg_num) |
+        op_set_reg3(a[1].reg_num) |
+        (is_ordered ? op_set_reg4(1) : 0);
   }
 }
 
 void PPC32Emulator::exec_FC_00C_frsp(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].f = (double)(float)this->regs.f[op_get_reg3(op)].f;
+  // TODO: This is actually really complex to do correctly; see D.4.1 in 6xx_pem.pdf. For now we let the host hardware
+  // do it, which is incorrect since the rounding mode and overflow/underflow conditions aren't handled.
+  this->regs.f[op_get_reg1(op)].f = static_cast<double>(static_cast<float>(this->regs.f[op_get_reg3(op)].f));
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_00C_frsp(DisassemblyState&, uint32_t op) {
@@ -5528,67 +5639,36 @@ uint32_t PPC32Emulator::Assembler::asm_frsp(const StreamItem& si) {
   return this->asm_5reg(0xFC000000, a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x0C, si.op_name.ends_with("."));
 }
 
-void PPC32Emulator::exec_FC_00E_fctiw(uint32_t op) {
-  { double v=this->regs.f[op_get_reg3(op)].f; int32_t r=(int32_t)std::llround(v); this->regs.f[op_get_reg1(op)].i=(uint32_t)r; }
-}
-
-std::string PPC32Emulator::dasm_FC_00E_fctiw(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_EC_FC_d_b_r(op, "fctiw");
-}
-
-uint32_t PPC32Emulator::Assembler::asm_fctiw(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
-  return this->asm_5reg(0xFC000000, a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x0E, si.op_name.ends_with("."));
-}
-
-void PPC32Emulator::exec_FC_00F_fctiwz(uint32_t op) {
-  { double v=this->regs.f[op_get_reg3(op)].f; int32_t r=(int32_t)v; this->regs.f[op_get_reg1(op)].i=(uint32_t)r; }
-}
-
-std::string PPC32Emulator::dasm_FC_00F_fctiwz(DisassemblyState&, uint32_t op) {
-  return PPC32Emulator::dasm_EC_FC_d_b_r(op, "fctiwz");
-}
-
-uint32_t PPC32Emulator::Assembler::asm_fctiwz(const StreamItem& si) {
-  const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
-  return this->asm_5reg(0xFC000000, a[0].reg_num, 0x00, a[1].reg_num, 0x00, 0x0F, si.op_name.ends_with("."));
-}
-
-void PPC32Emulator::exec_FC_020_fcmpo(uint32_t op) {
-  { uint8_t crf=op_get_crf1(op); double a=this->regs.f[op_get_reg2(op)].f, b=this->regs.f[op_get_reg3(op)].f;
-    uint8_t c; if(a<b)c=8; else if(a>b)c=4; else if(a==b)c=2; else c=1;
-    this->regs.cr.replace_field(crf,c); }
-}
-
-std::string PPC32Emulator::dasm_FC_020_fcmpo(DisassemblyState&, uint32_t op) {
-  uint8_t crf = op_get_crf1(op);
-  uint8_t ra = op_get_reg2(op);
-  uint8_t rb = op_get_reg3(op);
-  if (op & 0x00600001) {
-    return std::format(".invalid  << fcmpo cr{}, f{}, f{} with reserved bits set >>", crf, ra, rb);
-  } else if (crf) {
-    return std::format("fcmpo     cr{}, f{}, f{}", crf, ra, rb);
+void PPC32Emulator::exec_FC_00E_00F_fctiw_fctiwz(uint32_t op) {
+  // The programmer's manual says (for both of these opcodes):
+  //   If the operand in frB is greater than 2^31 – 1, bits 32–63 of frD are set to 0x7FFF_FFFF.
+  //   If the operand in frB is less than –2^31, bits 32–63 of frD are set to 0x 8000_0000.
+  double v = this->regs.f[op_get_reg3(op)].f;
+  if (v > 0x7FFFFFFF) {
+    this->regs.f[op_get_reg1(op)].s = 0x000000007FFFFFFF;
+  } else if (v < -0x80000000) {
+    this->regs.f[op_get_reg1(op)].s = 0xFFFFFFFF80000000;
+  } else if (op & 2) { // fctiwz
+    this->regs.f[op_get_reg1(op)].s = static_cast<int32_t>(v);
   } else {
-    return std::format("fcmpo     f{}, f{}", ra, rb);
+    this->regs.f[op_get_reg1(op)].s = convert_double_to_int(v, this->regs.rounding_mode());
   }
+  this->regs.set_cr1_if_float_rec(op);
 }
 
-uint32_t PPC32Emulator::Assembler::asm_fcmpo(const StreamItem& si) {
-  if (si.args.size() == 3) {
-    const auto& a = si.check_args({ArgType::CONDITION_FIELD, ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
-    return 0xFC000000 |
-        op_set_crf1(a[0].reg_num) |
-        op_set_reg2(a[1].reg_num) |
-        op_set_reg3(a[2].reg_num) |
-        op_set_reg4(1);
-  } else {
-    const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
-    return 0xFC000000 | op_set_crf1(0) | op_set_reg2(a[0].reg_num) | op_set_reg3(a[1].reg_num) | op_set_reg4(1);
-  }
+std::string PPC32Emulator::dasm_FC_00E_00F_fctiw_fctiwz(DisassemblyState&, uint32_t op) {
+  return PPC32Emulator::dasm_EC_FC_d_b_r(op, (op & 2) ? "fctiwz" : "fctiw");
+}
+
+uint32_t PPC32Emulator::Assembler::asm_fctiw_fctiwz(const StreamItem& si) {
+  const auto& a = si.check_args({ArgType::FLOAT_REGISTER, ArgType::FLOAT_REGISTER});
+  uint8_t sub_op = (si.op_name.starts_with("fctiwz") ? 0x0F : 0x0E);
+  return this->asm_5reg(0xFC000000, a[0].reg_num, 0x00, a[1].reg_num, 0x00, sub_op, si.op_name.ends_with("."));
 }
 
 void PPC32Emulator::exec_FC_026_mtfsb1(uint32_t op) {
-  (void)op; // FPSCR bit set: no-op for host math
+  this->regs.fpscr |= (0x80000000 >> op_get_reg1(op));
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_026_mtfsb1(DisassemblyState&, uint32_t op) {
@@ -5620,7 +5700,7 @@ uint32_t PPC32Emulator::Assembler::asm_fneg(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_040_mcrfs(uint32_t op) {
-  this->regs.cr.replace_field(op_get_crf1(op), 0);
+  this->regs.cr.replace_field(op_get_crf1(op), (this->regs.fpscr >> (op_get_crf2(op) << 2)) & 0xF);
 }
 
 std::string PPC32Emulator::dasm_FC_040_mcrfs(DisassemblyState&, uint32_t op) {
@@ -5639,7 +5719,8 @@ uint32_t PPC32Emulator::Assembler::asm_mcrfs(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_046_mtfsb0(uint32_t op) {
-  (void)op; // FPSCR bit clear: no-op for host math
+  this->regs.fpscr &= ~(0x80000000 >> op_get_reg1(op));
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_046_mtfsb0(DisassemblyState&, uint32_t op) {
@@ -5658,7 +5739,7 @@ uint32_t PPC32Emulator::Assembler::asm_mtfsb0(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_048_fmr(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].i = this->regs.f[op_get_reg3(op)].i;
+  this->regs.f[op_get_reg1(op)] = this->regs.f[op_get_reg3(op)];
 }
 
 std::string PPC32Emulator::dasm_FC_048_fmr(DisassemblyState&, uint32_t op) {
@@ -5671,7 +5752,10 @@ uint32_t PPC32Emulator::Assembler::asm_fmr(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_086_mtfsfi(uint32_t op) {
-  (void)op; // FPSCR field immediate: no-op
+  uint8_t shift = op_get_crf1(op) << 2;
+  uint32_t imm_left = ((op >> 21) & 0xF) << 28;
+  this->regs.fpscr = (this->regs.fpscr & ~(0xF0000000 >> shift)) | (imm_left >> shift);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_086_mtfsfi(DisassemblyState&, uint32_t op) {
@@ -5718,7 +5802,7 @@ uint32_t PPC32Emulator::Assembler::asm_fabs(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_247_mffs(uint32_t op) {
-  this->regs.f[op_get_reg1(op)].i = this->regs.fpscr;
+  this->regs.f[op_get_reg1(op)].u = this->regs.fpscr;
 }
 
 std::string PPC32Emulator::dasm_FC_247_mffs(DisassemblyState&, uint32_t op) {
@@ -5737,7 +5821,16 @@ uint32_t PPC32Emulator::Assembler::asm_mffs(const StreamItem& si) {
 }
 
 void PPC32Emulator::exec_FC_2C7_mtfsf(uint32_t op) {
-  this->regs.fpscr = (uint32_t)this->regs.f[op_get_reg3(op)].i;
+  uint8_t fields_mask = (op >> 17) & 0xFF;
+  uint32_t mask = 0;
+  for (uint8_t s = 0; s < 8; s++) {
+    if (fields_mask & (0x80 >> s)) {
+      mask |= (0xF0000000 >> (s << 2));
+    }
+  }
+  mask &= 0x9FFFFFFF; // FEX and VX cannot be set via this opcode
+  this->regs.fpscr = (this->regs.fpscr & (~mask)) | (this->regs.f[op_get_reg3(op)].u & mask);
+  this->regs.set_cr1_if_float_rec(op);
 }
 
 std::string PPC32Emulator::dasm_FC_2C7_mtfsf(DisassemblyState&, uint32_t op) {
@@ -6317,14 +6410,14 @@ const std::unordered_map<std::string, PPC32Emulator::Assembler::AssembleFunction
         {"fnmsub.", &PPC32Emulator::Assembler::asm_fnmsub},
         {"fnmadd", &PPC32Emulator::Assembler::asm_fnmadd},
         {"fnmadd.", &PPC32Emulator::Assembler::asm_fnmadd},
-        {"fcmpu", &PPC32Emulator::Assembler::asm_fcmpu},
+        {"fcmpu", &PPC32Emulator::Assembler::asm_fcmpu_fcmpo},
         {"frsp", &PPC32Emulator::Assembler::asm_frsp},
         {"frsp.", &PPC32Emulator::Assembler::asm_frsp},
-        {"fctiw", &PPC32Emulator::Assembler::asm_fctiw},
-        {"fctiw.", &PPC32Emulator::Assembler::asm_fctiw},
-        {"fctiwz", &PPC32Emulator::Assembler::asm_fctiwz},
-        {"fctiwz.", &PPC32Emulator::Assembler::asm_fctiwz},
-        {"fcmpo", &PPC32Emulator::Assembler::asm_fcmpo},
+        {"fctiw", &PPC32Emulator::Assembler::asm_fctiw_fctiwz},
+        {"fctiw.", &PPC32Emulator::Assembler::asm_fctiw_fctiwz},
+        {"fctiwz", &PPC32Emulator::Assembler::asm_fctiw_fctiwz},
+        {"fctiwz.", &PPC32Emulator::Assembler::asm_fctiw_fctiwz},
+        {"fcmpo", &PPC32Emulator::Assembler::asm_fcmpu_fcmpo},
         {"mtfsb1", &PPC32Emulator::Assembler::asm_mtfsb1},
         {"mtfsb1.", &PPC32Emulator::Assembler::asm_mtfsb1},
         {"fneg", &PPC32Emulator::Assembler::asm_fneg},
@@ -6382,6 +6475,12 @@ void PPC32Emulator::Regs::set_by_name(const std::string& reg_name, uint32_t valu
     this->r[reg_num].u = value;
   } else {
     throw std::invalid_argument("invalid register name");
+  }
+}
+
+void PPC32Emulator::Regs::set_cr1_if_float_rec(uint32_t op) {
+  if (op_get_rec(op)) {
+    this->cr.replace_field(1, (this->fpscr >> 28) & 0x0F);
   }
 }
 

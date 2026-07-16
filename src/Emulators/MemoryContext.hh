@@ -37,8 +37,7 @@ public:
     size_t end_page_num = this->page_number_for_addr(addr + size - 1);
     auto arena = this->arena_for_page_number[start_page_num];
     if (!arena.get()) {
-      char b[64]; snprintf(b,sizeof b,"address not within any arena: %08X sz=%zu",addr,size);
-      throw std::out_of_range(b);
+      throw std::out_of_range(std::format("address {:08X} (size=0x{:X}) not within any arena", addr, size));
     }
     for (size_t z = start_page_num + 1; z <= end_page_num; z++) {
       if (this->arena_for_page_number[z] != arena) {
@@ -67,7 +66,7 @@ public:
     arena_it--;
     const auto& arena = arena_it->second;
     if (host_addr >= reinterpret_cast<const uint8_t*>(arena->host_addr) + arena->size) {
-      throw std::out_of_range("address not within any arena [revlookup]");
+      throw std::out_of_range("address not within any arena");
     }
     uint32_t addr = arena->addr + (reinterpret_cast<const uint8_t*>(host_addr) - reinterpret_cast<const uint8_t*>(arena->host_addr));
     if (this->strict && !arena->is_within_allocated_block(addr, size)) {

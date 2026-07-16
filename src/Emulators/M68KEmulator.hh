@@ -35,6 +35,13 @@ public:
     BYTE = 6,
     INVALID = 7,
   };
+  enum Condition {
+    C = 0x01,
+    V = 0x02,
+    Z = 0x04,
+    N = 0x08,
+    X = 0x10,
+  };
 
   struct Regs {
     union {
@@ -43,7 +50,20 @@ public:
     } d[8];
     uint32_t a[8];
     uint32_t pc;
-    uint16_t sr; // Note: low byte of this is the ccr (condition code register)
+    struct SR {
+      uint16_t u; // Note: low byte of this is the ccr (condition code register)
+      inline bool get_x() const { return this->u & Condition::X; };
+      inline bool get_n() const { return this->u & Condition::N; };
+      inline bool get_z() const { return this->u & Condition::Z; };
+      inline bool get_v() const { return this->u & Condition::V; };
+      inline bool get_c() const { return this->u & Condition::C; };
+      inline void set_x(bool value) { this->u = value ? (this->u | Condition::X) : (this->u & (~Condition::X)); };
+      inline void set_n(bool value) { this->u = value ? (this->u | Condition::N) : (this->u & (~Condition::N)); };
+      inline void set_z(bool value) { this->u = value ? (this->u | Condition::Z) : (this->u & (~Condition::Z)); };
+      inline void set_v(bool value) { this->u = value ? (this->u | Condition::V) : (this->u & (~Condition::V)); };
+      inline void set_c(bool value) { this->u = value ? (this->u | Condition::C) : (this->u & (~Condition::C)); };
+    };
+    SR sr;
 
     Regs();
 
