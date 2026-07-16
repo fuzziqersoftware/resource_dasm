@@ -2728,7 +2728,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
         uint8_t op = which & 6; // 0 = arithmetic, 2 = logical, 4 = rox, 6 = rotate
         auto ea = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_WORD);
         uint16_t v = this->read(ea, SIZE_WORD) & 0xFFFF;
-        uint16_t res;
+        uint16_t res = 0;
         int64_t c_flag = ((which & 1) ? (v >> 15) : v) & 1;
         // rol/ror leave X unchanged; the others set X = C
         int64_t x_flag = (op == 6) ? -1 : c_flag;
