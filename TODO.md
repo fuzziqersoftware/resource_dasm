@@ -204,7 +204,7 @@ Think C string table. A list of combined C/P-strings, where each string is both 
 - DeadEnd: SNGV (seems to be a very simple sequence format; it has a TMPL even)
 - Flashback PPSS: figure out what subset of the clut to use for each image set
 - Marathon 1984: appears to contain yet another subformat of .256
-- mondoBlobboDemo23: graphics seem to have a simple format with row offsets & custom bytewise compression; use vrfs_dump to get the files
+- mondoBlobboDemo23: graphics seem to have a simple format with row offsets & custom bytewise compression; use vrfsdump to get the files
 - Oh No! More Lemmings: there are some minor offset issues still (see uppermost left horizontal pipe on Dangerzone)
 
 ## m68kexec

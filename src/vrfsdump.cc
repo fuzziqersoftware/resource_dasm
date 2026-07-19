@@ -36,7 +36,7 @@ struct FileBlock {
 } __attribute__((packed));
 
 void print_usage() {
-  phosg::fwrite_fmt(stderr, "Usage: vrfs_dump input-filename [output-dir]\n\n");
+  phosg::fwrite_fmt(stderr, "Usage: vrfsdump input-filename [output-dir]\n\n");
 }
 
 int main(int argc, char** argv) {
