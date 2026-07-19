@@ -2593,7 +2593,7 @@ std::string M68KEmulator::dasm_B(DisassemblyState& s) {
     return std::format("cmp.{}      D{}, {}", char_for_size.at(opmode), dest,
         M68KEmulator::dasm_address(s, M, Xn, value_type_for_size.at(opmode)));
   } else if ((opmode & 3) == 3) {
-    return std::format("cmpa.{:c}     A{}, {}", dest, ((opmode & 4) ? 'l' : 'w'),
+    return std::format("cmpa.{:c}     A{}, {}", ((opmode & 4) ? 'l' : 'w'), dest,
         M68KEmulator::dasm_address(s, M, Xn, (opmode & 4) ? ValueType::LONG : ValueType::WORD));
   } else {
     return std::format("xor.{}      {}, D{}", char_for_size.at(opmode & 3),
