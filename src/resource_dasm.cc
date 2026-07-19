@@ -72,30 +72,7 @@ static std::string disassembly_for_dcmp(const ResourceDASM::ResourceFile::Decode
 class ResourceExporter {
 private:
   void ensure_directories_exist(const std::string& filename) {
-    std::vector<std::string> tokens = phosg::split(filename, '/');
-    if (tokens.empty()) {
-      return;
-    }
-    tokens.pop_back();
-
-    if (tokens.empty()) {
-      return;
-    }
-
-    std::string dir;
-    bool first_token = true;
-    for (const std::string& token : tokens) {
-      if (!first_token) {
-        dir.push_back('/');
-      } else {
-        first_token = false;
-      }
-      dir += token;
-      // dir can be / if filename is an absolute path; just skip it
-      if (dir != "/" && !std::filesystem::is_directory(dir)) {
-        std::filesystem::create_directories(dir);
-      }
-    }
+    std::filesystem::create_directories(std::filesystem::path(filename).parent_path());
   }
 
   std::string output_filename(
