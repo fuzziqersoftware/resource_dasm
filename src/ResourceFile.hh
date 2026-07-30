@@ -298,19 +298,19 @@ public:
   };
 
   struct DecodedCodeResource {
-    // if near model, this is >= 0 and the far model fields are uninitialized:
-    int32_t first_jump_table_entry;
+    // If near model, this is >= 0 and the far model fields are uninitialized:
+    int32_t first_jump_table_entry_index;
     uint16_t num_jump_table_entries;
 
-    // if far model, entry_offset is < 0 and these will all be initialized:
-    uint32_t near_entry_start_a5_offset; // offset from A5, so subtract 0x20
+    // If far model, entry_offset is < 0 and these will all be initialized:
+    uint32_t near_entry_start_a5_offset; // Offset from A5, so subtract 0x20 to get offset into jump table
     uint32_t near_entry_count;
-    uint32_t far_entry_start_a5_offset; // offset from A5, so subtract 0x20
+    uint32_t far_entry_start_a5_offset; // Offset from A5, so subtract 0x20 to get offset into jump table
     uint32_t far_entry_count;
     uint32_t a5_relocation_data_offset;
     uint32_t a5;
     uint32_t pc_relocation_data_offset;
-    uint32_t load_address; // unintuitive; see docs
+    uint32_t load_address; // Unintuitive; see docs
 
     std::vector<uint32_t> a5_relocation_addresses;
     std::vector<uint32_t> pc_relocation_addresses;

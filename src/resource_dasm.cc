@@ -39,6 +39,7 @@
 #include "Lookups.hh"
 #include "ResourceCompression.hh"
 #include "ResourceFile.hh"
+#include "ResourceFormats.hh"
 #include "ResourceIDs.hh"
 #include "SystemDecompressors.hh"
 #include "SystemTemplates.hh"
@@ -1159,6 +1160,73 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
+  struct DecompArchiveData {
+    std::string data;
+    uint32_t base = 0xA0000000;
+    uint32_t a5 = 0xA0000000;
+    std::unordered_map<int16_t, uint32_t> segment_bases;
+
+    ResourceDASM::Code0ResourceHeader* code0() {
+      return reinterpret_cast<ResourceDASM::Code0ResourceHeader*>(this->data.data() + this->a5 - this->base + 0x10);
+    }
+  };
+
+  DecompArchiveData generate_decomp_archive() const {
+    DecompArchiveData ret;
+
+    auto code0_res = this->current_rf->get_resource(ResourceDASM::RESOURCE_TYPE_CODE, static_cast<int16_t>(0));
+    auto code0_dec = this->current_rf->decode_CODE_0(code0_res);
+    if (code0_res->data.size() + 0x10 > code0_dec.above_a5_size) {
+      throw std::runtime_error("CODE 0 does not fit in space above A5");
+    }
+    ret.data.resize(code0_dec.below_a5_size + 0x10 + code0_dec.above_a5_size, '\0');
+    ret.a5 = ret.base + code0_dec.below_a5_size;
+    memcpy(ret.code0(), code0_res->data.data(), code0_res->data.size());
+    size_t num_jump_table_entries = code0_dec.jump_table.size();
+
+    for (const auto& res_id : this->current_rf->all_resources_of_type(ResourceDASM::RESOURCE_TYPE_CODE)) {
+      if (res_id == 0) {
+        continue;
+      }
+      auto code = this->current_rf->decode_CODE(res_id);
+
+      uint32_t segment_base = ret.base + ret.data.size();
+      ret.segment_bases.emplace(res_id, segment_base);
+      ret.data += code.code;
+      if (ret.data.size() & 1) {
+        ret.data.push_back(0xFF);
+      }
+
+      if (code.num_jump_table_entries > 0) {
+        if (code.first_jump_table_entry_index < 0) {
+          throw std::runtime_error("Adding far model CODE resources to decomp archives is not supported yet");
+        }
+        if (code.first_jump_table_entry_index + code.num_jump_table_entries > static_cast<ssize_t>(num_jump_table_entries)) {
+          throw std::runtime_error(std::format(
+              "CODE {} refers to {} jump table entries starting at index {}, but there are only {} entries in total",
+              res_id, code.num_jump_table_entries, code.first_jump_table_entry_index, num_jump_table_entries));
+        }
+        for (size_t z = 0; z < code.num_jump_table_entries; z++) {
+          // Expect the jump table entry to be like XXXX 3F3C YYYY A9F0, where X = offset into code and Y = CODE id
+          size_t entry_index = code.first_jump_table_entry_index + z;
+          auto& entry = ret.code0()->entries[entry_index];
+          if ((entry.push_opcode != 0x3F3C) || (entry.resource_id != res_id) || (entry.trap_opcode != 0xA9F0)) {
+            throw std::runtime_error(std::format(
+                "Jump table entry {} is not valid for CODE {} ({})",
+                entry_index, res_id, phosg::format_data_string(&entry, sizeof(entry))));
+          }
+          uint32_t target = segment_base + entry.offset + 4;
+          entry.offset = static_cast<uint16_t>(res_id);
+          entry.push_opcode = 0x4EF9;
+          entry.resource_id = static_cast<int16_t>(target >> 16);
+          entry.trap_opcode = target & 0xFFFF;
+        }
+      }
+    }
+
+    return ret;
+  }
+
   void write_decoded_CODE(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     std::string disassembly;
@@ -1192,7 +1260,7 @@ private:
       } catch (const std::exception&) {
       }
 
-      if (decoded.first_jump_table_entry < 0) {
+      if (decoded.first_jump_table_entry_index < 0) {
         disassembly += "# far model CODE resource\n";
         disassembly += std::format("# near model jump table entries starting at A5 + 0x{:08X} ({} of them)\n",
             decoded.near_entry_start_a5_offset, decoded.near_entry_count);
@@ -1211,11 +1279,11 @@ private:
       } else {
         disassembly += "# near model CODE resource\n";
         if (decoded.num_jump_table_entries == 0) {
-          disassembly += std::format("# this CODE claims to have no jump table entries (but starts at {:04X})\n", decoded.first_jump_table_entry);
+          disassembly += std::format("# this CODE claims to have no jump table entries (but starts at {:04X})\n", decoded.first_jump_table_entry_index);
         } else {
           disassembly += std::format("# jump table entries: {}-{} ({} of them)\n",
-              decoded.first_jump_table_entry,
-              decoded.first_jump_table_entry + decoded.num_jump_table_entries - 1,
+              decoded.first_jump_table_entry_index,
+              decoded.first_jump_table_entry_index + decoded.num_jump_table_entries - 1,
               decoded.num_jump_table_entries);
         }
       }
@@ -1654,7 +1722,7 @@ private:
     if (s) {
       for (const auto& it : s->instrument_overrides) {
         try {
-          instruments.emplace_back(generate_json_for_INST(
+          instruments.emplace_back(this->generate_json_for_INST(
               base_filename, it.first, this->current_rf->decode_INST(it.second), s->semitone_shift));
         } catch (const std::exception& e) {
           phosg::fwrite_fmt(stderr, "warning: failed to add instrument {} from INST {}: {}\n",
@@ -1667,7 +1735,7 @@ private:
         continue; // already added this one as a different instrument
       }
       try {
-        instruments.emplace_back(generate_json_for_INST(
+        instruments.emplace_back(this->generate_json_for_INST(
             base_filename, id, this->current_rf->decode_INST(id), s ? s->semitone_shift : 0));
       } catch (const std::exception& e) {
         phosg::fwrite_fmt(stderr, "warning: failed to add instrument {}: {}\n", id, e.what());
@@ -1739,14 +1807,14 @@ private:
 
   void write_decoded_INST(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
-    auto json = generate_json_for_INST(base_filename, res->id, this->current_rf->decode_INST(res), 0);
+    auto json = this->generate_json_for_INST(base_filename, res->id, this->current_rf->decode_INST(res), 0);
     this->write_decoded_data(base_filename, res, ".json", json.serialize(phosg::JSON::SerializeOption::FORMAT));
   }
 
   void write_decoded_SONG(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto song = this->current_rf->decode_SONG(res);
-    auto json = generate_json_for_SONG(base_filename, &song);
+    auto json = this->generate_json_for_SONG(base_filename, &song);
     this->write_decoded_data(base_filename, res, "_smssynth_env.json", json.serialize(phosg::JSON::SerializeOption::FORMAT));
   }
 
@@ -1761,7 +1829,7 @@ private:
 
   static const std::unordered_map<uint32_t, resource_decode_fn> default_type_to_decode_fn;
 
-  std::unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn;
+  std::unordered_map<uint32_t, resource_decode_fn> type_to_decode_fn = default_type_to_decode_fn;
 
   // Maps (type, ID) pairs to a type to remap special resources (e.g. INTL 0 which is remapped to itl0)
   static const std::map<std::pair<uint32_t, int16_t>, uint32_t> remap_resource_type_id;
@@ -1872,15 +1940,18 @@ private:
       auto resources = this->current_rf->all_resources();
 
       bool has_INST = false;
+      bool has_CODE = false;
       for (const auto& it : resources) {
         if (!is_included(it.first, it.second) || is_excluded(it.first, it.second)) {
           continue;
         }
 
         const auto& res = this->current_rf->get_resource(it.first, it.second, this->decompress_flags);
-
         if (it.first == ResourceDASM::RESOURCE_TYPE_INST) {
           has_INST = true;
+        }
+        if (it.first == ResourceDASM::RESOURCE_TYPE_CODE) {
+          has_CODE = true;
         }
         ret |= this->export_resource(base_filename, res);
       }
@@ -1891,11 +1962,25 @@ private:
         std::string json_filename = output_filename(
             base_filename, nullptr, nullptr, "generated", "", 0, "smssynth_env_template.json");
         try {
-          auto json = generate_json_for_SONG(base_filename, nullptr);
+          auto json = this->generate_json_for_SONG(base_filename, nullptr);
           phosg::save_file(json_filename, json.serialize(phosg::JSON::SerializeOption::FORMAT));
           phosg::fwrite_fmt(stderr, "... {}\n", json_filename);
         } catch (const std::exception& e) {
           phosg::fwrite_fmt(stderr, "failed to write smssynth env template {}: {}\n", json_filename, e.what());
+        }
+      }
+
+      // Second special case: if --generate-decomp-archive was given and there are any CODE resources, generate the
+      // disassembly archive
+      if (has_CODE && this->should_generate_decomp_archive) {
+        std::string filename = output_filename(
+            base_filename, nullptr, nullptr, "generated", "", 0, "decomp_archive.bin");
+        try {
+          auto archive = this->generate_decomp_archive();
+          phosg::save_file(filename, archive.data);
+          phosg::fwrite_fmt(stderr, "... {} (base = 0x{:08X}, a5 = 0x{:08X})\n", filename, archive.base, archive.a5);
+        } catch (const std::exception& e) {
+          phosg::fwrite_fmt(stderr, "failed to write decomp archive {}: {}\n", filename, e.what());
         }
       }
 
@@ -1954,25 +2039,14 @@ public:
     SKIP,
   };
 
-  ResourceExporter()
-      : type_to_decode_fn(default_type_to_decode_fn),
-        index_format(ResourceDASM::IndexFormat::RESOURCE_FORK),
-        use_data_fork(false),
-        filename_format(FILENAME_FORMAT_STANDARD),
-        save_raw(SaveRawBehavior::IF_DECODE_FAILS),
-        decompress_flags(0),
-        target_compressed_behavior(TargetCompressedBehavior::DEFAULT),
-        skip_templates(false),
-        export_icon_family_as_image(true),
-        export_icon_family_as_icns(true),
-        image_saver() {}
+  ResourceExporter() = default;
   ~ResourceExporter() = default;
 
-  ResourceDASM::IndexFormat index_format;
-  bool use_data_fork;
-  std::string filename_format;
-  SaveRawBehavior save_raw;
-  uint64_t decompress_flags;
+  ResourceDASM::IndexFormat index_format = ResourceDASM::IndexFormat::RESOURCE_FORK;
+  bool use_data_fork = false;
+  std::string filename_format = FILENAME_FORMAT_STANDARD;
+  SaveRawBehavior save_raw = SaveRawBehavior::IF_DECODE_FAILS;
+  uint64_t decompress_flags = 0;
   std::unordered_map<uint32_t, ResourceDASM::ResourceIDs> target_types_ids;
   std::unordered_map<uint32_t, ResourceDASM::ResourceIDs> skip_types_ids;
   std::optional<ResourceDASM::ResourceIDs> target_ids;
@@ -1980,10 +2054,11 @@ public:
   std::optional<ResourceDASM::ResourceIDs> skip_ids;
   std::unordered_set<std::string> skip_names;
   std::vector<std::string> external_preprocessor_command;
-  TargetCompressedBehavior target_compressed_behavior;
-  bool skip_templates;
-  bool export_icon_family_as_image;
-  bool export_icon_family_as_icns;
+  TargetCompressedBehavior target_compressed_behavior = TargetCompressedBehavior::DEFAULT;
+  bool skip_templates = false;
+  bool export_icon_family_as_image = true;
+  bool export_icon_family_as_icns = true;
+  bool should_generate_decomp_archive = false;
   ResourceDASM::ImageSaver image_saver;
 
 private:
@@ -2819,6 +2894,8 @@ int main(int argc, char** argv) {
             throw std::invalid_argument("invalid value for --icon-family-format");
           }
         }
+      } else if (!strcmp(argv[x], "--generate-decomp-archive")) {
+        exporter.should_generate_decomp_archive = true;
 
       } else if (!strcmp(argv[x], "--data-fork")) {
         exporter.use_data_fork = true;

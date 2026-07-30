@@ -260,7 +260,7 @@ struct Code0ResourceHeader {
 } __attribute__((packed));
 
 struct CodeResourceHeader {
-  phosg::be_uint16_t first_jump_table_entry;
+  phosg::be_uint16_t first_jump_table_entry_offset;
   phosg::be_uint16_t num_jump_table_entries;
 } __attribute__((packed));
 

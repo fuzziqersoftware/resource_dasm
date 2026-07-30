@@ -1286,10 +1286,10 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(const void* vdata, s
   const auto& header = r.get<CodeResourceHeader>(false);
 
   DecodedCodeResource ret;
-  if ((header.first_jump_table_entry == 0xFFFF) && (header.num_jump_table_entries == 0x0000)) {
+  if ((header.first_jump_table_entry_offset == 0xFFFF) && (header.num_jump_table_entries == 0x0000)) {
     const auto& far_header = r.get<CodeResourceFarHeader>();
 
-    ret.first_jump_table_entry = -1;
+    ret.first_jump_table_entry_index = -1;
     ret.num_jump_table_entries = 0;
     ret.near_entry_start_a5_offset = far_header.near_entry_start_a5_offset;
     ret.near_entry_count = far_header.near_entry_count;
@@ -1311,7 +1311,7 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(const void* vdata, s
 
   } else {
     r.skip(sizeof(CodeResourceHeader));
-    ret.first_jump_table_entry = header.first_jump_table_entry;
+    ret.first_jump_table_entry_index = header.first_jump_table_entry_offset / sizeof(Code0ResourceHeader::MethodEntry);
     ret.num_jump_table_entries = header.num_jump_table_entries;
   }
 
