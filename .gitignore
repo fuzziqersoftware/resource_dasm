@@ -5,6 +5,7 @@
 libresource_file.a
 libresource_file_sdl.a
 resource_file-config.cmake
+appledouble_decode
 assemble_images
 blobbo_render
 bugs_bannis_render
