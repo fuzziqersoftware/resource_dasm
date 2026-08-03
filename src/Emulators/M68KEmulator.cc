@@ -2855,7 +2855,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
     }
   } else {
     shift_amount = (a == 0) ? 8 : a;
-    if (shift_amount == 8 && size == SIZE_BYTE) {
+    if (shift_amount == 8 && size == SIZE_BYTE && ((k & 6) != 4)) { // roxl/roxr handle a byte count of 8 below
       throw std::runtime_error("unimplemented: shift opcode with size=byte and shift=8");
     }
   }
@@ -2872,6 +2872,38 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       bool left_shift = (k & 1);
       bool logical_shift = (k & 2);
       bool rotate = (k & 4);
+
+      if (rotate && !logical_shift) { // roxl/roxr DREG, COUNT/REG
+        // Rotate through the X bit: the operand and X together form a (bits + 1)-bit rotate, so the effective count
+        // is the count modulo (bits + 1). The register form uses Dn mod 64 before that reduction.
+        uint8_t bits = bytes_for_size[size] * 8;
+        uint32_t mask = (size == SIZE_LONG) ? 0xFFFFFFFF : ((1 << bits) - 1);
+        uint8_t count = shift_is_reg ? (this->regs.d[a].u & 0x3F) : shift_amount;
+        uint32_t v = this->regs.d[Xn].u & mask;
+        bool x = this->regs.sr.get_x();
+        int64_t x_flag;
+        int64_t c_flag;
+        if (count == 0) {
+          // A count of zero leaves X unchanged and sets C to X (unlike the other shift/rotate opcodes)
+          x_flag = -1;
+          c_flag = x;
+        } else {
+          for (uint8_t z = count % (bits + 1); z > 0; z--) {
+            bool new_x = left_shift ? ((v >> (bits - 1)) & 1) : (v & 1);
+            if (left_shift) {
+              v = ((v << 1) | x) & mask;
+            } else {
+              v = (v >> 1) | (static_cast<uint32_t>(x) << (bits - 1));
+            }
+            x = new_x;
+          }
+          x_flag = x;
+          c_flag = x;
+        }
+        this->regs.d[Xn].u = (this->regs.d[Xn].u & (~mask)) | v;
+        this->regs.set_ccr_flags(x_flag, (v >> (bits - 1)) & 1, (v == 0), 0, c_flag);
+        return;
+      }
 
       if (shift_amount == 0) {
         this->regs.set_ccr_flags(-1, is_negative(this->regs.d[Xn].u, SIZE_LONG), (this->regs.d[Xn].u == 0), 0, 0);
