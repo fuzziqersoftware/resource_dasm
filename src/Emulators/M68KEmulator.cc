@@ -1591,7 +1591,12 @@ void M68KEmulator::exec_4(uint16_t opcode) {
             return;
           }
           case 3: { // not.S ADDR
-            uint32_t value = ~static_cast<int32_t>(this->read(addr, size));
+            uint32_t value = ~this->read(addr, size);
+            if (size == SIZE_BYTE) {
+              value &= 0xFF;
+            } else if (size == SIZE_WORD) {
+              value &= 0xFFFF;
+            }
             this->write(addr, value, size);
             this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
             return;
