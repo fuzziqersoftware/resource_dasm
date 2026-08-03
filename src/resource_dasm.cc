@@ -1215,7 +1215,7 @@ private:
                 "Jump table entry {} is not valid for CODE {} ({})",
                 entry_index, res_id, phosg::format_data_string(&entry, sizeof(entry))));
           }
-          uint32_t target = segment_base + entry.offset + 4;
+          uint32_t target = segment_base + entry.offset;
           entry.offset = static_cast<uint16_t>(res_id);
           entry.push_opcode = 0x4EF9;
           entry.resource_id = static_cast<int16_t>(target >> 16);
