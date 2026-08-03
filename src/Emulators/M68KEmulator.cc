@@ -2057,25 +2057,30 @@ void M68KEmulator::exec_5(uint16_t opcode) {
     }
 
   } else { // subq/addq ADDR, IMM
-    // TODO: when dealing with address registers, size is ignored according to the manual. Implement this.
-    auto addr = this->resolve_address(M, Xn, size);
     uint8_t value = op_get_a(opcode);
     if (value == 0) {
       value = 8;
     }
 
-    // Note: ccr flags are skipped when operating on an A register (M == 1)
+    if (M == 1) {
+      // When the destination is an address register, the entire 32-bit register is used regardless of
+      // the operation size, and the condition codes are not affected.
+      if (op_get_g(opcode)) {
+        this->regs.a[Xn] -= value;
+      } else {
+        this->regs.a[Xn] += value;
+      }
+      return;
+    }
+
+    auto addr = this->resolve_address(M, Xn, size);
     uint32_t mem_value = this->read(addr, size);
     if (op_get_g(opcode)) {
+      this->regs.set_ccr_flags_integer_subtract(mem_value, value, size);
       this->write(addr, mem_value - value, size);
-      if (M != 1) {
-        this->regs.set_ccr_flags_integer_subtract(mem_value, value, size);
-      }
     } else {
+      this->regs.set_ccr_flags_integer_add(mem_value, value, size);
       this->write(addr, mem_value + value, size);
-      if (M != 1) {
-        this->regs.set_ccr_flags_integer_add(mem_value, value, size);
-      }
     }
     this->regs.set_ccr_flags(this->regs.sr.get_c(), -1, -1, -1, -1);
   }
