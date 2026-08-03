@@ -4874,7 +4874,7 @@ X86Emulator::AssembleResult X86Emulator::Assembler::assemble(
         if (value_arg.type != Argument::Type::IMMEDIATE) {
           throw std::runtime_error("missing or invalid address in .label directive");
         }
-        this->fixed_labels.emplace(lookup_node->name, value_arg.int_value_expr->evaluate().as_int());
+        this->fixed_labels.emplace(lookup_node->name, this->resolve_immediate(value_arg, true));
         si.op_name.clear();
       }
 
@@ -5537,7 +5537,7 @@ uint32_t X86Emulator::Assembler::compute_branch_target_from_arg0(const StreamIte
   }
 }
 
-int64_t X86Emulator::Assembler::resolve_immediate(const Argument& arg) const {
+int64_t X86Emulator::Assembler::resolve_immediate(const Argument& arg, bool is_label_def) const {
   if (!arg.int_value_expr) {
     if (arg.type & Argument::Type::MEMORY_REFERENCE) {
       return 0;
@@ -5546,8 +5546,10 @@ int64_t X86Emulator::Assembler::resolve_immediate(const Argument& arg) const {
     }
   }
 
-  auto env_lookup = [this, &arg](const std::string& name) -> int64_t {
-    arg.has_code_delta = true;
+  auto env_lookup = [this, &arg, is_label_def](const std::string& name) -> int64_t {
+    if (!is_label_def) {
+      arg.has_code_delta = true;
+    }
 
     auto fixed_label_it = this->fixed_labels.find(name);
     auto inline_label_it = this->label_si_indexes.find(name);
@@ -5556,6 +5558,11 @@ int64_t X86Emulator::Assembler::resolve_immediate(const Argument& arg) const {
     } else if (fixed_label_it != this->fixed_labels.end()) {
       return fixed_label_it->second;
     } else if (inline_label_it != this->label_si_indexes.end()) {
+      if (is_label_def) {
+        // TODO: We probably can support this if we do some kind of fancy dependency graph across labels. Building that
+        // would probably not be worth the effort and complexity.
+        throw std::runtime_error(".label directive can only refer to fixed labels");
+      }
       size_t to_index = inline_label_it->second;
       if (to_index >= this->stream.size()) {
         throw std::runtime_error("Branch beyond end of stream");
@@ -7006,6 +7013,11 @@ void X86Emulator::Assembler::asm_fbstp(phosg::StringWriter& w, StreamItem& si) c
   this->encode_rm(w, si.args[0], 6);
 }
 
+void X86Emulator::Assembler::asm_dir_byte(phosg::StringWriter& w, StreamItem& si) const {
+  si.check_arg_types({T::IMMEDIATE});
+  w.put_u8(this->resolve_immediate(si.args[0]));
+}
+
 void X86Emulator::Assembler::asm_dir_data(phosg::StringWriter& w, StreamItem& si) const {
   si.check_arg_types({T::IMMEDIATE});
   w.put_u32l(this->resolve_immediate(si.args[0]));
@@ -7350,6 +7362,7 @@ const std::unordered_map<std::string, X86Emulator::Assembler::AssembleFunction> 
     {"xadd", &X86Emulator::Assembler::asm_xadd},
     {"xchg", &X86Emulator::Assembler::asm_xchg},
     {"xor", &X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp},
+    {".byte", &X86Emulator::Assembler::asm_dir_byte},
     {".data", &X86Emulator::Assembler::asm_dir_data},
     {".zero", &X86Emulator::Assembler::asm_dir_zero},
     {".binary", &X86Emulator::Assembler::asm_dir_binary},

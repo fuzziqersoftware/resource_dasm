@@ -896,7 +896,7 @@ protected:
     void encode_rm(phosg::StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
     void encode_rm(phosg::StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
     uint32_t compute_branch_target_from_arg0(const StreamItem& si) const;
-    int64_t resolve_immediate(const Argument& arg) const;
+    int64_t resolve_immediate(const Argument& arg, bool is_label_def = false) const;
 
     void asm_aaa_aas_aad_aam(phosg::StringWriter& w, StreamItem& si) const;
     void asm_add_or_adc_sbb_and_sub_xor_cmp(phosg::StringWriter& w, StreamItem& si) const;
@@ -1028,6 +1028,7 @@ protected:
     void asm_fbld(phosg::StringWriter& w, StreamItem& si) const;
     void asm_fbstp(phosg::StringWriter& w, StreamItem& si) const;
 
+    void asm_dir_byte(phosg::StringWriter& w, StreamItem& si) const;
     void asm_dir_data(phosg::StringWriter& w, StreamItem& si) const;
     void asm_dir_zero(phosg::StringWriter& w, StreamItem& si) const;
     void asm_dir_binary(phosg::StringWriter& w, StreamItem& si) const;
