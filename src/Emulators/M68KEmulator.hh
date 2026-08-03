@@ -210,7 +210,7 @@ private:
   uint32_t fetch_instruction_data(uint8_t size, bool advance = true);
   int32_t fetch_instruction_data_signed(uint8_t size, bool advance = true);
 
-  uint32_t resolve_address_extension(uint16_t ext);
+  uint32_t resolve_address_extension(uint32_t base, uint16_t ext);
   uint32_t resolve_address_control(uint8_t M, uint8_t Xn);
   uint32_t resolve_address_jump(uint8_t M, uint8_t Xn);
   ResolvedAddress resolve_address(uint8_t M, uint8_t Xn, uint8_t size);

@@ -570,30 +570,67 @@ int32_t M68KEmulator::fetch_instruction_data_signed(uint8_t size, bool advance) 
   return data;
 }
 
-uint32_t M68KEmulator::resolve_address_extension(uint16_t ext) {
+uint32_t M68KEmulator::resolve_address_extension(uint32_t base, uint16_t ext) {
+  // base is the base register's value: An for mode-6 references, or the address of the extension word itself for
+  // PC-relative references. The full effective address is returned (not an offset from base), since the 68020
+  // memory-indirect forms dereference an intermediate address.
   bool is_a_reg = ext & 0x8000;
   uint8_t reg_num = static_cast<uint8_t>((ext >> 12) & 7);
   bool index_is_word = !(ext & 0x0800);
   uint8_t scale = 1 << ((ext >> 9) & 3);
 
-  int32_t disp_reg_value = this->regs.get_reg_value(is_a_reg, reg_num);
+  int32_t index = this->regs.get_reg_value(is_a_reg, reg_num);
   if (index_is_word) {
     // Word index: use only the low 16 bits of the register, sign-extended. The high word is ignored; it commonly holds
     // stale data after a move.w
-    disp_reg_value = static_cast<int32_t>(static_cast<int16_t>(disp_reg_value & 0xFFFF));
+    index = static_cast<int32_t>(static_cast<int16_t>(index & 0xFFFF));
   }
-  uint32_t ret = disp_reg_value * scale;
+  index *= scale;
+
   if (!(ext & 0x0100)) {
-    // Brief extension word
-    // TODO: is this signed? here we're assuming it is
-    int8_t offset = static_cast<int8_t>(ext & 0xFF);
-    ret += offset;
-    return ret;
+    // Brief extension word: base + index + 8-bit signed displacement
+    return base + index + static_cast<int8_t>(ext & 0xFF);
   }
 
-  // Full extension word
-  // TODO: implement this. See page 43 in the programmers' manual
-  throw std::runtime_error("unimplemented: full extension word");
+  // Full extension word (68020+). The base and index registers can each be suppressed, the base and outer
+  // displacements can each be null, word, or long, and memory can be indirected before or after indexing:
+  //   No memory indirect:   base + bd + index
+  //   Preindexed indirect:  read_u32(base + bd + index) + od
+  //   Postindexed indirect: read_u32(base + bd) + index + od
+  if (ext & 0x0040) { // Index suppress
+    index = 0;
+  }
+  if (ext & 0x0080) { // Base suppress
+    base = 0;
+  }
+  uint8_t bd_size = (ext >> 4) & 3;
+  int32_t bd = 0;
+  if (bd_size == 2) {
+    bd = this->fetch_instruction_data_signed(SIZE_WORD);
+  } else if (bd_size == 3) {
+    bd = this->fetch_instruction_data_signed(SIZE_LONG);
+  }
+
+  uint8_t i_is = ext & 7;
+  if (i_is == 0) { // No memory indirect action
+    return base + bd + index;
+  }
+  if (i_is == 4) {
+    throw std::runtime_error("invalid full extension word (I/IS = 4)");
+  }
+
+  // The low 2 bits of I/IS give the outer displacement size; bit 2 selects postindexed (1) or preindexed (0)
+  int32_t od = 0;
+  if ((i_is & 3) == 2) {
+    od = this->fetch_instruction_data_signed(SIZE_WORD);
+  } else if ((i_is & 3) == 3) {
+    od = this->fetch_instruction_data_signed(SIZE_LONG);
+  }
+  if (i_is & 4) { // Postindexed
+    return this->read(base + bd, SIZE_LONG) + index + od;
+  } else { // Preindexed
+    return this->read(base + bd + index, SIZE_LONG) + od;
+  }
 }
 
 uint32_t M68KEmulator::resolve_address_control(uint8_t M, uint8_t Xn) {
@@ -603,7 +640,7 @@ uint32_t M68KEmulator::resolve_address_control(uint8_t M, uint8_t Xn) {
     case 5:
       return this->regs.a[Xn] + this->fetch_instruction_word_signed();
     case 6:
-      return this->regs.a[Xn] + this->resolve_address_extension(this->fetch_instruction_word());
+      return this->resolve_address_extension(this->regs.a[Xn], this->fetch_instruction_word());
     case 7: {
       switch (Xn) {
         case 0:
@@ -616,7 +653,7 @@ uint32_t M68KEmulator::resolve_address_control(uint8_t M, uint8_t Xn) {
         }
         case 3: {
           uint32_t orig_pc = this->regs.pc;
-          return orig_pc + this->resolve_address_extension(this->fetch_instruction_word());
+          return this->resolve_address_extension(orig_pc, this->fetch_instruction_word());
         }
         default:
           throw std::runtime_error("incorrect address mode in control reference");
@@ -646,7 +683,7 @@ M68KEmulator::ResolvedAddress M68KEmulator::resolve_address(uint8_t M, uint8_t X
     case 5:
       return {this->regs.a[Xn] + this->fetch_instruction_word_signed(), ResolvedAddress::Location::MEMORY};
     case 6:
-      return {this->regs.a[Xn] + this->resolve_address_extension(this->fetch_instruction_word()),
+      return {this->resolve_address_extension(this->regs.a[Xn], this->fetch_instruction_word()),
           ResolvedAddress::Location::MEMORY};
     case 7: {
       switch (Xn) {
@@ -656,9 +693,11 @@ M68KEmulator::ResolvedAddress M68KEmulator::resolve_address(uint8_t M, uint8_t X
           return {this->fetch_instruction_data(SIZE_LONG), ResolvedAddress::Location::MEMORY};
         case 2:
           return {this->regs.pc + this->fetch_instruction_word_signed(), ResolvedAddress::Location::MEMORY};
-        case 3:
-          return {this->regs.pc + this->resolve_address_extension(this->fetch_instruction_word()),
+        case 3: {
+          uint32_t orig_pc = this->regs.pc;
+          return {this->resolve_address_extension(orig_pc, this->fetch_instruction_word()),
               ResolvedAddress::Location::MEMORY};
+        }
         case 4:
           if (size == SIZE_LONG) {
             this->regs.pc += 4;
