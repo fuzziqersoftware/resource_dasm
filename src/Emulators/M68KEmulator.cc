@@ -2305,7 +2305,15 @@ void M68KEmulator::exec_8(uint16_t opcode) {
   } else { // or.S DREG ADDR
     this->regs.d[a].u = value;
   }
-  this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
+  // For byte/word sizes, value contains the bits of Dn above the operation size; those bits are correctly preserved
+  // by the register writeback above, but must not affect the flags
+  uint32_t sized_value = value;
+  if (size == SIZE_BYTE) {
+    sized_value &= 0xFF;
+  } else if (size == SIZE_WORD) {
+    sized_value &= 0xFFFF;
+  }
+  this->regs.set_ccr_flags(-1, is_negative(sized_value, size), (sized_value == 0), 0, 0);
 }
 
 std::string M68KEmulator::dasm_8(DisassemblyState& s) {
