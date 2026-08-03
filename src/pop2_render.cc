@@ -1055,6 +1055,8 @@ int main(int argc, char** argv) {
   if (output_dir.empty()) {
     output_dir = ".";
   }
+  bool render_graphics = !args.get<bool>("skip-graphics");
+  args.assert_none_unused();
 
   auto prince_rsrc = ResourceDASM::parse_resource_fork(phosg::load_file(data_dir + "/Prince.rsrc/..namedfork/rsrc"));
   auto level_kind_defs = load_level_kinds(data_dir);
@@ -1091,82 +1093,88 @@ int main(int argc, char** argv) {
         const auto& room_tiles = level->room_tiles[room_id];
         const auto& room_tile_mods = level->room_tile_mods[room_id];
 
-        // Draw orange first in case the background SHAPs or CUST doesn't fill in everything (or are missing)
-        map.write_rect(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3, 0xFF8000FF);
-
         uint32_t overlay_alpha = 0x00000080;
-        if (level_kind) {
-          // Always render the standard tiles, even if there is a CUST, since the CUST may not cover the entire screen
-          auto room_map = map.view(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3);
-          for (ssize_t z = 29; z >= 0; z--) {
-            // Render background layer
-            try {
-              size_t tile_x = (z % 10) * TILE_W_PIXELS;
-              size_t tile_y = (z / 10) * TILE_H_PIXELS;
-              ssize_t seg_offset_x = (room_tile_mods[z].bg_segment_id & 3) * TILE_W_PIXELS;
-              ssize_t seg_offset_bottom = ((room_tile_mods[z].bg_segment_id >> 2) & 3) * TILE_H_PIXELS;
-              int16_t shap_id = 3500 + room_tile_mods[z].bg_index;
-              const auto& shap = level_kind->get_SHAP(shap_id);
-              ssize_t seg_offset_y = shap.h - seg_offset_bottom - TILE_H_PIXELS;
-              ssize_t vert_blank_lines = std::max<ssize_t>(0, -seg_offset_y);
-              const auto shap_view = shap.view(
-                  seg_offset_x,
-                  seg_offset_y + vert_blank_lines,
-                  std::min<ssize_t>(TILE_W_PIXELS, shap.w - seg_offset_x),
-                  TILE_H_PIXELS - vert_blank_lines);
-              room_map.copy_from_with_blend(
-                  shap_view, tile_x, tile_y + vert_blank_lines, shap_view.w, shap_view.h, 0, 0);
-            } catch (const std::out_of_range&) {
-            }
-            // Render foreground layer. Each tile is anchored to the bottom of its cell
-            if (room_tile_mods[z].fg_index > 0) {
+
+        if (!render_graphics) {
+          map.write_rect(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3, 0xFFFFFFFF);
+
+        } else {
+          // Draw orange first in case the background SHAPs or CUST doesn't fill in everything (or are missing)
+          map.write_rect(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3, 0xFF8000FF);
+
+          if (level_kind) {
+            // Always render the standard tiles, even if there is a CUST, since the CUST may not cover the entire screen
+            auto room_map = map.view(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3);
+            for (ssize_t z = 29; z >= 0; z--) {
+              // Render background layer
               try {
                 size_t tile_x = (z % 10) * TILE_W_PIXELS;
                 size_t tile_y = (z / 10) * TILE_H_PIXELS;
-                int16_t shap_id = 3551 + room_tile_mods[z].fg_index;
+                ssize_t seg_offset_x = (room_tile_mods[z].bg_segment_id & 3) * TILE_W_PIXELS;
+                ssize_t seg_offset_bottom = ((room_tile_mods[z].bg_segment_id >> 2) & 3) * TILE_H_PIXELS;
+                int16_t shap_id = 3500 + room_tile_mods[z].bg_index;
                 const auto& shap = level_kind->get_SHAP(shap_id);
-                ssize_t vert_blank_lines = std::max<ssize_t>(0, TILE_H_PIXELS - shap.h);
+                ssize_t seg_offset_y = shap.h - seg_offset_bottom - TILE_H_PIXELS;
+                ssize_t vert_blank_lines = std::max<ssize_t>(0, -seg_offset_y);
+                const auto shap_view = shap.view(
+                    seg_offset_x,
+                    seg_offset_y + vert_blank_lines,
+                    std::min<ssize_t>(TILE_W_PIXELS, shap.w - seg_offset_x),
+                    TILE_H_PIXELS - vert_blank_lines);
                 room_map.copy_from_with_blend(
-                    shap, tile_x, tile_y + vert_blank_lines, shap.w, shap.h, 0, 0);
+                    shap_view, tile_x, tile_y + vert_blank_lines, shap_view.w, shap_view.h, 0, 0);
               } catch (const std::out_of_range&) {
               }
-            }
-          }
-
-          // If any tile in the room has modifiers with either of bits 0xC0 set in mod0, there is a CUST for the room
-          bool has_cust = false;
-          for (size_t z = 0; z < 30; z++) {
-            if (room_tile_mods[z].mod0 & 0xC0) {
-              has_cust = true;
-              break;
-            }
-          }
-
-          // If there is a CUST for this level, use it
-          if (has_cust) {
-            int16_t cust_id = (room_id * 25) + 4000;
-            try {
-              auto cust = level_kind->get_CUST(cust_id);
-              overlay_alpha = 0x00000040;
-              for (size_t z = 0; z < cust.pieces.size(); z++) {
-                const auto& piece = cust.pieces[z];
-                ssize_t piece_x = room_x + piece.left_offset;
-                ssize_t piece_bottom_y = room_y + piece.vert_offset;
+              // Render foreground layer. Each tile is anchored to the bottom of its cell
+              if (room_tile_mods[z].fg_index > 0) {
                 try {
-                  const auto& shap = level_kind->get_SHAP(piece.shap_id);
-                  map.copy_from_with_blend(shap, piece_x, piece_bottom_y - shap.h, shap.w, shap.h, 0, 0);
-                  // map.draw_rect(piece_x, piece_bottom_y - shap.h, shap.w, shap.h, 0xFFFF00FF);
-                  // map.draw_text(piece_x + 2, piece_bottom_y + 2, 0xFFFF00FF, "^ CUST:{}#{}\nSHAP:{}\nL:{} B:{}\nX:{} Y:{}\nW:{} H:{}\nT:{}",
-                  //     cust_id, z, piece.shap_id, piece.left_offset, piece.vert_offset, piece_x, piece_bottom_y,
-                  //     shap ? shap.w : 0, shap ? shap.h : 0, piece.type);
+                  size_t tile_x = (z % 10) * TILE_W_PIXELS;
+                  size_t tile_y = (z / 10) * TILE_H_PIXELS;
+                  int16_t shap_id = 3551 + room_tile_mods[z].fg_index;
+                  const auto& shap = level_kind->get_SHAP(shap_id);
+                  ssize_t vert_blank_lines = std::max<ssize_t>(0, TILE_H_PIXELS - shap.h);
+                  room_map.copy_from_with_blend(
+                      shap, tile_x, tile_y + vert_blank_lines, shap.w, shap.h, 0, 0);
                 } catch (const std::out_of_range&) {
-                  map.draw_text(piece_x + 2, piece_bottom_y + 2, 0xFFFF00FF, "CUST:{}#{}\nSHAP:{} MISSING\nL:{} B:{}\nX:{} Y:{}\nT:{}",
-                      cust_id, z, piece.shap_id, piece.left_offset, piece.vert_offset, piece_x, piece_bottom_y, piece.type);
                 }
               }
-            } catch (const std::out_of_range&) {
-              map.write_rect(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3, 0xFF0000FF);
-              map.draw_text(room_x + 1, room_y + 1, 0x000000FF, "CUST:{} MISSING", cust_id);
+            }
+
+            // If any tile in the room has modifiers with either of bits 0xC0 set in mod0, there is a CUST for the room
+            bool has_cust = false;
+            for (size_t z = 0; z < 30; z++) {
+              if (room_tile_mods[z].mod0 & 0xC0) {
+                has_cust = true;
+                break;
+              }
+            }
+
+            // If there is a CUST for this level, use it
+            if (has_cust) {
+              int16_t cust_id = (room_id * 25) + 4000;
+              try {
+                auto cust = level_kind->get_CUST(cust_id);
+                overlay_alpha = 0x00000040;
+                for (size_t z = 0; z < cust.pieces.size(); z++) {
+                  const auto& piece = cust.pieces[z];
+                  ssize_t piece_x = room_x + piece.left_offset;
+                  ssize_t piece_bottom_y = room_y + piece.vert_offset;
+                  try {
+                    const auto& shap = level_kind->get_SHAP(piece.shap_id);
+                    map.copy_from_with_blend(shap, piece_x, piece_bottom_y - shap.h, shap.w, shap.h, 0, 0);
+                    // map.draw_rect(piece_x, piece_bottom_y - shap.h, shap.w, shap.h, 0xFFFF00FF);
+                    // map.draw_text(piece_x + 2, piece_bottom_y + 2, 0xFFFF00FF, "^ CUST:{}#{}\nSHAP:{}\nL:{} B:{}\nX:{} Y:{}\nW:{} H:{}\nT:{}",
+                    //     cust_id, z, piece.shap_id, piece.left_offset, piece.vert_offset, piece_x, piece_bottom_y,
+                    //     shap ? shap.w : 0, shap ? shap.h : 0, piece.type);
+                  } catch (const std::out_of_range&) {
+                    map.draw_text(piece_x + 2, piece_bottom_y + 2, 0xFFFF00FF, "CUST:{}#{}\nSHAP:{} MISSING\nL:{} B:{}\nX:{} Y:{}\nT:{}",
+                        cust_id, z, piece.shap_id, piece.left_offset, piece.vert_offset, piece_x, piece_bottom_y, piece.type);
+                  }
+                }
+              } catch (const std::out_of_range&) {
+                map.write_rect(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3, 0xFF0000FF);
+                map.draw_text(room_x + 1, room_y + 1, 0x000000FF, "CUST:{} MISSING", cust_id);
+              }
             }
           }
         }
