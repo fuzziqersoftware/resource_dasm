@@ -5646,7 +5646,7 @@ void PPC32Emulator::exec_FC_00E_00F_fctiw_fctiwz(uint32_t op) {
   double v = this->regs.f[op_get_reg3(op)].f;
   if (v > 0x7FFFFFFF) {
     this->regs.f[op_get_reg1(op)].s = 0x000000007FFFFFFF;
-  } else if (v < -0x80000000) {
+  } else if (v < -0x80000000LL) {
     this->regs.f[op_get_reg1(op)].s = 0xFFFFFFFF80000000;
   } else if (op & 2) { // fctiwz
     this->regs.f[op_get_reg1(op)].s = static_cast<int32_t>(v);
