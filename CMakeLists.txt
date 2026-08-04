@@ -195,3 +195,17 @@ install(TARGETS m68kexec DESTINATION bin)
 install(TARGETS render_bits DESTINATION bin)
 install(TARGETS replace_clut DESTINATION bin)
 install(TARGETS assemble_images DESTINATION bin)
+
+
+
+# Test configuration
+
+enable_testing()
+
+add_executable(test_trap_info src/test_trap_info.cc)
+target_link_libraries(test_trap_info resource_file)
+
+add_test(
+    NAME "trap_info"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${CMAKE_BINARY_DIR}/test_trap_info)

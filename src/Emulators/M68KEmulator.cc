@@ -2522,12 +2522,16 @@ std::string M68KEmulator::dasm_A(DisassemblyState& s) {
       ret += std::format("0x{:03X}", syscall_number);
     }
 
-    if (flags) {
+    if (flags != syscall_info->flags) {
       ret += std::format(", flags={}", flags);
     }
 
     if (auto_pop) {
       ret += ", auto_pop";
+    }
+
+    if (syscall_info && syscall_info->signature_known) {
+      ret += std::format(" /* {} */", syscall_info->str(true));
     }
 
     return ret;
@@ -3073,8 +3077,8 @@ std::string M68KEmulator::dasm_E(DisassemblyState& s) {
   uint16_t op = s.r.get_u16b();
 
   static const std::vector<const char*> op_names = {
-      "asr   ", "asl   ", "lsr   ", "lsl   ", "roxr  ", "roxl  ", "ror   ", "rol   ",
-      "bftst ", "bfextu", "bfchg ", "bfexts", "bfclr ", "bfffo ", "bfset ", "bfins "};
+      "asr", "asl", "lsr", "lsl", "roxr", "roxl", "ror", "rol",
+      "bftst", "bfextu", "bfchg", "bfexts", "bfclr", "bfffo", "bfset", "bfins"};
 
   uint8_t size = op_get_size(op);
   uint8_t Xn = op_get_d(op);
@@ -3101,15 +3105,17 @@ std::string M68KEmulator::dasm_E(DisassemblyState& s) {
         uint8_t Dn = (ext >> 12) & 7;
         // bfins reads data from Dn; all the others write to Dn
         if (k == 0x0F) {
-          return std::format("{}     {} {{{}:{}}}, D{}", op_name, ea_dasm, offset_str, width_str, Dn);
+          return std::format("{:<10} {} {{{}:{}}}, D{}", op_name, ea_dasm, offset_str, width_str, Dn);
         } else {
-          return std::format("{}     D{}, {} {{{}:{}}}", op_name, Dn, ea_dasm, offset_str, width_str);
+          return std::format("{:<10} D{}, {} {{{}:{}}}", op_name, Dn, ea_dasm, offset_str, width_str);
         }
       } else {
-        return std::format("{}     {} {{{}:{}}}", op_name, ea_dasm, offset_str, width_str);
+        return std::format("{:<10} {} {{{}:{}}}", op_name, ea_dasm, offset_str, width_str);
       }
     }
-    return std::format("{}.w   {}", op_name, M68KEmulator::dasm_address(s, M, Xn, ValueType::WORD));
+    std::string effective_name = op_name;
+    effective_name += ".w";
+    return std::format("{:<10} {}", effective_name, M68KEmulator::dasm_address(s, M, Xn, ValueType::WORD));
   }
 
   uint8_t c = op_get_c(op);
@@ -3130,12 +3136,12 @@ std::string M68KEmulator::dasm_E(DisassemblyState& s) {
   }
 
   if (shift_is_reg) {
-    return std::format("{}     {}, D{}", op_name, dest_reg_str, a);
+    return std::format("{:<10} {}, D{}", op_name, dest_reg_str, a);
   } else {
     if (!a) {
       a = 8;
     }
-    return std::format("{}     {}, {}", op_name, dest_reg_str, a);
+    return std::format("{:<10} {}, {}", op_name, dest_reg_str, a);
   }
 }
 

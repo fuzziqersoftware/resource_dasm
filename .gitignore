@@ -36,6 +36,7 @@ replace_clut
 resource_dasm
 smsdumpbanks
 smssynth
+test_trap_info
 vrfsdump
 
 # CMake files
