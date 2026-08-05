@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <phosg/Encoding.hh>
 #include <vector>
 
@@ -10,6 +11,7 @@ namespace Audio {
 template <typename SampleT>
 float sample_to_float(SampleT) {
   static_assert(phosg::always_false<SampleT>::v, "Unspecialized sample_to_float cannot be used");
+  return 0.0;
 }
 template <>
 inline float sample_to_float<uint8_t>(uint8_t sample) {
