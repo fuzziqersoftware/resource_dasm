@@ -571,61 +571,86 @@ int32_t M68KEmulator::fetch_instruction_data_signed(uint8_t size, bool advance) 
 }
 
 uint32_t M68KEmulator::resolve_address_extension(uint32_t base, uint16_t ext) {
-  // base is the base register's value: An for mode-6 references, or the address of the extension word itself for
-  // PC-relative references. The full effective address is returned (not an offset from base), since the 68020
-  // memory-indirect forms dereference an intermediate address.
-  bool is_a_reg = ext & 0x8000;
+  // base is the base register's value: An for mode-6 references, or the address of the extension word itself for PC-
+  // relative references. The full effective address is returned (not an offset from base), since the 68020 memory-
+  // indirect forms dereference an intermediate address.
+  bool index_is_a_reg = ext & 0x8000;
   uint8_t reg_num = static_cast<uint8_t>((ext >> 12) & 7);
   bool index_is_word = !(ext & 0x0800);
   uint8_t scale = 1 << ((ext >> 9) & 3);
+  bool is_full_ext = ext & 0x0100;
 
-  int32_t index = this->regs.get_reg_value(is_a_reg, reg_num);
-  if (index_is_word) {
-    // Word index: use only the low 16 bits of the register, sign-extended. The high word is ignored; it commonly holds
-    // stale data after a move.w
-    index = static_cast<int32_t>(static_cast<int16_t>(index & 0xFFFF));
-  }
-  index *= scale;
+  auto get_index = [&]() -> int32_t {
+    int32_t ret = this->regs.get_reg_value(index_is_a_reg, reg_num);
+    if (index_is_word) {
+      // Word index: use only the low 16 bits of the register, sign-extended. The high word is ignored; it commonly
+      // holds stale data after a move.w
+      ret = static_cast<int32_t>(static_cast<int16_t>(ret & 0xFFFF));
+    }
+    return ret * scale;
+  };
 
-  if (!(ext & 0x0100)) {
+  if (!is_full_ext) {
     // Brief extension word: base + index + 8-bit signed displacement
-    return base + index + static_cast<int8_t>(ext & 0xFF);
+    return base + get_index() + static_cast<int8_t>(ext & 0xFF);
   }
 
-  // Full extension word (68020+). The base and index registers can each be suppressed, the base and outer
-  // displacements can each be null, word, or long, and memory can be indirected before or after indexing:
-  //   No memory indirect:   base + bd + index
-  //   Preindexed indirect:  read_u32(base + bd + index) + od
-  //   Postindexed indirect: read_u32(base + bd) + index + od
-  if (ext & 0x0040) { // Index suppress
-    index = 0;
-  }
-  if (ext & 0x0080) { // Base suppress
+  // The IS and I/IS fields define the indirection behavior:
+  //   0 000 => No Memory Indirect Action: base + bd + index
+  //   0 001 => Indirect Preindexed with Null Outer Displacement: [base + bd + index]
+  //   0 010 => Indirect Preindexed with Word Outer Displacement: [base + bd + index] + sign_extend<16, 32>(od)
+  //   0 011 => Indirect Preindexed with Long Outer Displacement: [base + bd + index] + od
+  //   0 100 => Reserved
+  //   0 101 => Indirect Postindexed with Null Outer Displacement: [base + bd] + index
+  //   0 110 => Indirect Postindexed with Word Outer Displacement: [base + bd] + index + sign_extend<16, 32>(od)
+  //   0 111 => Indirect Postindexed with Long Outer Displacement: [base + bd] + index + od
+  //   1 000 => No Memory Indirect Action (same as 0 000)
+  //   1 001 => Memory Indirect with Null Outer Displacement: [base + bd]
+  //   1 010 => Memory Indirect with Word Outer Displacement: [base + bd] + sign_extend<16, 32>(od)
+  //   1 011 => Memory Indirect with Long Outer Displacement: [base + bd] + od
+  //   1 100 => Reserved
+  //   1 101 => Reserved
+  //   1 110 => Reserved
+  //   1 111 => Reserved
+  // Additionally, the base may be suppressed, in which case it's treated as 0.
+
+  bool suppress_index = (ext & 0x0040);
+  int32_t index = suppress_index ? 0 : get_index();
+  if (ext & 0x0080) {
     base = 0;
   }
-  uint8_t bd_size = (ext >> 4) & 3;
-  int32_t bd = 0;
-  if (bd_size == 2) {
-    bd = this->fetch_instruction_data_signed(SIZE_WORD);
-  } else if (bd_size == 3) {
-    bd = this->fetch_instruction_data_signed(SIZE_LONG);
-  }
+
+  auto read_displacement = [&](uint8_t which) -> int32_t {
+    switch (which) {
+      case 0:
+        // 0 is a reserved value according to the programmer's manual (table 2-1 on page 2-3)
+        throw std::runtime_error("invalid full extenion word with bd_size = 0");
+      case 1:
+        return 0;
+      case 2:
+        return this->fetch_instruction_data_signed(SIZE_WORD);
+      case 3:
+        return this->fetch_instruction_data_signed(SIZE_LONG);
+      default:
+        throw std::logic_error("unhandled displacement size value");
+    }
+  };
+
+  int32_t bd = read_displacement((ext >> 4) & 3);
 
   uint8_t i_is = ext & 7;
-  if (i_is == 0) { // No memory indirect action
+  if (i_is == 0) { // No memory indirect action (cases 0 000 and 1 000)
     return base + bd + index;
   }
-  if (i_is == 4) {
+  if (i_is == 4) { // Reserved (cases 0 100 and 1 100)
     throw std::runtime_error("invalid full extension word (I/IS = 4)");
   }
-
-  // The low 2 bits of I/IS give the outer displacement size; bit 2 selects postindexed (1) or preindexed (0)
-  int32_t od = 0;
-  if ((i_is & 3) == 2) {
-    od = this->fetch_instruction_data_signed(SIZE_WORD);
-  } else if ((i_is & 3) == 3) {
-    od = this->fetch_instruction_data_signed(SIZE_LONG);
+  if (suppress_index && i_is > 4) { // Reserved (cases 1 101, 1 110, and 1 111)
+    throw std::runtime_error("invalid full extension word (IS = 1 and I/IS > 4)");
   }
+
+  // All remaining cases (x 001, x 010, x 011)
+  int32_t od = read_displacement(i_is & 3);
   if (i_is & 4) { // Postindexed
     return this->read(base + bd, SIZE_LONG) + index + od;
   } else { // Preindexed
@@ -651,10 +676,8 @@ uint32_t M68KEmulator::resolve_address_control(uint8_t M, uint8_t Xn) {
           uint32_t orig_pc = this->regs.pc;
           return orig_pc + this->fetch_instruction_word_signed();
         }
-        case 3: {
-          uint32_t orig_pc = this->regs.pc;
-          return this->resolve_address_extension(orig_pc, this->fetch_instruction_word());
-        }
+        case 3:
+          return this->resolve_address_extension(this->regs.pc, this->fetch_instruction_word());
         default:
           throw std::runtime_error("incorrect address mode in control reference");
       }
@@ -693,11 +716,9 @@ M68KEmulator::ResolvedAddress M68KEmulator::resolve_address(uint8_t M, uint8_t X
           return {this->fetch_instruction_data(SIZE_LONG), ResolvedAddress::Location::MEMORY};
         case 2:
           return {this->regs.pc + this->fetch_instruction_word_signed(), ResolvedAddress::Location::MEMORY};
-        case 3: {
-          uint32_t orig_pc = this->regs.pc;
-          return {this->resolve_address_extension(orig_pc, this->fetch_instruction_word()),
+        case 3:
+          return {this->resolve_address_extension(this->regs.pc, this->fetch_instruction_word()),
               ResolvedAddress::Location::MEMORY};
-        }
         case 4:
           if (size == SIZE_LONG) {
             this->regs.pc += 4;
@@ -1592,6 +1613,8 @@ void M68KEmulator::exec_4(uint16_t opcode) {
           }
           case 3: { // not.S ADDR
             uint32_t value = ~this->read(addr, size);
+            // We clear the high bits here, even though those bits won't be written back to the destination, because
+            // the Z flag must be computed based only on the affected bits
             if (size == SIZE_BYTE) {
               value &= 0xFF;
             } else if (size == SIZE_WORD) {
@@ -2107,8 +2130,8 @@ void M68KEmulator::exec_5(uint16_t opcode) {
     }
 
     if (M == 1) {
-      // When the destination is an address register, the entire 32-bit register is used regardless of
-      // the operation size, and the condition codes are not affected.
+      // When the destination is an address register, the entire 32-bit register is used regardless of the operation
+      // size, and the CCR is not modified
       if (op_get_g(opcode)) {
         this->regs.a[Xn] -= value;
       } else {
@@ -2305,15 +2328,14 @@ void M68KEmulator::exec_8(uint16_t opcode) {
   } else { // or.S DREG ADDR
     this->regs.d[a].u = value;
   }
-  // For byte/word sizes, value contains the bits of Dn above the operation size; those bits are correctly preserved
-  // by the register writeback above, but must not affect the flags
-  uint32_t sized_value = value;
+  // We clear the high bits here, even though those bits weren't written back to the destination, because the Z flag
+  // must be computed based only on the affected bits
   if (size == SIZE_BYTE) {
-    sized_value &= 0xFF;
+    value &= 0xFF;
   } else if (size == SIZE_WORD) {
-    sized_value &= 0xFFFF;
+    value &= 0xFFFF;
   }
-  this->regs.set_ccr_flags(-1, is_negative(sized_value, size), (sized_value == 0), 0, 0);
+  this->regs.set_ccr_flags(-1, is_negative(value, size), (value == 0), 0, 0);
 }
 
 std::string M68KEmulator::dasm_8(DisassemblyState& s) {
@@ -2859,7 +2881,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
     }
   } else {
     shift_amount = (a == 0) ? 8 : a;
-    if (shift_amount == 8 && size == SIZE_BYTE && ((k & 6) != 4)) { // roxl/roxr handle a byte count of 8 below
+    if (shift_amount == 8 && size == SIZE_BYTE && ((k & 6) != 4)) { // roxl/roxr handle a bit count of 8 below
       throw std::runtime_error("unimplemented: shift opcode with size=byte and shift=8");
     }
   }
@@ -2880,32 +2902,30 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       if (rotate && !logical_shift) { // roxl/roxr DREG, COUNT/REG
         // Rotate through the X bit: the operand and X together form a (bits + 1)-bit rotate, so the effective count
         // is the count modulo (bits + 1). The register form uses Dn mod 64 before that reduction.
-        uint8_t bits = bytes_for_size[size] * 8;
-        uint32_t mask = (size == SIZE_LONG) ? 0xFFFFFFFF : ((1 << bits) - 1);
+        uint8_t size_bits = bytes_for_size[size] * 8;
+        uint32_t mask = (size == SIZE_LONG) ? 0xFFFFFFFF : ((1 << size_bits) - 1);
         uint8_t count = shift_is_reg ? (this->regs.d[a].u & 0x3F) : shift_amount;
         uint32_t v = this->regs.d[Xn].u & mask;
-        bool x = this->regs.sr.get_x();
-        int64_t x_flag;
-        int64_t c_flag;
         if (count == 0) {
-          // A count of zero leaves X unchanged and sets C to X (unlike the other shift/rotate opcodes)
-          x_flag = -1;
-          c_flag = x;
+          // A count of zero leaves X unchanged and sets C to X (unlike the other shift/rotate opcodes), and doesn't
+          // modify the value. TODO: Technically the destination register probably should receive a write cycle; in our
+          // implementation, it doesn't matter if we skip doing so (and maybe it doesn't on real hardware either;
+          // verify this)
+          this->regs.sr.set_c(this->regs.sr.get_x());
         } else {
-          for (uint8_t z = count % (bits + 1); z > 0; z--) {
-            bool new_x = left_shift ? ((v >> (bits - 1)) & 1) : (v & 1);
+          bool xc = this->regs.sr.get_x();
+          for (uint8_t z = count % (size_bits + 1); z > 0; z--) {
+            bool next_xc = left_shift ? ((v >> (size_bits - 1)) & 1) : (v & 1);
             if (left_shift) {
-              v = ((v << 1) | x) & mask;
+              v = ((v << 1) | xc) & mask;
             } else {
-              v = (v >> 1) | (static_cast<uint32_t>(x) << (bits - 1));
+              v = (v >> 1) | (static_cast<uint32_t>(xc) << (size_bits - 1));
             }
-            x = new_x;
+            xc = next_xc;
           }
-          x_flag = x;
-          c_flag = x;
+          this->regs.d[Xn].u = (this->regs.d[Xn].u & (~mask)) | v;
+          this->regs.set_ccr_flags(xc, is_negative(v, size), (v == 0), 0, xc);
         }
-        this->regs.d[Xn].u = (this->regs.d[Xn].u & (~mask)) | v;
-        this->regs.set_ccr_flags(x_flag, (v >> (bits - 1)) & 1, (v == 0), 0, c_flag);
         return;
       }
 
