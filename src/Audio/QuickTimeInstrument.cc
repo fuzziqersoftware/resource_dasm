@@ -609,7 +609,7 @@ std::string TuneResource::midi() const {
   midi_header.header.size = 6;
   midi_header.format = 0;
   midi_header.track_count = 1;
-  midi_header.division = 600; // Ticks per quarter note
+  midi_header.division = 300; // Ticks per quarter note
 
   MIDIChunkHeader track_header;
   track_header.magic = 0x4D54726B; // 'MTrk'
