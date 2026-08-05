@@ -23,6 +23,7 @@ public:
   };
 
   uint32_t id;
+  uint32_t resource_id = 0;
   std::string name;
   std::string copyright_wrt;
   std::string copyright_cpy;
@@ -100,10 +101,10 @@ public:
   struct ChannelSetupEvent : Event {
     virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
     uint8_t channel;
-    uint8_t instrument_number;
     uint8_t volume; // 00-7F
     uint8_t panning; // 00-7F; 40 default
     uint8_t pitch_bend; // 00-7F; 40 default
+    uint32_t instrument_number;
     std::string collection_name;
     std::string instrument_name;
   };

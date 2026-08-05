@@ -275,6 +275,7 @@ constexpr uint32_t RESOURCE_TYPE_t8mk = resource_type("t8mk");
 constexpr uint32_t RESOURCE_TYPE_tdig = resource_type("tdig");
 constexpr uint32_t RESOURCE_TYPE_TEXT = resource_type("TEXT");
 constexpr uint32_t RESOURCE_TYPE_thnN = resource_type("thn#");
+constexpr uint32_t RESOURCE_TYPE_thng = resource_type("thng");
 constexpr uint32_t RESOURCE_TYPE_TMPL = resource_type("TMPL");
 constexpr uint32_t RESOURCE_TYPE_TOC = resource_type("TOC ");
 constexpr uint32_t RESOURCE_TYPE_tokn = resource_type("tokn");

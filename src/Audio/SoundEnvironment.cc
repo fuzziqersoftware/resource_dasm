@@ -118,8 +118,6 @@ std::pair<uint32_t, std::vector<Sound>> wsys_decode(const void* vdata, const cha
 
     for (size_t y = 0; y < cdf->record_count; y++) {
       const CDFRecord* record = reinterpret_cast<const CDFRecord*>(data + cdf->record_offsets[y]);
-      phosg::fwrite_fmt(stderr, "[SoundEnvironment/debug] CDF {} => {},{} => {}\n",
-          y, record->aw_file_index.load(), y, record->sound_id.load());
       if (!aw_file_and_sound_index_to_cdf_id.emplace(std::make_pair(record->aw_file_index, y), record->sound_id).second) {
         phosg::fwrite_fmt(stderr, "[SoundEnvironment] warning: duplicate sound ID: {},{} => {}\n",
             record->aw_file_index.load(), y, record->sound_id.load());
@@ -280,8 +278,6 @@ void SoundEnvironment::resolve_pointers() {
   for (const auto& wsys_it : this->sample_banks) {
     for (size_t x = 0; x < wsys_it.second.size(); x++) {
       const auto& sound = wsys_it.second[x];
-      phosg::fwrite_fmt(stderr, "[SoundEnvironment/debug] {},{} => {} {} {}\n",
-          wsys_it.first, x, sound.aw_file_index, sound.wave_table_index, sound.sound_id);
       bool ret = sound_id_to_index[wsys_it.first].emplace(sound.sound_id, x).second;
       if (!ret) {
         phosg::fwrite_fmt(stderr, "[SoundEnvironment] warning: duplicate sound id {}\n", wsys_it.second[x].sound_id);
@@ -770,20 +766,22 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
   std::unordered_map<std::string, TuneResource> tunes;
   for (const auto& item : std::filesystem::directory_iterator(instruments_directory)) {
     if (phosg::tolower(item.path().filename().extension().string()) == ".ssai") {
-      ssais.emplace(item.path().filename().string(), phosg::load_file(item.path().string()));
-      log.info_f("Added instrument {}", item.path().filename().string());
+      auto emplace_ret = ssais.emplace(item.path().filename().string(), phosg::load_file(item.path().string()));
+      log.info_f("Added instrument file {} (ssai {})", item.path().filename().string(), emplace_ret.first->second.resource_id);
     } else if (phosg::tolower(item.path().filename().extension().string()) == ".tune") {
       tunes.emplace(item.path().filename().string(), phosg::load_file(item.path().string()));
-      log.info_f("Added sequence {}", item.path().filename().string());
+      log.info_f("Added sequence file {}", item.path().filename().string());
     }
   }
 
   // Assign instrument IDs and index the sounds (instruments can load each other's sounds if they're in smin blocks)
   size_t next_inst_id = 1;
   std::unordered_map<uint64_t, const SSAIInstrument::SampleData*> sample_data_for_key;
+  std::unordered_map<uint32_t, uint32_t> res_id_to_inst_id;
   std::unordered_map<std::string, uint32_t> name_to_inst_id;
   for (auto& [_, ssai] : ssais) {
     ssai.id = next_inst_id++;
+    res_id_to_inst_id.emplace(ssai.resource_id, ssai.id);
     name_to_inst_id.emplace(ssai.name, ssai.id);
     for (const auto& [_, sample_data] : ssai.sample_datas) {
       uint64_t key = (sample_data.smin_block_number >= 0)
@@ -792,7 +790,7 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
       if (!sample_data_for_key.emplace(key, &sample_data).second) {
         throw std::runtime_error(std::format("Duplicate sample data key {:016X}", key));
       }
-      log.info_f("Indexed sample data {:016X} from instrument {} ({})", key, ssai.id, ssai.name);
+      log.info_f("Indexed sample data {:016X} from instrument {:08X} ({})", key, ssai.id, ssai.name);
     }
   }
 
@@ -834,25 +832,32 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
 
       sound_id++;
     }
-    log.info_f("Added instrument {} => {} \"{}\"", ssai.name, ssai.id, ssai.name);
+    log.info_f("Added instrument {} => {} \"{}\" (ssai {})", ssai.name, ssai.id, ssai.name, ssai.resource_id);
   }
 
   for (const auto& [name, tune] : tunes) {
     // Rewrite instrument selection events in Tunes so they point to the right instruments.
     // TODO: It seems that there isn't a good ID to match these with, so we have to match by name instead. That can't
     // be how QuickTime actually did it, right? There has to be some kind of numeric ID, right?
+    log.info_f("Linking instruments for sequence \"{}\"", name);
     for (auto& event : tune.events) {
-      log.info_f("Linking instruments for sequence \"{}\"", name);
       auto* setup_ev = dynamic_cast<ResourceDASM::Audio::TuneResource::ChannelSetupEvent*>(event.get());
       if (setup_ev) {
-        auto it = name_to_inst_id.find(setup_ev->instrument_name);
-        if (it != name_to_inst_id.end()) {
+        auto it = res_id_to_inst_id.find(setup_ev->instrument_number);
+        if (it != res_id_to_inst_id.end()) {
+          log.info_f("  Rewriting channel {} setup event \"{}\" ({}) => {} by resource ID",
+              setup_ev->channel, setup_ev->instrument_name, setup_ev->instrument_number, it->second);
           setup_ev->instrument_number = it->second;
-          log.info_f("  Rewrote channel {} setup event \"{}\" => {}",
-              setup_ev->channel, setup_ev->instrument_name, it->second);
         } else {
-          throw std::runtime_error(std::format("Tune refers to missing instrument \"{}\" from collection \"{}\"",
-              setup_ev->instrument_name, setup_ev->collection_name));
+          auto it = name_to_inst_id.find(setup_ev->instrument_name);
+          if (it != name_to_inst_id.end()) {
+            log.info_f("  Rewriting channel {} setup event \"{}\" ({}) => {} by instrument name",
+                setup_ev->channel, setup_ev->instrument_name, setup_ev->instrument_number, it->second);
+            setup_ev->instrument_number = it->second;
+          } else {
+            throw std::runtime_error(std::format("Tune refers to missing instrument \"{}\" (ssai {}) from collection \"{}\"",
+                setup_ev->instrument_name, setup_ev->instrument_number, setup_ev->collection_name));
+          }
         }
       }
     }

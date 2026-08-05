@@ -1897,9 +1897,11 @@ Input options:\n\
       --audiores-directory is used, it can also be the name of a sequence\n\
       defined in the environment. If --list is used, no sequence name should\n\
       be given.\n\
-  --audiores-directory=dir_name: load environment from this directory. The\n\
-      directory should include a file named pikibank.bx, JaiInit.aaf,\n\
+  --audiores-directory=dir_name: load JAudio environment from this directory.\n\
+      The directory should include a file named pikibank.bx, JaiInit.aaf,\n\
       GCKart.baa, or msound.aaf.\n\
+  --quicktime-directory=dir_name: load QuickTime environment from this\n\
+      directory. The directory should include .ssai and .tune files.\n\
   --json-environment=filename.json: load MIDI environment from this JSON file.\n\
       If given, --midi is implied.\n\
   --midi: treat input sequence as MIDI instead of BMS.\n\

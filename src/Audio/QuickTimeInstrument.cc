@@ -179,6 +179,9 @@ void SSAIInstrument::parse_block(
       const auto& tone_block = get_fixed_block<ToneBlock>(r, block_type);
       // TODO: There might be other important stuff in ToneBlock too
       this->name = decode_pstring<0x20>(tone_block.name);
+      if (this->resource_id == 0) {
+        this->resource_id = tone_block.resource_id;
+      }
       break;
     }
 
@@ -325,17 +328,6 @@ void TuneResource::TrackEndEvent::add_midi_events(std::vector<MIDIEvent>& events
 }
 
 TuneResource::TuneResource(const void* data, size_t size) {
-  struct MIDIChunkHeader {
-    phosg::be_uint32_t magic; // MThd or MTrk
-    phosg::be_uint32_t size;
-  } __attribute__((packed));
-  struct MIDIHeader {
-    MIDIChunkHeader header;
-    phosg::be_uint16_t format;
-    phosg::be_uint16_t track_count;
-    phosg::be_uint16_t division;
-  } __attribute__((packed));
-
   phosg::StringReader r(data, size);
 
   const auto& header = r.get<BlockHeader>();
@@ -351,7 +343,6 @@ TuneResource::TuneResource(const void* data, size_t size) {
     Event(uint64_t when, uint8_t status, uint8_t param) : when(when), status(status) {
       this->data.push_back(param);
     }
-
     Event(uint64_t when, uint8_t status, uint8_t param1, uint8_t param2) : when(when), status(status) {
       this->data.push_back(param1);
       this->data.push_back(param2);
@@ -410,7 +401,7 @@ TuneResource::TuneResource(const void* data, size_t size) {
           value = options & 0xFFFF;
         } else {
           message = (event >> 16) & 0xFF;
-          partition_id = (event >> 24) & 0x1F;
+          partition_id = (event >> 24) & 0x0F;
           value = event & 0xFFFF;
         }
 
@@ -423,6 +414,22 @@ TuneResource::TuneResource(const void* data, size_t size) {
         if (message == 0) {
           // Bank select (ignore for now)
           break;
+
+        } else if (message == 7) { // Volume
+          auto ev = std::make_unique<ControllerEvent>();
+          ev->when = current_time;
+          ev->channel = channel;
+          ev->message = message;
+          ev->value = (value >> 8) & 0x7F;
+          this->events.emplace_back(std::move(ev));
+
+        } else if (message == 10) { // Panning
+          auto ev = std::make_unique<ControllerEvent>();
+          ev->when = current_time;
+          ev->channel = channel;
+          ev->message = message;
+          ev->value = (value >> 1) & 0x7F;
+          this->events.emplace_back(std::move(ev));
 
         } else if (message == 32) { // Pitch bend
           auto ev = std::make_unique<PitchBendEvent>();
