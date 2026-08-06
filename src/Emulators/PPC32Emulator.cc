@@ -5643,8 +5643,13 @@ void PPC32Emulator::exec_FC_00E_00F_fctiw_fctiwz(uint32_t op) {
   // The programmer's manual says (for both of these opcodes):
   //   If the operand in frB is greater than 2^31 – 1, bits 32–63 of frD are set to 0x7FFF_FFFF.
   //   If the operand in frB is less than –2^31, bits 32–63 of frD are set to 0x 8000_0000.
+  //   If the operand in frB is a NaN, bits 32–63 of frD are set to 0x8000_0000.
   double v = this->regs.f[op_get_reg3(op)].f;
-  if (v > 0x7FFFFFFF) {
+  if (std::isnan(v)) {
+    // Without this check, a NaN would fall through to the conversions below, which
+    // is undefined behavior (and yields 0 instead of the saturated value on ARM64).
+    this->regs.f[op_get_reg1(op)].s = 0xFFFFFFFF80000000;
+  } else if (v > 0x7FFFFFFF) {
     this->regs.f[op_get_reg1(op)].s = 0x000000007FFFFFFF;
   } else if (v < -0x80000000LL) {
     this->regs.f[op_get_reg1(op)].s = 0xFFFFFFFF80000000;
