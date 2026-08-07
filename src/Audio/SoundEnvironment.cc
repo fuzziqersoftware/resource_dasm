@@ -799,8 +799,9 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
   }
 
   size_t sound_id = 1;
-  for (const auto& [_, ssai] : ssais) {
+  for (const auto& [ssai_filename, ssai] : ssais) {
     auto& inst = inst_bank.id_to_instrument.emplace(ssai.id, ssai.id).first->second;
+    log.info_f("Adding instrument {} \"{}\" (ssai {} from {})", ssai.id, ssai.name, ssai.resource_id, ssai_filename);
     for (const auto& [rgn_id, rgn] : ssai.key_regions) {
       uint64_t local_key = ((static_cast<uint64_t>(ssai.id) << 32) | rgn.sample_data_number);
       uint64_t global_key = rgn.sample_data_number;
@@ -828,6 +829,8 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
       s.source_size = 0;
       s.aw_file_index = 0;
       s.wave_table_index = 0;
+      log.info_f("  Adding sound {} (base {}, channels {}, rate {}, loop [{}, {}])",
+          s.sound_id, s.base_note, s.num_channels, s.sample_rate, s.loop_start, s.loop_end);
 
       // Create the key region and vel region objects
       auto& key_rgn = inst.key_regions.emplace_back(rgn.key_low, rgn.key_high);
@@ -835,8 +838,14 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
           0, 0x7F, 0, static_cast<uint16_t>(sound_id), 1.0f, 1.0f, false, static_cast<int8_t>(s.base_note)});
 
       sound_id++;
+
+      // Handle knob effects
+      if (auto knob_it = rgn.knobs.find(QTMAKnobID::kQTMSKnobPitchTransposeID); knob_it != rgn.knobs.end()) {
+        for (auto& vel_rgn : key_rgn.vel_regions) {
+          vel_rgn.freq_mult *= pow(2, static_cast<double>(knob_it->second) / 0xC00);
+        }
+      }
     }
-    log.info_f("Added instrument {} => {} \"{}\" (ssai {})", ssai.name, ssai.id, ssai.name, ssai.resource_id);
   }
 
   for (auto& [name, tune] : tunes) {

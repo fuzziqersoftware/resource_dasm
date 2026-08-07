@@ -10,17 +10,79 @@
 namespace ResourceDASM {
 namespace Audio {
 
+enum QTMAKnobID {
+  kQTMSKnobStartID = 0x02000000,
+  kQTMSKnobVolumeAttackTimeID = 0x02000001,
+  kQTMSKnobVolumeDecayTimeID = 0x02000002,
+  kQTMSKnobVolumeSustainLevelID = 0x02000003,
+  kQTMSKnobVolumeRelease1RateID = 0x02000004,
+  kQTMSKnobVolumeDecayKeyScalingID = 0x02000005,
+  kQTMSKnobVolumeReleaseTimeID = 0x02000006,
+  kQTMSKnobVolumeLFODelayID = 0x02000007,
+  kQTMSKnobVolumeLFORampTimeID = 0x02000008,
+  kQTMSKnobVolumeLFOPeriodID = 0x02000009,
+  kQTMSKnobVolumeLFOShapeID = 0x0200000A,
+  kQTMSKnobVolumeLFODepthID = 0x0200000B,
+  kQTMSKnobVolumeOverallID = 0x0200000C,
+  kQTMSKnobVolumeVelocity127ID = 0x0200000D,
+  kQTMSKnobVolumeVelocity96ID = 0x0200000E,
+  kQTMSKnobVolumeVelocity64ID = 0x0200000F,
+  kQTMSKnobVolumeVelocity32ID = 0x02000010,
+  kQTMSKnobVolumeVelocity16ID = 0x02000011,
+  kQTMSKnobPitchTransposeID = 0x02000012,
+  kQTMSKnobPitchLFODelayID = 0x02000013,
+  kQTMSKnobPitchLFORampTimeID = 0x02000014,
+  kQTMSKnobPitchLFOPeriodID = 0x02000015,
+  kQTMSKnobPitchLFOShapeID = 0x02000016,
+  kQTMSKnobPitchLFODepthID = 0x02000017,
+  kQTMSKnobPitchLFOQuantizeID = 0x02000018,
+  kQTMSKnobStereoDefaultPanID = 0x02000019,
+  kQTMSKnobStereoPositionKeyScalingID = 0x0200001A,
+  kQTMSKnobPitchLFOOffsetID = 0x0200001B,
+  kQTMSKnobExclusionGroupID = 0x0200001C,
+  kQTMSKnobSustainTimeID = 0x0200001D,
+  kQTMSKnobSustainInfiniteID = 0x0200001E,
+  kQTMSKnobVolumeLFOStereoID = 0x0200001F,
+  kQTMSKnobVelocityLowID = 0x02000020,
+  kQTMSKnobVelocityHighID = 0x02000021,
+  kQTMSKnobVelocitySensitivityID = 0x02000022,
+  kQTMSKnobPitchSensitivityID = 0x02000023,
+  kQTMSKnobVolumeLFODepthFromWheelID = 0x02000024,
+  kQTMSKnobPitchLFODepthFromWheelID = 0x02000025,
+  kQTMSKnobVolumeExpOptionsID = 0x02000026,
+  kQTMSKnobEnv1AttackTimeID = 0x02000027,
+  kQTMSKnobEnv1DecayTimeID = 0x02000028,
+  kQTMSKnobEnv1SustainLevelID = 0x02000029,
+  kQTMSKnobEnv1SustainTimeID = 0x0200002A,
+  kQTMSKnobEnv1SustainInfiniteID = 0x0200002B,
+  kQTMSKnobEnv1ReleaseTimeID = 0x0200002C,
+  kQTMSKnobEnv1ExpOptionsID = 0x0200002D,
+  kQTMSKnobEnv2AttackTimeID = 0x0200002E,
+  kQTMSKnobEnv2DecayTimeID = 0x0200002F,
+  kQTMSKnobEnv2SustainLevelID = 0x02000030,
+  kQTMSKnobEnv2SustainTimeID = 0x02000031,
+  kQTMSKnobEnv2SustainInfiniteID = 0x02000032,
+  kQTMSKnobEnv2ReleaseTimeID = 0x02000033,
+  kQTMSKnobEnv2ExpOptionsID = 0x02000034,
+  kQTMSKnobPitchEnvelopeID = 0x02000035,
+  kQTMSKnobPitchEnvelopeDepthID = 0x02000036,
+  kQTMSKnobFilterKeyFollowID = 0x02000037,
+  kQTMSKnobFilterTransposeID = 0x02000038,
+  kQTMSKnobFilterQID = 0x02000039,
+  kQTMSKnobFilterFrequencyEnvelopeID = 0x0200003A,
+  kQTMSKnobFilterFrequencyEnvelopeDepthID = 0x0200003B,
+  kQTMSKnobFilterQEnvelopeID = 0x0200003C,
+  kQTMSKnobFilterQEnvelopeDepthID = 0x0200003D,
+  kQTMSKnobReverbThresholdID = 0x0200003E,
+  kQTMSKnobVolumeAttackVelScalingID = 0x0200003F,
+};
+
 class SSAIInstrument {
 public:
   SSAIInstrument(const void* data, size_t size);
   inline SSAIInstrument(const std::string& data) : SSAIInstrument(data.data(), data.size()) {}
 
-  struct KnobEntry {
-    uint8_t unknown_a1 = 0;
-    uint8_t unknown_a2 = 0;
-    uint16_t unknown_a3 = 0;
-    uint32_t unknown_a4 = 0;
-  };
+  static const char* name_for_knob(uint32_t knob_id);
 
   uint32_t id;
   uint32_t resource_id = 0;
@@ -28,7 +90,7 @@ public:
   std::string copyright_wrt;
   std::string copyright_cpy;
   std::string info_string;
-  std::vector<KnobEntry> knobs;
+  std::unordered_map<uint32_t, int32_t> knobs;
   struct KeyRegion {
     uint16_t num_channels = 0;
     uint16_t bits_per_sample = 0;
@@ -40,7 +102,7 @@ public:
     uint32_t base_note = 0;
     uint32_t key_low = 0;
     uint32_t key_high = 0;
-    std::vector<KnobEntry> knobs;
+    std::unordered_map<uint32_t, int32_t> knobs;
   };
   std::unordered_map<uint32_t, KeyRegion> key_regions; // Keyed by block_number
   struct SampleData {

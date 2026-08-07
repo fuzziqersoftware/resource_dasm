@@ -1838,9 +1838,13 @@ private:
     if (!ssai.info_string.empty()) {
       lines.emplace_back(std::format("# info_string: \"{}\"", ssai.info_string));
     }
-    for (const auto& knob : ssai.knobs) {
-      lines.emplace_back(std::format("# knob: {} {} {} {}",
-          knob.unknown_a1, knob.unknown_a2, knob.unknown_a3, knob.unknown_a4));
+    for (const auto& [number, value] : ssai.knobs) {
+      const char* name = ResourceDASM::Audio::SSAIInstrument::name_for_knob(number);
+      if (name) {
+        lines.emplace_back(std::format("# knob: {:08X} ({}) = {}", number, name, value));
+      } else {
+        lines.emplace_back(std::format("# knob: {:08X} = {}", number, value));
+      }
     }
     for (const auto& [block_number, key_region] : ssai.key_regions) {
       lines.emplace_back(std::format("# key region: {}", block_number));
@@ -1849,18 +1853,25 @@ private:
           "#   sample {}: {} channels, {} bits, {:g} kHz, {} frames, loop [{}, {}], base note {}",
           key_region.sample_data_number, key_region.num_channels, key_region.bits_per_sample, key_region.sample_rate,
           key_region.frame_count, key_region.loop_start_offset, key_region.loop_end_offset, key_region.base_note));
-      for (const auto& knob : key_region.knobs) {
-        lines.emplace_back(std::format("#   knob: {} {} {} {}",
-            knob.unknown_a1, knob.unknown_a2, knob.unknown_a3, knob.unknown_a4));
+      for (const auto& [number, value] : key_region.knobs) {
+        const char* name = ResourceDASM::Audio::SSAIInstrument::name_for_knob(number);
+        if (name) {
+          lines.emplace_back(std::format("#   knob: {:08X} ({}) = {}", number, name, value));
+        } else {
+          lines.emplace_back(std::format("#   knob: {:08X} = {}", number, value));
+        }
       }
 
-      auto samples = ResourceDASM::Audio::convert_samples_dynamic(
-          ssai.sample_datas.at(key_region.sample_data_number).data, key_region.bits_per_sample);
-      auto wav_data = ResourceDASM::Audio::serialize_wav(
-          samples, key_region.sample_rate, key_region.num_channels, key_region.loop_start_offset,
-          key_region.loop_end_offset, key_region.base_note);
-      this->write_decoded_data(
-          base_filename, res, std::format("_sample_{}.wav", key_region.sample_data_number), wav_data);
+      auto sample_data_it = ssai.sample_datas.find(key_region.sample_data_number);
+      if (sample_data_it != ssai.sample_datas.end()) {
+        auto samples = ResourceDASM::Audio::convert_samples_dynamic(
+            sample_data_it->second.data, key_region.bits_per_sample);
+        auto wav_data = ResourceDASM::Audio::serialize_wav(
+            samples, key_region.sample_rate, key_region.num_channels, key_region.loop_start_offset,
+            key_region.loop_end_offset, key_region.base_note);
+        this->write_decoded_data(
+            base_filename, res, std::format("_sample_{}.wav", key_region.sample_data_number), wav_data);
+      }
     }
     this->write_decoded_data(base_filename, res, ".txt", phosg::join(lines, "\n"));
   }

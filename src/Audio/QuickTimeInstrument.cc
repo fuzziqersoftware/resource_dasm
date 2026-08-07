@@ -18,22 +18,27 @@ namespace Audio {
 
 static constexpr uint32_t SSAI_TYPE = 0x73736169; // 'ssai'
 static constexpr uint32_t SEAN_TYPE = 0x7365616E; // 'sean'
-static constexpr uint32_t TONE_TYPE = 0x746F6E65; // 'tone'
-static constexpr uint32_t KNBL_TYPE = 0x6B6E626C; // 'knbl'
-static constexpr uint32_t SINF_TYPE = 0x73696E66; // 'sinf'
-static constexpr uint32_t SDSC_TYPE = 0x73647363; // 'sdsc'
-static constexpr uint32_t SMIN_TYPE = 0x736D696E; // 'smin'
+static constexpr uint32_t TONE_TYPE = 0x746F6E65; // 'tone'; kaiToneDescType
+static constexpr uint32_t KNBL_TYPE = 0x6B6E626C; // 'knbl'; kaiKnobListType
+static constexpr uint32_t SINF_TYPE = 0x73696E66; // 'sinf'; kaiKeyRangeInfoType
+static constexpr uint32_t SDSC_TYPE = 0x73647363; // 'sdsc'; kaiSampleDescType
+static constexpr uint32_t SMIN_TYPE = 0x736D696E; // 'smin'; kaiSampleInfoType
 static constexpr uint32_t SNAM_TYPE = 0x736E616D; // 'snam'
-static constexpr uint32_t SDAT_TYPE = 0x73646174; // 'sdat'
-static constexpr uint32_t QUAL_TYPE = 0x7175616C; // 'qual'
-static constexpr uint32_t QUID_TYPE = 0x71756964; // 'quid'
-static constexpr uint32_t IINF_TYPE = 0x69696E66; // 'iinf'
-static constexpr uint32_t IREF_TYPE = 0x69726566; // 'iref'
-static constexpr uint32_t COPYRIGHT_WRT_TYPE = 0xA9777274; // '©wrt' (in MacRoman)
-static constexpr uint32_t COPYRIGHT_CPY_TYPE = 0xA9637079; // '©cpy' (in MacRoman)
-static constexpr uint32_t STR_TYPE = 0x73747220; // 'str '
+static constexpr uint32_t SDAT_TYPE = 0x73646174; // 'sdat'; kaiSampleDataType
+static constexpr uint32_t QUAL_TYPE = 0x7175616C; // 'qual'; kaiInstGMQualityType
+static constexpr uint32_t QUID_TYPE = 0x71756964; // 'quid'; kaiSampleDataQUIDType
+static constexpr uint32_t IINF_TYPE = 0x69696E66; // 'iinf'; kaiInstInfoType
+static constexpr uint32_t IREF_TYPE = 0x69726566; // 'iref'; kaiInstrumentRefType
+static constexpr uint32_t COPYRIGHT_WRT_TYPE = 0xA9777274; // '©wrt' (in MacRoman); kaiWriterType
+static constexpr uint32_t COPYRIGHT_CPY_TYPE = 0xA9637079; // '©cpy' (in MacRoman); kaiCopyrightType
+static constexpr uint32_t STR_TYPE = 0x73747220; // 'str '; kaiOtherStrType
 static constexpr uint32_t MUSI_TYPE = 0x6D757369; // 'musi'
 static constexpr uint32_t SS_TYPE = 0x73732020; // 'ss  '
+// Block types in the QT headers which are not represented here (yet):
+//   kaiNoteRequestInfoType        = FOUR_CHAR_CODE('ntrq')
+//   kaiPictType                   = FOUR_CHAR_CODE('pict')
+//   kaiLibraryInfoType            = FOUR_CHAR_CODE('linf')
+//   kaiLibraryDescType            = FOUR_CHAR_CODE('ldsc')
 
 struct FileHeader {
   /* 00 */ phosg::be_uint32_t size = 0; // Includes this header
@@ -59,16 +64,14 @@ struct ToneBlock {
   /* 60 */
 } __attribute__((packed));
 
-struct KNBLBlock { // Knob list?
+struct KNBLBlock { // Knob list
   struct Entry {
-    uint8_t unknown_a1 = 0;
-    uint8_t unknown_a2 = 0;
-    phosg::be_uint16_t unknown_a3 = 0;
-    phosg::be_uint32_t unknown_a4 = 0;
+    phosg::be_uint32_t number = 0;
+    phosg::be_int32_t value = 0;
   } __attribute__((packed));
 
   /* 14 */ phosg::be_uint32_t entry_count = 0;
-  /* 18 */ phosg::be_uint32_t unknown_a3 = 0;
+  /* 18 */ phosg::be_uint32_t flags = 0;
   /* 1C */ // Entries follow here
 } __attribute__((packed));
 
@@ -78,10 +81,10 @@ struct SDSCBlock { // Sample description
   /* 1A */ phosg::be_uint16_t bits_per_sample = 0;
   /* 1C */ phosg::be_uint16_t sample_rate_integer = 0; // Whole number part of a Fixed
   /* 1E */ phosg::be_uint16_t sample_rate_fractional = 0; // Fractional part of a Fixed
-  /* 20 */ phosg::be_uint16_t sdat_block_number = 0; // Block number of relevant sdat block
-  /* 22 */ phosg::be_uint32_t unknown_a4 = 0;
+  /* 20 */ phosg::be_uint16_t sdat_block_number = 0;
+  /* 22 */ phosg::be_uint32_t frame_offset = 0; // Possibly just for internal use? (See MPW headers)
   /* 26 */ phosg::be_uint32_t frame_count = 0; // TODO: Could also be sample_count or just num_sample_bytes
-  /* 2A */ phosg::be_uint32_t unknown_a5 = 0;
+  /* 2A */ phosg::be_uint32_t loop_type = 0; // TODO: We don't use this; find out what the types are and implement them
   /* 2E */ phosg::be_uint32_t loop_start_offset = 0; // TODO: Could be in frames, samples, or bytes; we assume frames
   /* 32 */ phosg::be_uint32_t loop_end_offset = 0; // TODO: Could be in frames, samples, or bytes; we assume frames
   /* 36 */ phosg::be_uint32_t base_note = 0;
@@ -178,23 +181,28 @@ void SSAIInstrument::parse_block(
 
     case TONE_TYPE: {
       const auto& tone_block = get_fixed_block<ToneBlock>(r, block_type);
-      // TODO: There might be other important stuff in ToneBlock too
-      this->name = decode_pstring<0x20>(tone_block.name);
-      if (this->resource_id == 0) {
-        this->resource_id = tone_block.resource_id;
+      // Only update the name and resource ID if this block isn't a reference to another instrument. `tone` may appear
+      // in the hierarchy ssai->sean->tone in which case it's the instrument metadata; it may also appear within an
+      // sinf block in which case it's a reference to another instrument's samples
+      if (!current_key_region && !current_sample_data) {
+        // TODO: There might be other important stuff in ToneBlock too
+        this->name = decode_pstring<0x20>(tone_block.name);
+        if (this->resource_id == 0) {
+          this->resource_id = tone_block.resource_id;
+        }
       }
       break;
     }
 
     case KNBL_TYPE: {
       const auto& knbl_block = r.get<KNBLBlock>();
-      auto* knob_list = current_key_region ? &current_key_region->knobs : &this->knobs;
-      if (!knob_list->empty()) {
+      auto& knobs = current_key_region ? current_key_region->knobs : this->knobs;
+      if (!knobs.empty()) {
         throw std::runtime_error("Received multiple knob lists in same context");
       }
       for (size_t z = 0; z < knbl_block.entry_count; z++) {
         const auto& entry = r.get<KNBLBlock::Entry>();
-        knob_list->emplace_back(KnobEntry{entry.unknown_a1, entry.unknown_a2, entry.unknown_a3, entry.unknown_a4});
+        knobs.emplace(entry.number, entry.value);
       }
       break;
     }
@@ -254,6 +262,78 @@ void SSAIInstrument::parse_block(
     default:
       throw std::runtime_error(std::format("Unknown block type: {:08X}", block_type));
   }
+}
+
+const char* SSAIInstrument::name_for_knob(uint32_t knob_id) {
+  static constexpr std::array<const char*, 0x40> names{
+      /* 02000000 */ "kQTMSKnobStartID",
+      /* 02000001 */ "kQTMSKnobVolumeAttackTimeID",
+      /* 02000002 */ "kQTMSKnobVolumeDecayTimeID",
+      /* 02000003 */ "kQTMSKnobVolumeSustainLevelID",
+      /* 02000004 */ "kQTMSKnobVolumeRelease1RateID",
+      /* 02000005 */ "kQTMSKnobVolumeDecayKeyScalingID",
+      /* 02000006 */ "kQTMSKnobVolumeReleaseTimeID",
+      /* 02000007 */ "kQTMSKnobVolumeLFODelayID",
+      /* 02000008 */ "kQTMSKnobVolumeLFORampTimeID",
+      /* 02000009 */ "kQTMSKnobVolumeLFOPeriodID",
+      /* 0200000A */ "kQTMSKnobVolumeLFOShapeID",
+      /* 0200000B */ "kQTMSKnobVolumeLFODepthID",
+      /* 0200000C */ "kQTMSKnobVolumeOverallID",
+      /* 0200000D */ "kQTMSKnobVolumeVelocity127ID",
+      /* 0200000E */ "kQTMSKnobVolumeVelocity96ID",
+      /* 0200000F */ "kQTMSKnobVolumeVelocity64ID",
+      /* 02000010 */ "kQTMSKnobVolumeVelocity32ID",
+      /* 02000011 */ "kQTMSKnobVolumeVelocity16ID",
+      /* 02000012 */ "kQTMSKnobPitchTransposeID",
+      /* 02000013 */ "kQTMSKnobPitchLFODelayID",
+      /* 02000014 */ "kQTMSKnobPitchLFORampTimeID",
+      /* 02000015 */ "kQTMSKnobPitchLFOPeriodID",
+      /* 02000016 */ "kQTMSKnobPitchLFOShapeID",
+      /* 02000017 */ "kQTMSKnobPitchLFODepthID",
+      /* 02000018 */ "kQTMSKnobPitchLFOQuantizeID",
+      /* 02000019 */ "kQTMSKnobStereoDefaultPanID",
+      /* 0200001A */ "kQTMSKnobStereoPositionKeyScalingID",
+      /* 0200001B */ "kQTMSKnobPitchLFOOffsetID",
+      /* 0200001C */ "kQTMSKnobExclusionGroupID",
+      /* 0200001D */ "kQTMSKnobSustainTimeID",
+      /* 0200001E */ "kQTMSKnobSustainInfiniteID",
+      /* 0200001F */ "kQTMSKnobVolumeLFOStereoID",
+      /* 02000020 */ "kQTMSKnobVelocityLowID",
+      /* 02000021 */ "kQTMSKnobVelocityHighID",
+      /* 02000022 */ "kQTMSKnobVelocitySensitivityID",
+      /* 02000023 */ "kQTMSKnobPitchSensitivityID",
+      /* 02000024 */ "kQTMSKnobVolumeLFODepthFromWheelID",
+      /* 02000025 */ "kQTMSKnobPitchLFODepthFromWheelID",
+      /* 02000026 */ "kQTMSKnobVolumeExpOptionsID",
+      /* 02000027 */ "kQTMSKnobEnv1AttackTimeID",
+      /* 02000028 */ "kQTMSKnobEnv1DecayTimeID",
+      /* 02000029 */ "kQTMSKnobEnv1SustainLevelID",
+      /* 0200002A */ "kQTMSKnobEnv1SustainTimeID",
+      /* 0200002B */ "kQTMSKnobEnv1SustainInfiniteID",
+      /* 0200002C */ "kQTMSKnobEnv1ReleaseTimeID",
+      /* 0200002D */ "kQTMSKnobEnv1ExpOptionsID",
+      /* 0200002E */ "kQTMSKnobEnv2AttackTimeID",
+      /* 0200002F */ "kQTMSKnobEnv2DecayTimeID",
+      /* 02000030 */ "kQTMSKnobEnv2SustainLevelID",
+      /* 02000031 */ "kQTMSKnobEnv2SustainTimeID",
+      /* 02000032 */ "kQTMSKnobEnv2SustainInfiniteID",
+      /* 02000033 */ "kQTMSKnobEnv2ReleaseTimeID",
+      /* 02000034 */ "kQTMSKnobEnv2ExpOptionsID",
+      /* 02000035 */ "kQTMSKnobPitchEnvelopeID",
+      /* 02000036 */ "kQTMSKnobPitchEnvelopeDepthID",
+      /* 02000037 */ "kQTMSKnobFilterKeyFollowID",
+      /* 02000038 */ "kQTMSKnobFilterTransposeID",
+      /* 02000039 */ "kQTMSKnobFilterQID",
+      /* 0200003A */ "kQTMSKnobFilterFrequencyEnvelopeID",
+      /* 0200003B */ "kQTMSKnobFilterFrequencyEnvelopeDepthID",
+      /* 0200003C */ "kQTMSKnobFilterQEnvelopeID",
+      /* 0200003D */ "kQTMSKnobFilterQEnvelopeDepthID",
+      /* 0200003E */ "kQTMSKnobReverbThresholdID",
+      /* 0200003F */ "kQTMSKnobVolumeAttackVelScalingID",
+      /* 02000040 */ // "kQTMSKnobLastIDPlus1",
+  };
+  uint32_t effective_id = knob_id - 0x02000000;
+  return (effective_id < names.size()) ? names[effective_id] : nullptr;
 }
 
 struct TuneInstrumentDefinition {

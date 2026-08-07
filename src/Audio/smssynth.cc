@@ -992,15 +992,16 @@ protected:
 
   virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<TrackT>>::iterator track_it) = 0;
 
-  void voice_on(std::shared_ptr<TrackT> t, size_t voice_id, uint8_t key, uint8_t vel, size_t channel_id) {
+  std::shared_ptr<Voice> voice_on(
+      std::shared_ptr<TrackT> t, size_t voice_id, uint8_t key, uint8_t vel, size_t channel_id) {
     std::shared_ptr<Channel> c = t->channel(channel_id);
 
+    std::shared_ptr<Voice> voice;
     if (this->env) {
       try {
-        SampleVoice* v = new SampleVoice(
+        voice = std::make_shared<SampleVoice>(
             this->sample_rate, this->env, this->cache, t->bank, t->instrument, key, vel, this->decay_when_off,
             this->decay_seconds, c);
-        t->voices[voice_id].reset(v);
       } catch (const std::out_of_range& e) {
         std::string key_str = ResourceDASM::Audio::name_for_note(key);
         if (debug_flags & DebugFlag::SHOW_MISSING_NOTES) {
@@ -1009,14 +1010,16 @@ protected:
               e.what(), t->bank, t->instrument, key, key_str, vel);
         }
         if (debug_flags & DebugFlag::PLAY_MISSING_NOTES) {
-          t->voices[voice_id].reset(new SineVoice(this->sample_rate, key, vel, c));
+          voice = std::make_shared<SineVoice>(this->sample_rate, key, vel, c);
         } else {
-          t->voices[voice_id].reset(new SilentVoice(this->sample_rate, key, vel, c));
+          voice = std::make_shared<SilentVoice>(this->sample_rate, key, vel, c);
         }
       }
     } else {
-      t->voices[voice_id].reset(new SineVoice(this->sample_rate, key, vel, c));
+      voice = std::make_shared<SineVoice>(this->sample_rate, key, vel, c);
     }
+    t->voices[voice_id] = voice;
+    return voice;
   }
 
 public:
@@ -2030,7 +2033,7 @@ protected:
         t->channel(0)->panning.set(static_cast<float>(ev->value) / 0x7F);
       } else {
         // TODO: implement more controller messages
-        phosg::log_warning_f("NOCOMMIT: Unknown controller message: {} {} {}", ev->channel, ev->message, ev->value);
+        phosg::log_warning_f("Unknown controller message: {} {} {}", ev->channel, ev->message, ev->value);
       }
 
     } else {
