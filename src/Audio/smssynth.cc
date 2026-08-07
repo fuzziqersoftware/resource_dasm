@@ -684,40 +684,44 @@ void disassemble_midi(phosg::StringReader& r) {
 
 struct Channel {
   float pitch_bend_semitone_range = 48.0;
+  bool suppress_base_note = false;
 
-  float volume = 1.0;
-  float volume_target = 1.0;
-  uint16_t volume_target_frames = 0;
+  template <typename T, T DefaultValue>
+  struct Attenuator {
+    T value = DefaultValue;
+    T target = DefaultValue;
+    size_t target_frames = 0;
 
-  float pitch_bend = 0.0;
-  float pitch_bend_target = 0.0;
-  uint16_t pitch_bend_target_frames = 0;
+    inline void set(T new_value) {
+      this->value = new_value;
+      this->target = this->value;
+      this->target_frames = 0;
+    }
+    inline void set(T new_value, size_t frames) {
+      this->target = new_value;
+      this->target_frames = frames;
+    }
+    inline T get() {
+      return this->value;
+    }
+    inline void attenuate() {
+      if (this->target_frames) {
+        this->value += (this->target - this->value) / this->target_frames;
+        this->target_frames--;
+      }
+    }
+  };
 
-  float reverb = 0.0;
-  float reverb_target = 0.0;
-  uint16_t reverb_target_frames = 0;
-
-  float panning = 0.5f;
-  float panning_target = 0.5f;
-  uint16_t panning_target_frames = 0;
+  Attenuator<float, 1.0f> volume;
+  Attenuator<float, 0.0f> pitch_bend;
+  Attenuator<float, 0.0f> reverb;
+  Attenuator<float, 0.5f> panning;
 
   void attenuate() {
-    if (this->volume_target_frames) {
-      this->volume += (this->volume_target - this->volume) / this->volume_target_frames;
-      this->volume_target_frames--;
-    }
-    if (this->pitch_bend_target_frames) {
-      this->pitch_bend += (this->pitch_bend_target - this->pitch_bend) / this->pitch_bend_target_frames;
-      this->pitch_bend_target_frames--;
-    }
-    if (this->reverb_target_frames) {
-      this->reverb += (this->reverb_target - this->reverb) / this->reverb_target_frames;
-      this->reverb_target_frames--;
-    }
-    if (this->panning_target_frames) {
-      this->panning += (this->panning_target - this->panning) / this->panning_target_frames;
-      this->panning_target_frames--;
-    }
+    this->volume.attenuate();
+    this->pitch_bend.attenuate();
+    this->reverb.attenuate();
+    this->panning.attenuate();
   }
 };
 
@@ -797,8 +801,9 @@ public:
     for (size_t x = 0; x < count; x++) {
       // Panning is 0.0f (left) - 1.0f (right)
       float off_factor = this->advance_note_off_factor();
-      data[2 * x + 0] = volume_bias * vel_factor * off_factor * (1.0f - this->channel->panning) * this->channel->volume * sin((2.0f * M_PI * frequency) / this->sample_rate * (x + this->offset));
-      data[2 * x + 1] = volume_bias * vel_factor * off_factor * this->channel->panning * this->channel->volume * sin((2.0f * M_PI * frequency) / this->sample_rate * (x + this->offset));
+      float sample = volume_bias * vel_factor * off_factor * this->channel->volume.get() * sin((2.0f * M_PI * frequency) / this->sample_rate * (x + this->offset));
+      data[2 * x + 0] = sample * (1.0f - this->channel->panning.get());
+      data[2 * x + 1] = sample * this->channel->panning.get();
     }
     this->offset += count;
 
@@ -842,8 +847,7 @@ public:
 
   virtual ~SampleVoice() = default;
 
-  const std::vector<float>& get_samples(float pitch_bend,
-      float pitch_bend_semitone_range, float freq_mult) {
+  const std::vector<float>& get_samples(float pitch_bend, float pitch_bend_semitone_range, float freq_mult) {
     // Stretch it out by the sample rate difference
     float sample_rate_factor = static_cast<float>(sample_rate) /
         static_cast<float>(this->vel_region->sound->sample_rate);
@@ -853,7 +857,7 @@ public:
     if (base_note < 0) {
       base_note = this->vel_region->sound->base_note;
     }
-    float note_factor = this->vel_region->constant_pitch
+    float note_factor = (this->vel_region->constant_pitch || this->channel->suppress_base_note)
         ? 1.0
         : (ResourceDASM::Audio::frequency_for_note(base_note) / ResourceDASM::Audio::frequency_for_note(this->note));
 
@@ -908,13 +912,14 @@ public:
   virtual std::vector<float> render(size_t count, float freq_mult, float volume_bias) {
     std::vector<float> data(count * 2, 0.0f);
 
-    const auto& samples = this->get_samples(this->channel->pitch_bend,
-        this->channel->pitch_bend_semitone_range, freq_mult);
+    const auto& samples = this->get_samples(
+        this->channel->pitch_bend.get(), this->channel->pitch_bend_semitone_range, freq_mult);
     float vel_factor = static_cast<float>(this->vel) / 0x7F;
     for (size_t x = 0; (x < count) && (this->offset < samples.size()); x++) {
       float off_factor = this->advance_note_off_factor();
-      data[2 * x + 0] = volume_bias * vel_factor * off_factor * (1.0f - this->channel->panning) * this->channel->volume * samples[this->offset];
-      data[2 * x + 1] = volume_bias * vel_factor * off_factor * this->channel->panning * this->channel->volume * samples[this->offset];
+      float sample = volume_bias * vel_factor * off_factor * this->channel->volume.get() * samples[this->offset];
+      data[2 * x + 0] = sample * (1.0f - this->channel->panning.get());
+      data[2 * x + 1] = sample * this->channel->panning.get();
 
       this->offset++;
       if ((this->note_off_decay_remaining < 0) && (this->loop_end_offset > 0) && (this->offset > this->loop_end_offset)) {
@@ -949,58 +954,23 @@ public:
   std::shared_ptr<ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>> cache;
 };
 
-class Renderer {
+class RendererBase {
+public:
+  virtual ~RendererBase() = default;
+
+  virtual bool can_render() const = 0;
+  virtual std::vector<float> render_time_step(double remaining_secs = 0.0) = 0;
+  virtual std::vector<float> render_until(uint64_t time) = 0;
+  virtual std::vector<float> render_until_seconds(float seconds) = 0;
+  virtual std::vector<float> render_all() = 0;
+};
+
+template <typename TrackT>
+class Renderer : public RendererBase {
 protected:
-  struct Track {
-    int16_t id;
-    phosg::StringReader r;
-    bool reading_wait_opcode; // only used for midi
-    uint8_t midi_status; // only used for midi
-
-    std::unordered_map<size_t, std::shared_ptr<Channel>> channels;
-
-    float freq_mult;
-
-    int32_t bank; // technically uint16, but uninitialized as -1
-    int32_t instrument; // technically uint16, but uninitialized as -1
-
-    std::unordered_map<size_t, std::shared_ptr<Voice>> voices;
-    std::unordered_set<std::shared_ptr<Voice>> voices_off;
-    std::vector<uint32_t> call_stack;
-
-    std::unordered_map<uint8_t, int16_t> registers;
-
-    Track(int16_t id, const std::string& data, size_t start_offset, uint32_t bank = -1)
-        : id(id), r(data, start_offset), reading_wait_opcode(true), freq_mult(1), bank(bank), instrument(-1) {}
-
-    void attenuate_perf() {
-      for (auto& channel_it : this->channels) {
-        channel_it.second->attenuate();
-      }
-    }
-
-    void voice_off(size_t voice_id) {
-      // Some tracks do voice_off for nonexistent voices because of bad looping; just do nothing in that case
-      auto v_it = this->voices.find(voice_id);
-      if (v_it != this->voices.end()) {
-        v_it->second->off();
-        this->voices_off.emplace(std::move(v_it->second));
-        this->voices.erase(v_it);
-      }
-    }
-
-    std::shared_ptr<Channel> channel(size_t id) {
-      auto it = this->channels.find(id);
-      if (it != this->channels.end()) {
-        return it->second;
-      }
-      return this->channels.emplace(id, new Channel()).first->second;
-    }
-  };
-
   std::string output_data;
-  std::unordered_set<std::shared_ptr<Track>> tracks;
-  std::multimap<uint64_t, std::shared_ptr<Track>> next_event_to_track;
+  std::unordered_set<std::shared_ptr<TrackT>> tracks;
+  std::multimap<uint64_t, std::shared_ptr<TrackT>> next_event_to_track;
 
   size_t sample_rate;
   uint64_t current_time;
@@ -1020,22 +990,22 @@ protected:
 
   std::shared_ptr<ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>> cache;
 
-  virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<Track>>::iterator track_it) = 0;
+  virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<TrackT>>::iterator track_it) = 0;
 
-  void voice_on(std::shared_ptr<Track> t, size_t voice_id, uint8_t key, uint8_t vel, size_t channel_id) {
+  void voice_on(std::shared_ptr<TrackT> t, size_t voice_id, uint8_t key, uint8_t vel, size_t channel_id) {
     std::shared_ptr<Channel> c = t->channel(channel_id);
 
     if (this->env) {
       try {
         SampleVoice* v = new SampleVoice(
-            this->sample_rate, this->env, this->cache, t->bank, t->instrument, key, vel,
-            this->decay_when_off, this->decay_seconds, c);
+            this->sample_rate, this->env, this->cache, t->bank, t->instrument, key, vel, this->decay_when_off,
+            this->decay_seconds, c);
         t->voices[voice_id].reset(v);
       } catch (const std::out_of_range& e) {
         std::string key_str = ResourceDASM::Audio::name_for_note(key);
         if (debug_flags & DebugFlag::SHOW_MISSING_NOTES) {
           phosg::fwrite_fmt(stderr,
-              "warning: can\'t find sample ({}): bank={:X} instrument={:X} key={:02X}={} vel={:02X}\n",
+              "Warning: can\'t find sample ({}): bank={:X} instrument={:X} key={:02X}={} vel={:02X}\n",
               e.what(), t->bank, t->instrument, key, key_str, vel);
         }
         if (debug_flags & DebugFlag::PLAY_MISSING_NOTES) {
@@ -1079,7 +1049,7 @@ public:
 
   virtual ~Renderer() = default;
 
-  bool can_render() const {
+  virtual bool can_render() const {
     // If there are pending opcodes, we can continue rendering
     if (!this->next_event_to_track.empty()) {
       return true;
@@ -1096,17 +1066,10 @@ public:
     return false;
   }
 
-  std::vector<float> render_time_step(double remaining_secs = 0.0) {
+  virtual std::vector<float> render_time_step(double remaining_secs = 0.0) {
     // Run all opcodes that should execute on the current time step
-    while (!this->next_event_to_track.empty() && (current_time == this->next_event_to_track.begin()->first)) {
-      auto t_it = this->next_event_to_track.begin();
-      size_t offset = t_it->second->r.where();
-      try {
-        this->execute_opcode(t_it);
-      } catch (...) {
-        phosg::fwrite_fmt(stderr, "error at offset {:X}\n", offset);
-        throw;
-      }
+    while (!this->next_event_to_track.empty() && (this->current_time >= this->next_event_to_track.begin()->first)) {
+      this->execute_opcode(this->next_event_to_track.begin());
     }
 
     // If all tracks have terminated, turn all of their voices off
@@ -1274,7 +1237,7 @@ public:
     return step_samples;
   }
 
-  std::vector<float> render_until(uint64_t time) {
+  virtual std::vector<float> render_until(uint64_t time) {
     std::vector<float> samples;
     while (this->can_render() && (this->current_time < time)) {
       auto step_samples = this->render_time_step();
@@ -1283,7 +1246,7 @@ public:
     return samples;
   }
 
-  std::vector<float> render_until_seconds(float seconds) {
+  virtual std::vector<float> render_until_seconds(float seconds) {
     std::vector<float> samples;
     size_t target_size = seconds * this->sample_rate;
     while (this->can_render() && (this->samples_rendered < target_size)) {
@@ -1293,7 +1256,7 @@ public:
     return samples;
   }
 
-  std::vector<float> render_all() {
+  virtual std::vector<float> render_all() {
     std::vector<float> samples;
     while (this->can_render()) {
       auto step_samples = this->render_time_step();
@@ -1303,7 +1266,53 @@ public:
   }
 };
 
-class BMSRenderer : public Renderer {
+struct BaseTrack {
+  int16_t id;
+  std::unordered_map<size_t, std::shared_ptr<Channel>> channels;
+  float freq_mult = 1.0;
+  int32_t bank = -1; // Technically uint16, but uninitialized as -1
+  int32_t instrument = -1; // Technically uint16, but uninitialized as -1
+
+  std::unordered_map<size_t, std::shared_ptr<Voice>> voices;
+  std::unordered_set<std::shared_ptr<Voice>> voices_off;
+
+  BaseTrack(int16_t id, int32_t bank = -1) : id(id), bank(bank) {}
+
+  void attenuate_perf() {
+    for (auto& channel_it : this->channels) {
+      channel_it.second->attenuate();
+    }
+  }
+
+  void voice_off(size_t voice_id) {
+    // Some tracks do voice_off for nonexistent voices because of bad looping; just do nothing in that case
+    auto v_it = this->voices.find(voice_id);
+    if (v_it != this->voices.end()) {
+      v_it->second->off();
+      this->voices_off.emplace(std::move(v_it->second));
+      this->voices.erase(v_it);
+    }
+  }
+
+  std::shared_ptr<Channel> channel(size_t id) {
+    auto it = this->channels.find(id);
+    if (it != this->channels.end()) {
+      return it->second;
+    }
+    return this->channels.emplace(id, new Channel()).first->second;
+  }
+};
+
+struct BMSTrack : public BaseTrack {
+  phosg::StringReader r;
+  std::vector<uint32_t> call_stack;
+  std::unordered_map<uint8_t, int16_t> registers;
+
+  BMSTrack(int16_t id, const std::string& data, size_t start_offset, uint32_t bank = -1)
+      : BaseTrack(id, bank), r(data, start_offset) {}
+};
+
+class BMSRenderer : public Renderer<BMSTrack> {
 protected:
   std::shared_ptr<ResourceDASM::Audio::SequenceProgram> seq;
   std::shared_ptr<std::string> seq_data;
@@ -1333,7 +1342,7 @@ public:
             volume_bias,
             decay_when_off),
         seq(seq) {
-    std::shared_ptr<Track> default_track(new Track(-1, this->seq->data, 0, this->seq->index));
+    std::shared_ptr<BMSTrack> default_track(new BMSTrack(-1, this->seq->data, 0, this->seq->index));
     this->tracks.emplace(default_track);
     this->next_event_to_track.emplace(0, default_track);
     default_track->freq_mult = this->freq_bias;
@@ -1342,22 +1351,17 @@ public:
   virtual ~BMSRenderer() = default;
 
 protected:
-  void execute_set_perf(std::shared_ptr<Track> t, uint8_t type, float value,
-      uint16_t duration) {
+  void execute_set_perf(std::shared_ptr<BMSTrack> t, uint8_t type, float value, uint16_t duration) {
     std::shared_ptr<Channel> c = t->channel(0);
     if (duration) {
       if (type == 0x00) {
-        c->volume_target = value;
-        c->volume_target_frames = duration;
+        c->volume.set(value, duration);
       } else if (type == 0x01) {
-        c->pitch_bend_target = value;
-        c->pitch_bend_target_frames = duration;
+        c->pitch_bend.set(value, duration);
       } else if (type == 0x02) {
-        c->reverb_target = value;
-        c->reverb_target_frames = duration;
+        c->reverb.set(value, duration);
       } else if (type == 0x03) {
-        c->panning_target = value;
-        c->panning_target_frames = duration;
+        c->panning.set(value, duration);
       } else {
         if (debug_flags & DebugFlag::SHOW_UNKNOWN_PERF_OPTIONS) {
           phosg::fwrite_fmt(stderr, "unknown perf type option: {:02X} (value={:g})\n", type, value);
@@ -1365,17 +1369,13 @@ protected:
       }
     } else {
       if (type == 0x00) {
-        c->volume = value;
-        c->volume_target_frames = 0;
+        c->volume.set(value);
       } else if (type == 0x01) {
-        c->pitch_bend = value;
-        c->pitch_bend_target_frames = 0;
+        c->pitch_bend.set(value);
       } else if (type == 0x02) {
-        c->reverb = value;
-        c->reverb_target_frames = 0;
+        c->reverb.set(value);
       } else if (type == 0x03) {
-        c->panning = value;
-        c->panning_target_frames = 0;
+        c->panning.set(value);
       } else {
         if (debug_flags & DebugFlag::SHOW_UNKNOWN_PERF_OPTIONS) {
           phosg::fwrite_fmt(stderr, "unknown perf type option: {:02X} (value={:g})\n", type, value);
@@ -1384,7 +1384,7 @@ protected:
     }
   }
 
-  void execute_set_param(std::shared_ptr<Track> t, uint8_t param, uint16_t value) {
+  void execute_set_param(std::shared_ptr<BMSTrack> t, uint8_t param, uint16_t value) {
     if (param == 0x20) {
       t->bank = value;
     } else if (param == 0x21) {
@@ -1401,8 +1401,8 @@ protected:
     }
   }
 
-  virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<Track>>::iterator track_it) {
-    std::shared_ptr<Track> t = track_it->second;
+  virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<BMSTrack>>::iterator track_it) {
+    std::shared_ptr<BMSTrack> t = track_it->second;
 
     uint8_t opcode = t->r.get_u8();
     if (opcode < 0x80) {
@@ -1510,7 +1510,7 @@ protected:
         // Only start the track if not in disable_tracks, and solo_tracks is either not given or contains the track
         if ((this->solo_tracks.empty() || this->solo_tracks.count(track_id)) &&
             !this->disable_tracks.count(track_id)) {
-          std::shared_ptr<Track> new_track(new Track(track_id, this->seq->data, offset, this->seq->index));
+          std::shared_ptr<BMSTrack> new_track(new BMSTrack(track_id, this->seq->data, offset, this->seq->index));
           this->tracks.emplace(new_track);
           this->next_event_to_track.emplace(this->current_time, new_track);
           new_track->freq_mult = this->freq_bias;
@@ -1694,11 +1694,21 @@ protected:
   }
 };
 
-class MIDIRenderer : public Renderer {
+struct MIDITrack : public BaseTrack {
+  phosg::StringReader r;
+  bool reading_wait_opcode = true;
+  uint8_t midi_status = 0;
+
+  MIDITrack(int16_t id, const std::string& data, size_t start_offset) : BaseTrack(id, 0), r(data, start_offset) {}
+};
+
+class MIDIRenderer : public Renderer<MIDITrack> {
 protected:
   std::shared_ptr<ResourceDASM::Audio::SequenceProgram> seq;
   bool allow_program_change;
   uint8_t channel_instrument[0x10];
+  std::unordered_set<int16_t> mute_channels;
+  std::unordered_set<int16_t> solo_channels;
 
 public:
   explicit MIDIRenderer(
@@ -1763,8 +1773,8 @@ public:
         throw std::runtime_error("track header not present");
       }
 
-      if ((this->solo_tracks.empty() || this->solo_tracks.count(track_id)) && !this->disable_tracks.count(track_id)) {
-        std::shared_ptr<Track> t(new Track(track_id, this->seq->data, r.where(), 0));
+      if (!this->disable_tracks.count(track_id)) {
+        std::shared_ptr<MIDITrack> t(new MIDITrack(track_id, this->seq->data, r.where()));
         this->tracks.emplace(t);
         this->next_event_to_track.emplace(0, t);
         t->freq_mult = this->freq_bias;
@@ -1774,24 +1784,29 @@ public:
     }
 
     // Set the tempo if it's given in absolute terms
+    this->tempo = 120 * this->tempo_bias;
     if (header.division & 0x8000) {
       // TODO: figure out if this logic is right
       uint8_t frames_per_sec = -((header.division >> 8) & 0x7F);
       uint8_t ticks_per_frame = header.division & 0xFF;
       int64_t ticks_per_sec = static_cast<int64_t>(ticks_per_frame) * static_cast<int64_t>(frames_per_sec);
-      this->tempo = 120 * this->tempo_bias;
       this->pulse_rate = ticks_per_sec / 2;
     } else {
-      this->tempo = 120 * this->tempo_bias;
       this->pulse_rate = header.division;
+    }
+
+    // If there's only one track, switch mute/solo settings to channels instead
+    if (header.track_count == 1) {
+      this->mute_channels.swap(this->mute_tracks);
+      this->solo_channels.swap(this->solo_tracks);
     }
   }
 
   virtual ~MIDIRenderer() = default;
 
 protected:
-  virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<Track>>::iterator track_it) {
-    std::shared_ptr<Track> t = track_it->second;
+  virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<MIDITrack>>::iterator track_it) {
+    std::shared_ptr<MIDITrack> t = track_it->second;
 
     t->reading_wait_opcode = !t->reading_wait_opcode;
     if (!t->reading_wait_opcode) {
@@ -1828,8 +1843,10 @@ protected:
       uint8_t key = t->r.get_u8();
       uint8_t vel = t->r.get_u8();
 
-      uint32_t voice_id = (static_cast<uint32_t>(channel) << 8) | static_cast<uint32_t>(key);
-      this->voice_on(t, voice_id, key, vel, channel);
+      if (!this->mute_channels.count(channel) && (this->solo_channels.empty() || this->solo_channels.count(channel))) {
+        uint32_t voice_id = (static_cast<uint32_t>(channel) << 8) | static_cast<uint32_t>(key);
+        this->voice_on(t, voice_id, key, vel, channel);
+      }
 
     } else if ((t->midi_status & 0xF0) == 0xA0) { // Change key pressure
       // uint8_t channel = t->midi_status & 0x0F;
@@ -1842,11 +1859,9 @@ protected:
       uint8_t controller = t->r.get_u8();
       uint8_t value = t->r.get_u8();
       if (controller == 0x07) {
-        t->channel(channel)->volume_target = static_cast<float>(value) / 0x7F;
-        t->channel(channel)->volume = static_cast<float>(value) / 0x7F;
+        t->channel(channel)->volume.set(static_cast<float>(value) / 0x7F);
       } else if (controller == 0x0A) {
-        t->channel(channel)->panning_target = static_cast<float>(value) / 0x7F;
-        t->channel(channel)->panning = static_cast<float>(value) / 0x7F;
+        t->channel(channel)->panning.set(static_cast<float>(value) / 0x7F);
       }
       // TODO: implement more controller messages
 
@@ -1863,10 +1878,10 @@ protected:
       // TODO
 
     } else if ((t->midi_status & 0xF0) == 0xE0) { // Pitch bend
-      // uint8_t channel = t->midi_status & 0x0F;
-      t->r.get_u8(); // lsb
-      t->r.get_u8(); // msb
-      // uint16_t value = (msb << 7) | lsb; // Yes, each is 7 bits, not 8
+      uint8_t channel = t->midi_status & 0x0F;
+      uint8_t lsb = t->r.get_u8();
+      uint8_t msb = t->r.get_u8();
+      t->channel(channel)->pitch_bend.set((static_cast<float>((msb << 7) | lsb) / 0x4000) - 0.5);
 
     } else if (t->midi_status == 0xFF) { // Meta event
       uint8_t type = t->r.get_u8();
@@ -1883,6 +1898,143 @@ protected:
       } else { // Anything else? just skip it
         t->r.go(t->r.where() + size);
       }
+    }
+  }
+};
+
+struct TuneTrack : public BaseTrack {
+  std::vector<const ResourceDASM::Audio::TuneResource::Event*> events;
+  size_t event_index = 0;
+
+  TuneTrack(int16_t id) : BaseTrack(id, 0) {}
+};
+
+class TuneRenderer : public Renderer<TuneTrack> {
+protected:
+  std::shared_ptr<const ResourceDASM::Audio::TuneResource> tune;
+
+public:
+  explicit TuneRenderer(
+      std::shared_ptr<const ResourceDASM::Audio::TuneResource> tune,
+      size_t sample_rate,
+      ResourceDASM::Audio::ResampleMethod resample_method,
+      std::shared_ptr<const ResourceDASM::Audio::SoundEnvironment> env,
+      const std::unordered_set<int16_t>& mute_tracks,
+      const std::unordered_set<int16_t>& solo_tracks,
+      const std::unordered_set<int16_t>& disable_tracks,
+      double tempo_bias,
+      double freq_bias,
+      double volume_bias,
+      bool decay_when_off,
+      float decay_seconds)
+      : Renderer(
+            sample_rate,
+            resample_method,
+            env,
+            mute_tracks,
+            solo_tracks,
+            disable_tracks,
+            tempo_bias,
+            freq_bias,
+            volume_bias,
+            decay_when_off),
+        tune(tune) {
+    using T = ResourceDASM::Audio::TuneResource;
+    this->decay_seconds = decay_seconds;
+
+    // Create all the tracks
+    std::unordered_map<size_t, std::shared_ptr<TuneTrack>> id_to_track;
+    for (const auto& ev : this->tune->events) {
+      if (this->disable_tracks.count(ev->channel)) {
+        continue;
+      }
+      auto track_it = id_to_track.find(ev->channel);
+      if (track_it == id_to_track.end()) {
+        auto t = std::make_shared<TuneTrack>(ev->channel);
+        auto chan = t->channel(0);
+        t->freq_mult = this->freq_bias;
+        t->events.emplace_back(ev.get());
+        this->tracks.emplace(t);
+        id_to_track.emplace(t->id, t);
+      } else {
+        track_it->second->events.emplace_back(ev.get());
+      }
+    }
+
+    for (const auto& t : this->tracks) {
+      if (!t->events.empty()) {
+        std::sort(t->events.begin(), t->events.end(), [](const T::Event*& a, const T::Event*& b) -> bool {
+          return a->when < b->when;
+        });
+        this->next_event_to_track.emplace(t->events[0]->when, t);
+      }
+    }
+
+    this->tempo = 120 * this->tempo_bias;
+    this->pulse_rate = 300; // TODO: Is this in the Tune metadata somewhere? It almost certainly is, right?
+  }
+
+  virtual ~TuneRenderer() = default;
+
+protected:
+  virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<TuneTrack>>::iterator track_it) {
+    using T = ResourceDASM::Audio::TuneResource;
+
+    auto t = track_it->second;
+    if (t->events.empty()) {
+      throw std::logic_error("Tune track is pending but has no events");
+    }
+    auto* generic_ev = t->events.at(t->event_index);
+    if (generic_ev->channel != t->id) {
+      throw std::logic_error(std::format("Event appears on incorrect channel (event {} on channel {})",
+          generic_ev->channel, t->id));
+    }
+    t->event_index++;
+    this->next_event_to_track.erase(track_it);
+    if (t->event_index < t->events.size()) {
+      this->next_event_to_track.emplace(t->events[t->event_index]->when, t);
+    }
+
+    if (auto ev = dynamic_cast<const T::ChannelSetupEvent*>(generic_ev)) {
+      t->instrument = ev->instrument_number;
+      auto chan = t->channel(0);
+      // TODO: This isn't quite right. It might be true that track 0 is always percussion (and hence should have
+      // different base note correction behavior), but it's incorrect to suppress correction entirely. See e.g. Level 9
+      // (Black Lab), which clearly expects some kind of correction here.
+      chan->suppress_base_note = (t->id == 0);
+      chan->volume.set(static_cast<float>(ev->volume) / 0x7F);
+      chan->panning.set(static_cast<float>(ev->panning) / 0x7F);
+      chan->pitch_bend.set((static_cast<float>(ev->pitch_bend) / 0x4000) - 0.5);
+
+    } else if (auto ev = dynamic_cast<const T::NoteEvent*>(generic_ev)) {
+      if (!this->mute_tracks.count(t->id) && (this->solo_tracks.empty() || this->solo_tracks.count(t->id))) {
+        uint32_t voice_id = (static_cast<uint32_t>(ev->channel) << 16) |
+            (static_cast<uint32_t>(ev->key) << 8) |
+            static_cast<uint32_t>(ev->vel);
+        this->voice_on(t, voice_id, ev->key, ev->vel, 0);
+      }
+
+    } else if (auto ev = dynamic_cast<const T::NoteOffEvent*>(generic_ev)) {
+      uint32_t voice_id = (static_cast<uint32_t>(ev->channel) << 16) |
+          (static_cast<uint32_t>(ev->key) << 8) |
+          static_cast<uint32_t>(ev->vel);
+      t->voice_off(voice_id);
+
+    } else if (auto ev = dynamic_cast<const T::PitchBendEvent*>(generic_ev)) {
+      t->channel(0)->pitch_bend.set((static_cast<float>(ev->value) / 0x4000) - 0.5);
+
+    } else if (auto ev = dynamic_cast<const T::ControllerEvent*>(generic_ev)) {
+      if (ev->message == 0x07) {
+        t->channel(0)->volume.set(static_cast<float>(ev->value) / 0x7F);
+      } else if (ev->message == 0x0A) {
+        t->channel(0)->panning.set(static_cast<float>(ev->value) / 0x7F);
+      } else {
+        // TODO: implement more controller messages
+        phosg::log_warning_f("NOCOMMIT: Unknown controller message: {} {} {}", ev->channel, ev->message, ev->value);
+      }
+
+    } else {
+      throw std::logic_error("Unknown event type");
     }
   }
 };
@@ -1918,8 +2070,10 @@ Output options (only one of these may be given):\n\
 Synthesis options:\n\
   --disable-track=N: disable track N entirely (can be given multiple times).\n\
   --solo-track=N: disable all tracks except N (can be given multiple times).\n\
-      For BMS, the default track (-1) is not disabled by this option.\n\
-  --mute-track=N: execute instructions for track N, but mute its sound.\n\
+      For BMS, the default track (-1) is not disabled by this option. For MIDI\n\
+      files with only one track, this option applies to channels instead.\n\
+  --mute-track=N: execute instructions for track N, but mute its sound. For\n\
+      MIDI files with only one track, this option applies to channels instead.\n\
   --tempo-bias=BIAS: play songs at this proportion of their original speed.\n\
   --freq-bias=BIAS: play notes at this proportion of their original pitch.\n\
   --time-limit=N: stop after this many seconds (default 5 minutes).\n\
@@ -2143,7 +2297,7 @@ int main(int argc, char** argv) {
     try {
       seq.reset(new ResourceDASM::Audio::SequenceProgram{
           midi ? ResourceDASM::Audio::SequenceProgram::Type::MIDI : ResourceDASM::Audio::SequenceProgram::Type::BMS,
-          static_cast<uint32_t>(default_bank), phosg::load_file(filename)});
+          static_cast<uint32_t>(default_bank), phosg::load_file(filename), nullptr});
     } catch (const phosg::cannot_open_file&) {
       phosg::fwrite_fmt(stderr, "sequence does not exist in environment, nor on disk: {}\n", filename);
       return 2;
@@ -2158,6 +2312,10 @@ int main(int argc, char** argv) {
   if (!output_filename && !play) {
     phosg::StringReader r(seq->data);
     switch (seq->type) {
+      case ResourceDASM::Audio::SequenceProgram::Type::TUNE:
+        phosg::fwrite_fmt(stdout, "Tune resource:\n{}\n\nMIDI conversion:\n", seq->source_tune->disassemble());
+        disassemble_midi(r);
+        break;
       case ResourceDASM::Audio::SequenceProgram::Type::MIDI:
         disassemble_midi(r);
         break;
@@ -2170,7 +2328,7 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  std::shared_ptr<Renderer> r;
+  std::shared_ptr<RendererBase> r;
   switch (seq->type) {
     case ResourceDASM::Audio::SequenceProgram::Type::BMS:
       r.reset(new BMSRenderer(
@@ -2185,6 +2343,28 @@ int main(int argc, char** argv) {
           freq_bias,
           volume_bias,
           decay_when_off));
+      break;
+
+    case ResourceDASM::Audio::SequenceProgram::Type::TUNE:
+      if (!seq->source_tune) {
+        throw std::logic_error("TunePlayer requires a parsed TuneResource");
+      }
+      if (decay_seconds < 0) {
+        decay_seconds = 0.2f;
+      }
+      r.reset(new TuneRenderer(
+          seq->source_tune,
+          sample_rate,
+          resample_method,
+          env,
+          mute_tracks,
+          solo_tracks,
+          disable_tracks,
+          tempo_bias,
+          freq_bias,
+          volume_bias,
+          decay_when_off,
+          decay_seconds));
       break;
 
     case ResourceDASM::Audio::SequenceProgram::Type::MIDI: {

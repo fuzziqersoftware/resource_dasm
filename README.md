@@ -151,7 +151,7 @@ resource_dasm can convert these resource types:
       snd  | .wav or .mp3                                            | *5
       SONG | .json (smssynth)                                        | *6
       SOUN | .wav                                                    | *A
-      ssai | .json (smssynth) and .wav                               | *6
+      ssai | .txt (metadata) and .wav                                | *6
       Tune | .midi                                                   | *7
       Ysnd | .wav                                                    |
     ------------------------------------------------------------------------

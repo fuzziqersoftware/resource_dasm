@@ -264,7 +264,7 @@ std::unordered_map<std::string, SequenceProgram> barc_decode(
     while (ret.count(effective_name)) {
       effective_name = std::format("{}@{}", e.name, ++suffix);
     }
-    ret.emplace(effective_name, SequenceProgram{SequenceProgram::Type::BMS, x, std::move(data)});
+    ret.emplace(effective_name, SequenceProgram{SequenceProgram::Type::BMS, x, std::move(data), nullptr});
   }
 
   return ret;
@@ -504,7 +504,11 @@ SoundEnvironment baa_decode(const void* vdata, size_t size, const char* base_dir
         uint32_t offset = data_fields[field_offset++];
         uint32_t end_offset = data_fields[field_offset++];
         ret.sequence_programs.emplace(std::format("seq{}", id),
-            SequenceProgram{SequenceProgram::Type::BMS, id, std::string(reinterpret_cast<const char*>(data + offset), end_offset - offset)});
+            SequenceProgram{
+                SequenceProgram::Type::BMS,
+                id,
+                std::string(reinterpret_cast<const char*>(data + offset), end_offset - offset),
+                nullptr});
         break;
       }
 
@@ -797,7 +801,7 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
   size_t sound_id = 1;
   for (const auto& [_, ssai] : ssais) {
     auto& inst = inst_bank.id_to_instrument.emplace(ssai.id, ssai.id).first->second;
-    for (const auto& [_, rgn] : ssai.key_regions) {
+    for (const auto& [rgn_id, rgn] : ssai.key_regions) {
       uint64_t local_key = ((static_cast<uint64_t>(ssai.id) << 32) | rgn.sample_data_number);
       uint64_t global_key = rgn.sample_data_number;
       auto sample_data_it = sample_data_for_key.find(local_key);
@@ -835,7 +839,7 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
     log.info_f("Added instrument {} => {} \"{}\" (ssai {})", ssai.name, ssai.id, ssai.name, ssai.resource_id);
   }
 
-  for (const auto& [name, tune] : tunes) {
+  for (auto& [name, tune] : tunes) {
     // Rewrite instrument selection events in Tunes so they point to the right instruments.
     // TODO: It seems that there isn't a good ID to match these with, so we have to match by name instead. That can't
     // be how QuickTime actually did it, right? There has to be some kind of numeric ID, right?
@@ -863,7 +867,8 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
     }
 
     log.info_f("Generating MIDI for sequence \"{}\"", name);
-    env.sequence_programs.emplace(name, SequenceProgram{SequenceProgram::Type::MIDI, 0, tune.midi()});
+    env.sequence_programs.emplace(name,
+        SequenceProgram{SequenceProgram::Type::TUNE, 0, tune.midi(), std::make_shared<TuneResource>(std::move(tune))});
   }
 
   env.resolve_pointers();

@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "Instrument.hh"
+#include "QuickTimeInstrument.hh"
 
 namespace ResourceDASM {
 namespace Audio {
@@ -20,10 +21,12 @@ struct SequenceProgram {
   enum class Type {
     BMS = 0,
     MIDI,
+    TUNE, // .data is MIDI in this case; .source_tune has the original representation
   };
   Type type;
   uint32_t index;
   std::string data;
+  std::shared_ptr<const TuneResource> source_tune; // Null for non-QT sources
 };
 
 struct SoundEnvironment {

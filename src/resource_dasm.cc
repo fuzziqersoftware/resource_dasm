@@ -1821,6 +1821,50 @@ private:
     this->write_decoded_data(base_filename, res, "_smssynth_env.json", json.serialize(phosg::JSON::SerializeOption::FORMAT));
   }
 
+  void write_decoded_ssai(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    auto ssai = this->current_rf->decode_ssai(res);
+
+    std::deque<std::string> lines{
+        std::format("# resource_id: {}\n", ssai.resource_id),
+        std::format("# name: \"{}\"\n", ssai.name),
+    };
+    if (!ssai.copyright_cpy.empty()) {
+      lines.emplace_back(std::format("# copyright_cpy: \"{}\"", ssai.copyright_cpy));
+    }
+    if (!ssai.copyright_wrt.empty()) {
+      lines.emplace_back(std::format("# copyright_wrt: \"{}\"", ssai.copyright_wrt));
+    }
+    if (!ssai.info_string.empty()) {
+      lines.emplace_back(std::format("# info_string: \"{}\"", ssai.info_string));
+    }
+    for (const auto& knob : ssai.knobs) {
+      lines.emplace_back(std::format("# knob: {} {} {} {}",
+          knob.unknown_a1, knob.unknown_a2, knob.unknown_a3, knob.unknown_a4));
+    }
+    for (const auto& [block_number, key_region] : ssai.key_regions) {
+      lines.emplace_back(std::format("# key region: {}", block_number));
+      lines.emplace_back(std::format("#   key range: [{}, {}]", key_region.key_low, key_region.key_high));
+      lines.emplace_back(std::format(
+          "#   sample {}: {} channels, {} bits, {:g} kHz, {} frames, loop [{}, {}], base note {}",
+          key_region.sample_data_number, key_region.num_channels, key_region.bits_per_sample, key_region.sample_rate,
+          key_region.frame_count, key_region.loop_start_offset, key_region.loop_end_offset, key_region.base_note));
+      for (const auto& knob : key_region.knobs) {
+        lines.emplace_back(std::format("#   knob: {} {} {} {}",
+            knob.unknown_a1, knob.unknown_a2, knob.unknown_a3, knob.unknown_a4));
+      }
+
+      auto samples = ResourceDASM::Audio::convert_samples_dynamic(
+          ssai.sample_datas.at(key_region.sample_data_number).data, key_region.bits_per_sample);
+      auto wav_data = ResourceDASM::Audio::serialize_wav(
+          samples, key_region.sample_rate, key_region.num_channels, key_region.loop_start_offset,
+          key_region.loop_end_offset, key_region.base_note);
+      this->write_decoded_data(
+          base_filename, res, std::format("_sample_{}.wav", key_region.sample_data_number), wav_data);
+    }
+    this->write_decoded_data(base_filename, res, ".txt", phosg::join(lines, "\n"));
+  }
+
   void write_decoded_Tune(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_Tune(res);
@@ -2362,6 +2406,7 @@ const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> Resourc
     {ResourceDASM::RESOURCE_TYPE_snth, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_SONG, &ResourceExporter::write_decoded_SONG},
     {ResourceDASM::RESOURCE_TYPE_SOUN, &ResourceExporter::write_decoded_SOUN},
+    {ResourceDASM::RESOURCE_TYPE_ssai, &ResourceExporter::write_decoded_ssai},
     {ResourceDASM::RESOURCE_TYPE_STR, &ResourceExporter::write_decoded_STR},
     {ResourceDASM::RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
     {ResourceDASM::RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},

@@ -69,6 +69,7 @@ public:
   inline TuneResource(const std::string& data) : TuneResource(data.data(), data.size()) {}
 
   std::string midi() const;
+  std::string disassemble() const;
 
   struct MIDIEvent {
     uint64_t when;
@@ -76,40 +77,59 @@ public:
   };
 
   struct Event {
+    uint64_t when = 0;
+    uint8_t channel = 0;
+    size_t source_offset = 0;
+    std::string source_data;
+
     virtual ~Event() = default;
     virtual void add_midi_events(std::vector<MIDIEvent>& events) const = 0;
-    uint64_t when;
+    virtual std::string disassemble() const = 0;
+    std::string disassembly_prefix() const;
   };
+
   struct NoteEvent : Event {
-    virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
     uint64_t duration;
-    uint8_t channel;
     uint8_t key;
     uint8_t vel;
+
+    virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
+    virtual std::string disassemble() const;
   };
+
+  struct NoteOffEvent : Event {
+    uint8_t key;
+    uint8_t vel;
+
+    virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
+    virtual std::string disassemble() const;
+  };
+
   struct PitchBendEvent : Event {
-    virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
-    uint8_t channel;
     int16_t value;
-  };
-  struct ControllerEvent : Event {
+
     virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
-    uint8_t channel;
+    virtual std::string disassemble() const;
+  };
+
+  struct ControllerEvent : Event {
     uint8_t message;
     uint8_t value;
-  };
-  struct ChannelSetupEvent : Event {
+
     virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
-    uint8_t channel;
+    virtual std::string disassemble() const;
+  };
+
+  struct ChannelSetupEvent : Event {
     uint8_t volume; // 00-7F
     uint8_t panning; // 00-7F; 40 default
-    uint8_t pitch_bend; // 00-7F; 40 default
+    uint16_t pitch_bend; // 0000-4000; 2000 default
     uint32_t instrument_number;
     std::string collection_name;
     std::string instrument_name;
-  };
-  struct TrackEndEvent : Event {
+
     virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
+    virtual std::string disassemble() const;
   };
 
   std::vector<std::unique_ptr<Event>> events;

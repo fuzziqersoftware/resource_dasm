@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <format>
+#include <map>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <vector>
@@ -281,28 +282,57 @@ struct TuneExtendedInstrumentDefinition {
   /* 84 */
 } __attribute__((packed));
 
-void TuneResource::NoteEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
-  auto& ev1 = events.emplace_back(MIDIEvent{this->when, {}});
-  ev1.data.emplace_back(0x90 | this->channel);
-  ev1.data.emplace_back(this->key);
-  ev1.data.emplace_back(this->vel);
-  auto& ev2 = events.emplace_back(MIDIEvent{this->when + this->duration, {}});
-  ev2.data.emplace_back(0x80 | this->channel);
-  ev2.data.emplace_back(this->key);
-  ev2.data.emplace_back(this->vel);
+std::string TuneResource::Event::disassembly_prefix() const {
+  return std::format("{:08X}  {:<32}  @{:08X}",
+      this->source_offset,
+      phosg::format_data_string(this->source_data, nullptr, phosg::FormatDataStringFlags::HEX_ONLY),
+      this->when);
 }
+
+void TuneResource::NoteEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
+  auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
+  ev.data.emplace_back(0x90 | this->channel);
+  ev.data.emplace_back(this->key);
+  ev.data.emplace_back(this->vel);
+}
+std::string TuneResource::NoteEvent::disassemble() const {
+  return std::format("{}  note           channel {}, key {}, velocity {}, duration {}",
+      this->disassembly_prefix(), this->channel, this->key, this->vel, this->duration);
+}
+
+void TuneResource::NoteOffEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
+  auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
+  ev.data.emplace_back(0x80 | this->channel);
+  ev.data.emplace_back(this->key);
+  ev.data.emplace_back(this->vel);
+}
+std::string TuneResource::NoteOffEvent::disassemble() const {
+  return std::format("{}  note_off       channel {}, key {}, velocity {}",
+      this->disassembly_prefix(), this->channel, this->key, this->vel);
+}
+
 void TuneResource::PitchBendEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
   ev.data.emplace_back(0xE0 | this->channel);
   ev.data.emplace_back(this->value & 0x7F);
   ev.data.emplace_back((this->value >> 7) & 0x7F);
 }
+std::string TuneResource::PitchBendEvent::disassemble() const {
+  return std::format("{}  pitch_bend     channel {}, value {}",
+      this->disassembly_prefix(), this->channel, this->value);
+}
+
 void TuneResource::ControllerEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
   ev.data.emplace_back(0xB0 | this->channel);
   ev.data.emplace_back(this->message);
   ev.data.emplace_back(this->value);
 }
+std::string TuneResource::ControllerEvent::disassemble() const {
+  return std::format("{}  controller     channel {}, message {}, value {}",
+      this->disassembly_prefix(), this->channel, this->message, this->value);
+}
+
 void TuneResource::ChannelSetupEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev1 = events.emplace_back(MIDIEvent{this->when, {}});
   ev1.data.emplace_back(0xC0 | this->channel);
@@ -317,14 +347,14 @@ void TuneResource::ChannelSetupEvent::add_midi_events(std::vector<MIDIEvent>& ev
   ev3.data.emplace_back(this->panning);
   auto& ev4 = events.emplace_back(MIDIEvent{this->when, {}});
   ev4.data.emplace_back(0xE0 | this->channel);
-  ev4.data.emplace_back(0); // Pitch bend
-  ev4.data.emplace_back(this->pitch_bend);
+  ev4.data.emplace_back(this->pitch_bend & 0x7F);
+  ev4.data.emplace_back((this->pitch_bend >> 7) & 0x7F);
 }
-void TuneResource::TrackEndEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
-  auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
-  ev.data.emplace_back(0xFF);
-  ev.data.emplace_back(0x2F);
-  ev.data.emplace_back(0x00);
+std::string TuneResource::ChannelSetupEvent::disassemble() const {
+  return std::format(
+      "{}  channel_setup  channel {}, volume {}, panning {}, pitch bend {}, instrument number {}, collection name \"{}\", instrument name \"{}\"",
+      this->disassembly_prefix(), this->channel, this->volume, this->panning, this->pitch_bend,
+      this->instrument_number, this->collection_name, this->instrument_name);
 }
 
 TuneResource::TuneResource(const void* data, size_t size) {
@@ -335,25 +365,21 @@ TuneResource::TuneResource(const void* data, size_t size) {
     throw std::runtime_error("Tune identifier is incorrect");
   }
 
-  struct Event {
-    uint64_t when;
-    uint8_t status;
-    std::string data;
-
-    Event(uint64_t when, uint8_t status, uint8_t param) : when(when), status(status) {
-      this->data.push_back(param);
-    }
-    Event(uint64_t when, uint8_t status, uint8_t param1, uint8_t param2) : when(when), status(status) {
-      this->data.push_back(param1);
-      this->data.push_back(param2);
-    }
-  };
-  std::vector<Event> events;
   std::unordered_map<uint16_t, uint8_t> partition_id_to_channel;
   uint64_t current_time = 0;
 
+  auto add_event = [&](std::unique_ptr<Event> event, size_t start_offset) -> void {
+    if (!event->when) {
+      event->when = current_time;
+    }
+    event->source_offset = start_offset;
+    event->source_data = r.pread(start_offset, r.where() - start_offset);
+    this->events.emplace_back(std::move(event));
+  };
+
   // The remainder of the data is playback commands
   while (!r.eof()) {
+    size_t start_offset = r.where();
     uint32_t event = r.get_u32b();
     uint8_t type = (event >> 28) & 0x0F;
 
@@ -367,17 +393,16 @@ TuneResource::TuneResource(const void* data, size_t size) {
       case 0x03: // Simple note event
       case 0x09: { // Extended note event
         auto ev = std::make_unique<NoteEvent>();
-        ev->when = current_time;
         uint16_t partition_id;
         if (type == 0x09) {
           uint32_t options = r.get_u32b();
           partition_id = (event >> 16) & 0xFFF;
-          ev->key = (event >> 8) & 0xFF;
+          ev->key = event & 0x7F;
           ev->vel = (options >> 22) & 0x7F;
           ev->duration = options & 0x3FFFFF;
         } else {
           partition_id = (event >> 24) & 0x1F;
-          ev->key = ((event >> 18) & 0x3F) + 32;
+          ev->key = ((event >> 18) & 0x3F) + 0x20;
           ev->vel = (event >> 11) & 0x7F;
           ev->duration = event & 0x7FF;
         }
@@ -386,7 +411,17 @@ TuneResource::TuneResource(const void* data, size_t size) {
         } catch (const std::out_of_range&) {
           throw std::runtime_error("notes produced on uninitialized partition");
         }
-        this->events.emplace_back(std::move(ev));
+
+        auto off_ev = std::make_unique<NoteOffEvent>();
+        off_ev->when = current_time + ev->duration;
+        off_ev->source_offset = ev->source_offset;
+        // We intentionally do not set off_ev->source_data
+        off_ev->channel = ev->channel;
+        off_ev->key = ev->key;
+        off_ev->vel = ev->vel;
+
+        add_event(std::move(ev), start_offset);
+        add_event(std::move(off_ev), start_offset);
         break;
       }
 
@@ -417,44 +452,31 @@ TuneResource::TuneResource(const void* data, size_t size) {
 
         } else if (message == 7) { // Volume
           auto ev = std::make_unique<ControllerEvent>();
-          ev->when = current_time;
           ev->channel = channel;
           ev->message = message;
           ev->value = (value >> 8) & 0x7F;
-          this->events.emplace_back(std::move(ev));
+          add_event(std::move(ev), start_offset);
 
         } else if (message == 10) { // Panning
           auto ev = std::make_unique<ControllerEvent>();
-          ev->when = current_time;
           ev->channel = channel;
           ev->message = message;
           ev->value = (value >> 1) & 0x7F;
-          this->events.emplace_back(std::move(ev));
+          add_event(std::move(ev), start_offset);
 
         } else if (message == 32) { // Pitch bend
           auto ev = std::make_unique<PitchBendEvent>();
-          ev->when = current_time;
           ev->channel = channel;
 
-          // Clamp the value and convert to MIDI range (14-bit)
-          ev->value = static_cast<int16_t>(value);
-          if (ev->value < -0x0200) {
-            ev->value = -0x0200;
-          }
-          if (ev->value > 0x01FF) {
-            ev->value = 0x01FF;
-          }
-          ev->value = (ev->value + 0x200) * 0x10;
-
-          this->events.emplace_back(std::move(ev));
+          ev->value = (std::clamp<int16_t>(static_cast<int16_t>(value), -0x1000, 0x0FFF) << 1) + 0x2000;
+          add_event(std::move(ev), start_offset);
 
         } else { // Some other controller message
           auto ev = std::make_unique<ControllerEvent>();
-          ev->when = current_time;
           ev->channel = channel;
           ev->message = message;
           ev->value = value >> 8;
-          this->events.emplace_back(std::move(ev));
+          add_event(std::move(ev), start_offset);
         }
 
         break;
@@ -488,15 +510,14 @@ TuneResource::TuneResource(const void* data, size_t size) {
             }
             const auto& inst = msg_r.get<TuneInstrumentDefinition>();
             auto ev = std::make_unique<ChannelSetupEvent>();
-            ev->when = current_time;
             ev->channel = channel;
             ev->instrument_number = inst.instrument_number;
             ev->volume = 0x7F;
             ev->panning = 0x40;
-            ev->pitch_bend = 0x40;
+            ev->pitch_bend = 0x2000;
             ev->collection_name = decode_pstring<0x20>(inst.collection_name);
             ev->instrument_name = decode_pstring<0x20>(inst.instrument_name);
-            this->events.emplace_back(std::move(ev));
+            add_event(std::move(ev), start_offset);
             break;
           }
 
@@ -510,15 +531,14 @@ TuneResource::TuneResource(const void* data, size_t size) {
               throw std::runtime_error("Extended instrument definition format is unrecognized");
             }
             auto ev = std::make_unique<ChannelSetupEvent>();
-            ev->when = current_time;
             ev->channel = channel;
             ev->instrument_number = inst.instrument_number;
             ev->volume = 0x7F;
             ev->panning = 0x40;
-            ev->pitch_bend = 0x40;
+            ev->pitch_bend = 0x2000;
             ev->collection_name = decode_pstring<0x20>(inst.collection_name);
             ev->instrument_name = decode_pstring<0x20>(inst.instrument_name);
-            this->events.emplace_back(std::move(ev));
+            add_event(std::move(ev), start_offset);
             break;
           }
 
@@ -549,11 +569,6 @@ TuneResource::TuneResource(const void* data, size_t size) {
         throw std::runtime_error(std::format("Unsupported event {:08X} in Tune stream", event));
     }
   }
-
-  // Append the MIDI track end event
-  auto end_ev = std::make_unique<TrackEndEvent>();
-  end_ev->when = current_time;
-  this->events.emplace_back(std::move(end_ev));
 }
 
 std::string TuneResource::midi() const {
@@ -578,14 +593,8 @@ std::string TuneResource::midi() const {
     return a.when < b.when;
   });
 
-  // Generate the MIDI track
   std::string midi_track_data;
-  uint64_t current_time = 0;
-  for (const auto& event : midi_events) {
-    uint64_t delta = event.when - current_time;
-    current_time = event.when;
-
-    // Write the delay field (encoded as variable-length int)
+  auto encode_delay = [](uint64_t delta) -> std::string {
     std::string delta_str;
     while (delta > 0x7F) {
       delta_str.push_back(delta & 0x7F);
@@ -596,12 +605,25 @@ std::string TuneResource::midi() const {
       delta_str[x] |= 0x80;
     }
     reverse(delta_str.begin(), delta_str.end());
-    midi_track_data += delta_str;
+    return delta_str;
+  };
 
+  // Generate the MIDI track
+  uint64_t current_time = 0;
+  for (const auto& event : midi_events) {
+    uint64_t delta = event.when - current_time;
+    current_time = event.when;
+
+    midi_track_data += encode_delay(delta);
     for (uint8_t v : event.data) {
       midi_track_data.push_back(v);
     }
   }
+  // Add the track end event
+  midi_track_data += encode_delay(0);
+  midi_track_data.push_back(0xFF);
+  midi_track_data.push_back(0x2F);
+  midi_track_data.push_back(0x00);
 
   // Generate the MIDI headers
   MIDIHeader midi_header;
@@ -621,6 +643,25 @@ std::string TuneResource::midi() const {
   w.put<MIDIChunkHeader>(track_header);
   w.write(midi_track_data);
   return std::move(w.str());
+}
+
+std::string TuneResource::disassemble() const {
+  std::vector<std::pair<uint64_t, std::string>> lines;
+  for (const auto& ev : events) {
+    lines.emplace_back(make_pair(ev->when, ev->disassemble()));
+  }
+  std::stable_sort(lines.begin(), lines.end(), [](const auto& a, const auto& b) -> bool {
+    return a.first < b.first;
+  });
+
+  std::string ret;
+  for (const auto& [_, line] : lines) {
+    if (!ret.empty()) {
+      ret += "\n";
+    }
+    ret += line;
+  }
+  return ret;
 }
 
 } // namespace Audio
