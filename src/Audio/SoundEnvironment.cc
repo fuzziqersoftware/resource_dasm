@@ -1,6 +1,7 @@
 #include "SoundEnvironment.hh"
 
 #include <inttypes.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
