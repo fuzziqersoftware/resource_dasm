@@ -10,6 +10,47 @@
 namespace ResourceDASM {
 namespace Audio {
 
+enum QTMAControllerID {
+  kControllerModulationWheel = 1,
+  kControllerBreath = 2,
+  kControllerFoot = 4,
+  kControllerPortamentoTime = 5, // Time in fixed-point (8.8) seconds; 0 = off
+  kControllerVolume = 7, // 00-7F, just like MIDI
+  kControllerBalance = 8,
+  kControllerPan = 10, // 00-7F, just like MIDI, except 0 may be "default" instead (TODO: verify this)
+  kControllerExpression = 11, // Secondary volume control
+  kControllerLever1 = 16,
+  kControllerLever2 = 17,
+  kControllerLever3 = 18,
+  kControllerLever4 = 19,
+  kControllerLever5 = 80,
+  kControllerLever6 = 81,
+  kControllerLever7 = 82,
+  kControllerLever8 = 83,
+  kControllerPitchBend = 32, // In semitones, with 8 bits fraction, same units as transpose controllers
+  kControllerAfterTouch = 33, // AKA channel pressure
+  kControllerPartTranspose = 40, // Pitch bend for overall part transpose
+  kControllerTuneTranspose = 41, // Pitch bend for global pitch offset
+  kControllerPartVolume = 42, // Another volume control, passed down from note allocator part volume
+  kControllerTuneVolume = 43, // Another volume control, used for global volume
+  kControllerSustain = 64, // bool; >0 = on, <=0 = off
+  kControllerPortamento = 65, // bool; presumably same semantics as above
+  kControllerSostenuto = 66, // bool; presumably same semantics as above
+  kControllerSoftPedal = 67, // bool; presumably same semantics as above
+  kControllerReverb = 91,
+  kControllerTremolo = 92,
+  kControllerChorus = 93,
+  kControllerCeleste = 94,
+  kControllerPhaser = 95,
+  kControllerEditPart = 113,
+  kControllerMasterTune = 114,
+  kControllerMasterTranspose = 114,
+  kControllerMasterVolume = 115,
+  kControllerMasterCPULoad = 116,
+  kControllerMasterPolyphony = 117,
+  kControllerMasterFeatures = 118
+};
+
 enum QTMAKnobID {
   kQTMSKnobStartID = 0x02000000,
   kQTMSKnobVolumeAttackTimeID = 0x02000001,
@@ -83,6 +124,7 @@ public:
   inline SSAIInstrument(const std::string& data) : SSAIInstrument(data.data(), data.size()) {}
 
   static const char* name_for_knob(uint32_t knob_id);
+  static const char* name_for_controller(uint32_t controller_id);
 
   uint32_t id;
   uint32_t resource_id = 0;
@@ -168,7 +210,7 @@ public:
   };
 
   struct PitchBendEvent : Event {
-    int16_t value;
+    float semitones;
 
     virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
     virtual std::string disassemble() const;

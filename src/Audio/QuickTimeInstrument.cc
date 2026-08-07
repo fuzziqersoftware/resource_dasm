@@ -336,6 +336,51 @@ const char* SSAIInstrument::name_for_knob(uint32_t knob_id) {
   return (effective_id < names.size()) ? names[effective_id] : nullptr;
 }
 
+const char* SSAIInstrument::name_for_controller(uint32_t controller_id) {
+  static const std::unordered_map<uint32_t, const char*> names{
+      {kControllerModulationWheel, "kControllerModulationWheel"},
+      {kControllerBreath, "kControllerBreath"},
+      {kControllerFoot, "kControllerFoot"},
+      {kControllerPortamentoTime, "kControllerPortamentoTime"},
+      {kControllerVolume, "kControllerVolume"},
+      {kControllerBalance, "kControllerBalance"},
+      {kControllerPan, "kControllerPan"},
+      {kControllerExpression, "kControllerExpression"},
+      {kControllerLever1, "kControllerLever1"},
+      {kControllerLever2, "kControllerLever2"},
+      {kControllerLever3, "kControllerLever3"},
+      {kControllerLever4, "kControllerLever4"},
+      {kControllerLever5, "kControllerLever5"},
+      {kControllerLever6, "kControllerLever6"},
+      {kControllerLever7, "kControllerLever7"},
+      {kControllerLever8, "kControllerLever8"},
+      {kControllerPitchBend, "kControllerPitchBend"},
+      {kControllerAfterTouch, "kControllerAfterTouch"},
+      {kControllerPartTranspose, "kControllerPartTranspose"},
+      {kControllerTuneTranspose, "kControllerTuneTranspose"},
+      {kControllerPartVolume, "kControllerPartVolume"},
+      {kControllerTuneVolume, "kControllerTuneVolume"},
+      {kControllerSustain, "kControllerSustain"},
+      {kControllerPortamento, "kControllerPortamento"},
+      {kControllerSostenuto, "kControllerSostenuto"},
+      {kControllerSoftPedal, "kControllerSoftPedal"},
+      {kControllerReverb, "kControllerReverb"},
+      {kControllerTremolo, "kControllerTremolo"},
+      {kControllerChorus, "kControllerChorus"},
+      {kControllerCeleste, "kControllerCeleste"},
+      {kControllerPhaser, "kControllerPhaser"},
+      {kControllerEditPart, "kControllerEditPart"},
+      {kControllerMasterTune, "kControllerMasterTune"},
+      {kControllerMasterTranspose, "kControllerMasterTranspose"},
+      {kControllerMasterVolume, "kControllerMasterVolume"},
+      {kControllerMasterCPULoad, "kControllerMasterCPULoad"},
+      {kControllerMasterPolyphony, "kControllerMasterPolyphony"},
+      {kControllerMasterFeatures, "kControllerMasterFeatures"},
+  };
+  auto it = names.find(controller_id);
+  return (it == names.end()) ? nullptr : it->second;
+}
+
 struct TuneInstrumentDefinition {
   /* 00 */ uint8_t unknown_a1[0x0C];
   /* 0C */ uint8_t collection_name[0x20]; // Pascal string
@@ -394,12 +439,14 @@ std::string TuneResource::NoteOffEvent::disassemble() const {
 void TuneResource::PitchBendEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
   ev.data.emplace_back(0xE0 | this->channel);
-  ev.data.emplace_back(this->value & 0x7F);
-  ev.data.emplace_back((this->value >> 7) & 0x7F);
+  // Standard MIDI pitch bend range is +/- 2 semitones in either direction; clamp the result to that range
+  int64_t value = std::clamp<int64_t>(this->semitones * 0x2000, -0x4000, 0x3FFF);
+  ev.data.emplace_back(value & 0x7F);
+  ev.data.emplace_back((value >> 7) & 0x7F);
 }
 std::string TuneResource::PitchBendEvent::disassemble() const {
-  return std::format("{}  pitch_bend     channel {}, value {}",
-      this->disassembly_prefix(), this->channel, this->value);
+  return std::format("{}  pitch_bend     channel {}, semitones {:g}",
+      this->disassembly_prefix(), this->channel, this->semitones);
 }
 
 void TuneResource::ControllerEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
@@ -409,8 +456,14 @@ void TuneResource::ControllerEvent::add_midi_events(std::vector<MIDIEvent>& even
   ev.data.emplace_back(this->value);
 }
 std::string TuneResource::ControllerEvent::disassemble() const {
-  return std::format("{}  controller     channel {}, message {}, value {}",
-      this->disassembly_prefix(), this->channel, this->message, this->value);
+  auto name = SSAIInstrument::name_for_controller(this->message);
+  if (name) {
+    return std::format("{}  controller     channel {}, message {} ({}), value {}",
+        this->disassembly_prefix(), this->channel, this->message, name, this->value);
+  } else {
+    return std::format("{}  controller     channel {}, message {}, value {}",
+        this->disassembly_prefix(), this->channel, this->message, this->value);
+  }
 }
 
 void TuneResource::ChannelSetupEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
@@ -475,12 +528,14 @@ TuneResource::TuneResource(const void* data, size_t size) {
         auto ev = std::make_unique<NoteEvent>();
         uint16_t partition_id;
         if (type == 0x09) {
+          // Bits: TTTTPPPPPPPPPPPP---------KKKKKKK ---VVVVVVVDDDDDDDDDDDDDDDDDDDDDD
           uint32_t options = r.get_u32b();
           partition_id = (event >> 16) & 0xFFF;
           ev->key = event & 0x7F;
           ev->vel = (options >> 22) & 0x7F;
           ev->duration = options & 0x3FFFFF;
         } else {
+          // Bits: TTTTPPPPKKKKKKVVVVVVVDDDDDDDDDDD
           partition_id = (event >> 24) & 0x1F;
           ev->key = ((event >> 18) & 0x3F) + 0x20;
           ev->vel = (event >> 11) & 0x7F;
@@ -547,8 +602,7 @@ TuneResource::TuneResource(const void* data, size_t size) {
         } else if (message == 32) { // Pitch bend
           auto ev = std::make_unique<PitchBendEvent>();
           ev->channel = channel;
-
-          ev->value = (std::clamp<int16_t>(static_cast<int16_t>(value), -0x1000, 0x0FFF) << 1) + 0x2000;
+          ev->semitones = static_cast<float>(static_cast<int16_t>(value)) / 0x100;
           add_event(std::move(ev), start_offset);
 
         } else { // Some other controller message

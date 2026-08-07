@@ -1954,7 +1954,8 @@ public:
       auto track_it = id_to_track.find(ev->channel);
       if (track_it == id_to_track.end()) {
         auto t = std::make_shared<TuneTrack>(ev->channel);
-        auto chan = t->channel(0);
+        // TuneResource::PitchBendEvent's value is already in semitone units, so we disable this multiplier here
+        t->channel(0)->pitch_bend_semitone_range = 1.0;
         t->freq_mult = this->freq_bias;
         t->events.emplace_back(ev.get());
         this->tracks.emplace(t);
@@ -1966,7 +1967,7 @@ public:
 
     for (const auto& t : this->tracks) {
       if (!t->events.empty()) {
-        std::sort(t->events.begin(), t->events.end(), [](const T::Event*& a, const T::Event*& b) -> bool {
+        std::stable_sort(t->events.begin(), t->events.end(), [](const T::Event* a, const T::Event* b) -> bool {
           return a->when < b->when;
         });
         this->next_event_to_track.emplace(t->events[0]->when, t);
@@ -2003,7 +2004,8 @@ protected:
       auto chan = t->channel(0);
       // TODO: This isn't quite right. It might be true that track 0 is always percussion (and hence should have
       // different base note correction behavior), but it's incorrect to suppress correction entirely. See e.g. Level 9
-      // (Black Lab), which clearly expects some kind of correction here.
+      // (Black Lab), which clearly expects some kind of correction here. Probably this should be a property of the
+      // instrument (or even the key/vel region) instead of a property of the track/channel.
       chan->suppress_base_note = (t->id == 0);
       chan->volume.set(static_cast<float>(ev->volume) / 0x7F);
       chan->panning.set(static_cast<float>(ev->panning) / 0x7F);
@@ -2011,20 +2013,16 @@ protected:
 
     } else if (auto ev = dynamic_cast<const T::NoteEvent*>(generic_ev)) {
       if (!this->mute_tracks.count(t->id) && (this->solo_tracks.empty() || this->solo_tracks.count(t->id))) {
-        uint32_t voice_id = (static_cast<uint32_t>(ev->channel) << 16) |
-            (static_cast<uint32_t>(ev->key) << 8) |
-            static_cast<uint32_t>(ev->vel);
+        uint32_t voice_id = (ev->channel << 16) | (ev->key << 8) | ev->vel;
         this->voice_on(t, voice_id, ev->key, ev->vel, 0);
       }
 
     } else if (auto ev = dynamic_cast<const T::NoteOffEvent*>(generic_ev)) {
-      uint32_t voice_id = (static_cast<uint32_t>(ev->channel) << 16) |
-          (static_cast<uint32_t>(ev->key) << 8) |
-          static_cast<uint32_t>(ev->vel);
+      uint32_t voice_id = (ev->channel << 16) | (ev->key << 8) | ev->vel;
       t->voice_off(voice_id);
 
     } else if (auto ev = dynamic_cast<const T::PitchBendEvent*>(generic_ev)) {
-      t->channel(0)->pitch_bend.set((static_cast<float>(ev->value) / 0x4000) - 0.5);
+      t->channel(0)->pitch_bend.set(ev->semitones);
 
     } else if (auto ev = dynamic_cast<const T::ControllerEvent*>(generic_ev)) {
       if (ev->message == 0x07) {
@@ -2115,9 +2113,8 @@ static double parse_fraction(const std::string& arg) {
 }
 
 int main(int argc, char** argv) {
-
-  // Default to no color if stderr isn't a tty
   if (!isatty(fileno(stderr))) {
+    // Default to no color if stderr isn't a tty
     debug_flags &= ~DebugFlag::ALL_COLOR_OPTIONS;
   }
 
