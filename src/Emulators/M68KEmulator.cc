@@ -1525,6 +1525,19 @@ std::string M68KEmulator::dasm_0123(DisassemblyState& s) {
 }
 
 void M68KEmulator::exec_4(uint16_t opcode) {
+  // EXTB.L (68020) has g set, so it must be decoded before the g dispatch
+  // below; the case 7 handler in the ext.S group is unreachable (that group
+  // requires g == 0), and this opcode would otherwise fall through to the
+  // lea/chk logic
+  if ((opcode & 0xFFF8) == 0x49C0) {
+    uint8_t d = op_get_d(opcode);
+    this->regs.d[d].u = (this->regs.d[d].u & 0x000000FF) |
+        ((this->regs.d[d].u & 0x00000080) ? 0xFFFFFF00 : 0x00000000);
+    this->regs.set_ccr_flags(
+        -1, is_negative(this->regs.d[d].u, SIZE_LONG), (this->regs.d[d].u == 0), 0, 0);
+    return;
+  }
+
   uint8_t g = op_get_g(opcode);
 
   if (g == 0) {
@@ -2410,11 +2423,12 @@ void M68KEmulator::exec_9D(uint16_t opcode) {
       uint64_t sum = static_cast<uint64_t>(src_value) + dest_value + x_in;
       result = static_cast<uint32_t>(sum) & mask;
       carry = (sum > mask);
-      overflow = (sign_extend(result, size) != (sign_extend(dest_value, size) + sign_extend(src_value, size) + x_in));
+      // The reference sum must be computed in a wider type; in int32_t it wraps to exactly the truncated result for long-size operands, so V would never be set
+      overflow = (static_cast<int64_t>(sign_extend(result, size)) != (static_cast<int64_t>(sign_extend(dest_value, size)) + static_cast<int64_t>(sign_extend(src_value, size)) + x_in));
     } else {
       carry = ((static_cast<uint64_t>(src_value) + x_in) > dest_value);
       result = static_cast<uint32_t>(dest_value - src_value - x_in) & mask;
-      overflow = (sign_extend(result, size) != (sign_extend(dest_value, size) - sign_extend(src_value, size) - x_in));
+      overflow = (static_cast<int64_t>(sign_extend(result, size)) != (static_cast<int64_t>(sign_extend(dest_value, size)) - static_cast<int64_t>(sign_extend(src_value, size)) - x_in));
     }
 
     if (M) {
@@ -2760,8 +2774,90 @@ void M68KEmulator::exec_E(uint16_t opcode) {
   if (size == 3) {
     uint8_t which = (opcode >> 8) & 0x0F;
     switch (which) {
+      case 0x8: // bftst
+      case 0xA: // bfchg
+      case 0xC: // bfclr
+      case 0xD: // bfffo
+      case 0xE: // bfset
+      case 0xF: // bfins
       case 0xB: // bfexts
       case 0x9: { // bfextu
+        // For the register-direct forms, the field is taken from the 32-bit
+        // register with the offset counted from the MSB and wrapped mod 32,
+        // so the memory BitReader path below does not apply
+        if (op_get_c(opcode) == 0) { // mode 0 = Dn (register direct)
+          uint16_t options = this->fetch_instruction_word();
+          uint8_t reg = op_get_d(opcode);
+          int32_t offset = (options >> 6) & 0x1F;
+          uint32_t width = options & 0x1F;
+          if (options & 0x0800) {
+            offset = this->regs.d[offset & 7].s;
+          }
+          if (options & 0x0020) {
+            width = this->regs.d[width & 7].u & 0x1F;
+          }
+          if (width == 0) {
+            width = 32;
+          }
+          uint8_t dest_reg = (options >> 12) & 7;
+          uint32_t o = ((offset % 32) + 32) % 32;
+          uint32_t w = (width > 32) ? 32 : width;
+          if (o + w > 32) {
+            w = 32 - o;
+          }
+          uint32_t v = this->regs.d[reg].u;
+          uint32_t field_mask = (w >= 32) ? 0xFFFFFFFF : (((1u << w) - 1) << (32 - o - w));
+          uint32_t field = w ? ((v & field_mask) >> (32 - o - w)) : 0;
+          bool n_flag = w ? ((v >> (31 - o)) & 1) : false;
+          bool z_flag = (field == 0);
+          switch (which) {
+            case 0x8: // bftst: flags only
+              break;
+            case 0x9: // bfextu
+              this->regs.d[dest_reg].u = field;
+              break;
+            case 0xB: // bfexts
+              this->regs.d[dest_reg].u = field;
+              if (w && w < 32 && (field & (1u << (w - 1)))) {
+                this->regs.d[dest_reg].u |= (0xFFFFFFFF << w);
+              }
+              break;
+            case 0xA: // bfchg
+              this->regs.d[reg].u = v ^ field_mask;
+              break;
+            case 0xC: // bfclr
+              this->regs.d[reg].u = v & ~field_mask;
+              break;
+            case 0xE: // bfset
+              this->regs.d[reg].u = v | field_mask;
+              break;
+            case 0xD: { // bfffo: offset of the first set bit, counted from the field's own offset
+              uint32_t i = 0;
+              for (; i < w; i++) {
+                if ((v >> (31 - o - i)) & 1) {
+                  break;
+                }
+              }
+              this->regs.d[dest_reg].u = static_cast<uint32_t>(offset) + i;
+              break;
+            }
+            case 0xF: { // bfins
+              uint32_t ins = this->regs.d[dest_reg].u & ((w >= 32) ? 0xFFFFFFFF : ((1u << w) - 1));
+              this->regs.d[reg].u = (v & ~field_mask) | (w ? (ins << (32 - o - w)) : 0);
+              n_flag = w ? ((ins >> (w - 1)) & 1) : false;
+              z_flag = (ins == 0);
+              break;
+            }
+          }
+          this->regs.sr.set_n(n_flag);
+          this->regs.sr.set_z(z_flag);
+          this->regs.sr.set_v(false);
+          this->regs.sr.set_c(false);
+          return;
+        }
+        if (which != 0x9 && which != 0xB) {
+          throw std::runtime_error(std::format("unimplemented bitfield op from memory (which={:X})", which));
+        }
         bool is_signed = which & 2;
         uint16_t options = this->fetch_instruction_word();
         auto source = this->resolve_address(op_get_c(opcode), op_get_d(opcode), SIZE_LONG);
@@ -2853,13 +2949,8 @@ void M68KEmulator::exec_E(uint16_t opcode) {
         this->regs.set_ccr_flags(x_flag, (res >> 15) & 1, (res == 0), v_flag, c_flag);
         break;
       }
-      case 0x8: // bftst
-      case 0xA: // bfchg
-      case 0xC: // bfclr
-      case 0xD: // bfffo
-      case 0xE: // bfset
-      case 0xF: // bfins
       default:
+        // (bftst/bfchg/bfclr/bfffo/bfset/bfins are handled with bfextu/bfexts above.)
         throw std::runtime_error(std::format("unimplemented (E; s=3; which={:X})", which));
     }
     return;
