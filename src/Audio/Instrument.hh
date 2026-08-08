@@ -44,8 +44,8 @@ struct VelocityRegion {
   uint16_t sample_bank_id = 0;
   uint16_t sound_id = 0;
   float freq_mult = 1.0;
+  float pitch_sensitivity = 1.0;
   float volume_mult = 1.0;
-  bool constant_pitch = false;
 
   int8_t base_note = -1;
   const Sound* sound = nullptr;

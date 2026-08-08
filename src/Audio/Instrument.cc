@@ -321,8 +321,16 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
       // properly (right now we don't implement it, because Pikmin doesn't do this and it sounds terrible if we do)
       float freq_mult = vel_region->freq_mult * key_region->freq_mult;
       result_key_region.vel_regions.emplace_back(
-          VelocityRegion{vel_low, vel_region->vel_high, vel_region->sample_bank_id, vel_region->sample_num, freq_mult,
-              1.0, false, static_cast<int8_t>(x)});
+          VelocityRegion{
+              .vel_low = vel_low,
+              .vel_high = vel_region->vel_high,
+              .sample_bank_id = vel_region->sample_bank_id,
+              .sound_id = vel_region->sample_num,
+              .freq_mult = freq_mult,
+              .pitch_sensitivity = 1.0f,
+              .volume_mult = 1.0f,
+              .base_note = static_cast<int8_t>(x),
+              .sound = nullptr});
 
       vel_low = vel_region->vel_high + 1;
     }

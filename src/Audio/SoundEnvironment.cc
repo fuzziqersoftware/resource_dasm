@@ -748,8 +748,15 @@ SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_js
       inst.key_regions.emplace_back(key_low, key_high);
       auto& key_rgn = inst.key_regions.back();
       key_rgn.vel_regions.emplace_back(VelocityRegion{
-          0, 0x7F, 0, static_cast<uint16_t>(sound_id), static_cast<float>(freq_mult), 1.0f, constant_pitch,
-          static_cast<int8_t>(s.base_note)});
+          .vel_low = 0,
+          .vel_high = 0x7F,
+          .sample_bank_id = 0,
+          .sound_id = static_cast<uint16_t>(sound_id),
+          .freq_mult = static_cast<float>(freq_mult),
+          .pitch_sensitivity = (constant_pitch ? 0.0f : 1.0f),
+          .volume_mult = 1.0f,
+          .base_note = static_cast<int8_t>(s.base_note),
+          .sound = nullptr});
 
       // Use up the sound id
       sound_id++;
@@ -836,14 +843,26 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
       // Create the key region and vel region objects
       auto& key_rgn = inst.key_regions.emplace_back(rgn.key_low, rgn.key_high);
       key_rgn.vel_regions.emplace_back(VelocityRegion{
-          0, 0x7F, 0, static_cast<uint16_t>(sound_id), 1.0f, 1.0f, false, static_cast<int8_t>(s.base_note)});
-
+          .vel_low = 0,
+          .vel_high = 0x7F,
+          .sample_bank_id = 0,
+          .sound_id = static_cast<uint16_t>(sound_id),
+          .freq_mult = 1.0f,
+          .pitch_sensitivity = 1.0f,
+          .volume_mult = 1.0f,
+          .base_note = static_cast<int8_t>(s.base_note),
+          .sound = nullptr});
       sound_id++;
 
       // Handle knob effects
       if (auto knob_it = rgn.knobs.find(QTMAKnobID::kQTMSKnobPitchTransposeID); knob_it != rgn.knobs.end()) {
         for (auto& vel_rgn : key_rgn.vel_regions) {
           vel_rgn.freq_mult *= pow(2, static_cast<double>(knob_it->second) / 0xC00);
+        }
+      }
+      if (auto knob_it = rgn.knobs.find(QTMAKnobID::kQTMSKnobPitchSensitivityID); knob_it != rgn.knobs.end()) {
+        for (auto& vel_rgn : key_rgn.vel_regions) {
+          vel_rgn.pitch_sensitivity = static_cast<float>(knob_it->second) / 100;
         }
       }
     }

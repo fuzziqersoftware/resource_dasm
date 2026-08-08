@@ -225,9 +225,6 @@ public:
   };
 
   struct ChannelSetupEvent : Event {
-    uint8_t volume; // 00-7F
-    uint8_t panning; // 00-7F; 40 default
-    uint16_t pitch_bend; // 0000-4000; 2000 default
     uint32_t instrument_number;
     std::string collection_name;
     std::string instrument_name;

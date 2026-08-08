@@ -473,21 +473,21 @@ void TuneResource::ChannelSetupEvent::add_midi_events(std::vector<MIDIEvent>& ev
   auto& ev2 = events.emplace_back(MIDIEvent{this->when, {}});
   ev2.data.emplace_back(0xB0 | this->channel);
   ev2.data.emplace_back(7); // Volume
-  ev2.data.emplace_back(this->volume);
+  ev2.data.emplace_back(0x7F); // Default max volume
   auto& ev3 = events.emplace_back(MIDIEvent{this->when, {}});
   ev3.data.emplace_back(0xB0 | this->channel);
   ev3.data.emplace_back(10); // Panning
-  ev3.data.emplace_back(this->panning);
+  ev3.data.emplace_back(0x40); // Center of unsigned 7-bit range
   auto& ev4 = events.emplace_back(MIDIEvent{this->when, {}});
   ev4.data.emplace_back(0xE0 | this->channel);
-  ev4.data.emplace_back(this->pitch_bend & 0x7F);
-  ev4.data.emplace_back((this->pitch_bend >> 7) & 0x7F);
+  ev4.data.emplace_back(0x00); // 0x2000 (center of unsigned 14-bit range)
+  ev4.data.emplace_back(0x40);
 }
 std::string TuneResource::ChannelSetupEvent::disassemble() const {
   return std::format(
-      "{}  channel_setup  channel {}, volume {}, panning {}, pitch bend {}, instrument number {}, collection name \"{}\", instrument name \"{}\"",
-      this->disassembly_prefix(), this->channel, this->volume, this->panning, this->pitch_bend,
-      this->instrument_number, this->collection_name, this->instrument_name);
+      "{}  channel_setup  channel {}, instrument number {}, collection name \"{}\", instrument name \"{}\"",
+      this->disassembly_prefix(), this->channel, this->instrument_number, this->collection_name,
+      this->instrument_name);
 }
 
 TuneResource::TuneResource(const void* data, size_t size) {
@@ -602,7 +602,7 @@ TuneResource::TuneResource(const void* data, size_t size) {
         } else if (message == 32) { // Pitch bend
           auto ev = std::make_unique<PitchBendEvent>();
           ev->channel = channel;
-          ev->semitones = static_cast<float>(static_cast<int16_t>(value)) / 0x100;
+          ev->semitones = static_cast<float>(static_cast<int16_t>(value)) / 0x100; // 8.8 fixed-point apparently
           add_event(std::move(ev), start_offset);
 
         } else { // Some other controller message
@@ -646,9 +646,6 @@ TuneResource::TuneResource(const void* data, size_t size) {
             auto ev = std::make_unique<ChannelSetupEvent>();
             ev->channel = channel;
             ev->instrument_number = inst.instrument_number;
-            ev->volume = 0x7F;
-            ev->panning = 0x40;
-            ev->pitch_bend = 0x2000;
             ev->collection_name = decode_pstring<0x20>(inst.collection_name);
             ev->instrument_name = decode_pstring<0x20>(inst.instrument_name);
             add_event(std::move(ev), start_offset);
@@ -667,9 +664,6 @@ TuneResource::TuneResource(const void* data, size_t size) {
             auto ev = std::make_unique<ChannelSetupEvent>();
             ev->channel = channel;
             ev->instrument_number = inst.instrument_number;
-            ev->volume = 0x7F;
-            ev->panning = 0x40;
-            ev->pitch_bend = 0x2000;
             ev->collection_name = decode_pstring<0x20>(inst.collection_name);
             ev->instrument_name = decode_pstring<0x20>(inst.instrument_name);
             add_event(std::move(ev), start_offset);

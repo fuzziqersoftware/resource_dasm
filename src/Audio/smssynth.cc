@@ -684,7 +684,6 @@ void disassemble_midi(phosg::StringReader& r) {
 
 struct Channel {
   float pitch_bend_semitone_range = 48.0;
-  bool suppress_base_note = false;
 
   template <typename T, T DefaultValue>
   struct Attenuator {
@@ -848,18 +847,17 @@ public:
   virtual ~SampleVoice() = default;
 
   const std::vector<float>& get_samples(float pitch_bend, float pitch_bend_semitone_range, float freq_mult) {
+    const auto& freq = ResourceDASM::Audio::frequency_for_note;
+
     // Stretch it out by the sample rate difference
     float sample_rate_factor = static_cast<float>(sample_rate) /
         static_cast<float>(this->vel_region->sound->sample_rate);
 
     // Compress it so it's the right note
-    int8_t base_note = this->vel_region->base_note;
-    if (base_note < 0) {
-      base_note = this->vel_region->sound->base_note;
-    }
-    float note_factor = (this->vel_region->constant_pitch || this->channel->suppress_base_note)
-        ? 1.0
-        : (ResourceDASM::Audio::frequency_for_note(base_note) / ResourceDASM::Audio::frequency_for_note(this->note));
+    int8_t base_note = (this->vel_region->base_note < 0)
+        ? this->vel_region->sound->base_note
+        : this->vel_region->base_note;
+    float note_factor = freq(base_note) / freq(base_note + (this->note - base_note) * this->vel_region->pitch_sensitivity);
 
     {
       float pitch_bend_factor = pow(2, (pitch_bend * pitch_bend_semitone_range) / 12.0) * freq_mult;
@@ -2001,15 +1999,6 @@ protected:
 
     if (auto ev = dynamic_cast<const T::ChannelSetupEvent*>(generic_ev)) {
       t->instrument = ev->instrument_number;
-      auto chan = t->channel(0);
-      // TODO: This isn't quite right. It might be true that track 0 is always percussion (and hence should have
-      // different base note correction behavior), but it's incorrect to suppress correction entirely. See e.g. Level 9
-      // (Black Lab), which clearly expects some kind of correction here. Probably this should be a property of the
-      // instrument (or even the key/vel region) instead of a property of the track/channel.
-      chan->suppress_base_note = (t->id == 0);
-      chan->volume.set(static_cast<float>(ev->volume) / 0x7F);
-      chan->panning.set(static_cast<float>(ev->panning) / 0x7F);
-      chan->pitch_bend.set((static_cast<float>(ev->pitch_bend) / 0x4000) - 0.5);
 
     } else if (auto ev = dynamic_cast<const T::NoteEvent*>(generic_ev)) {
       if (!this->mute_tracks.count(t->id) && (this->solo_tracks.empty() || this->solo_tracks.count(t->id))) {
