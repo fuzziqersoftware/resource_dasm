@@ -228,7 +228,7 @@ resource_dasm can convert these resource types:
       SMOD | .txt (68K assembly)                                     | *C
       snth | .txt (68K assembly)                                     | *C
       tdig | .txt (68K assembly)                                     | *C
-      thng | .txt (68K assembly and header description)              | *C
+      thng | .txt (68K or PPC32 assembly and header description)     | *C
       tokn | .txt (68K assembly)                                     | *C
       vdig | .txt (68K or PPC32 assembly and header description)     | *C
       wart | .txt (68K assembly)                                     | *C

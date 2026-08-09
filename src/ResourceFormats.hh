@@ -311,7 +311,7 @@ struct ThngResourceBase {
   /* 04 */ phosg::be_uint32_t subtype;
   /* 08 */ phosg::be_uint32_t manufacturer;
   /* 0C */ phosg::be_uint32_t flags;
-  /* 10 */ phosg::be_uint32_t reserved;
+  /* 10 */ phosg::be_uint32_t flags_mask;
   /* 14 */ phosg::be_uint32_t code_resource_type;
   /* 18 */ phosg::be_int16_t code_resource_id;
   /* 1A */ phosg::be_uint32_t name_resource_type;
@@ -329,6 +329,18 @@ struct ThngResourceExtended {
   /* 30 */ phosg::be_uint32_t flags2;
   /* 34 */ phosg::be_int16_t icon_family_resource_id;
   /* 36 */
+} __attribute__((packed));
+
+struct ThngResourceMultiPlatform {
+  struct Platform {
+    phosg::be_uint32_t flags;
+    phosg::be_uint32_t resource_type;
+    phosg::be_int16_t resource_id;
+    phosg::be_uint16_t platform; // 1 = 68K, 2 = PowerPC, 3 = interpreted, 4 = Win32, 5 = PPC native entrypoint
+  } __attribute__((packed));
+  /* 00 */ ThngResourceExtended base;
+  /* 36 */ phosg::be_uint32_t platform_count;
+  /* 3A */ // Platform platforms[platform_count]
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////////////

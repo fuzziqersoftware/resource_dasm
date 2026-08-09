@@ -1390,15 +1390,9 @@ private:
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_thng(res);
 
-    auto disassembly = std::format("\
-# type: {:08X} ({})\n\
-# subtype: {:08X} ({})\n\
-# manufacturer: {:08X} ({})\n\
-# flags: {:08X}\n",
-        decoded.type, ResourceDASM::string_for_resource_type(decoded.type),
-        decoded.subtype, ResourceDASM::string_for_resource_type(decoded.subtype),
-        decoded.manufacturer, ResourceDASM::string_for_resource_type(decoded.manufacturer),
-        decoded.flags);
+    std::string filename = this->output_filename(base_filename, res, ".txt");
+    this->ensure_directories_exist(filename);
+    auto f = phosg::fopen_unique(filename, "wt");
 
     auto decode_string = [](std::shared_ptr<const ResourceDASM::ResourceFile::Resource>& res) -> std::string {
       if (res->type == ResourceDASM::RESOURCE_TYPE_STR) {
@@ -1408,36 +1402,70 @@ private:
       }
     };
 
-    auto code_res = this->current_rf->get_resource_if_exists(decoded.code_resource_type, decoded.code_resource_id);
     auto name_res = this->current_rf->get_resource_if_exists(decoded.name_resource_type, decoded.name_resource_id);
     auto info_res = this->current_rf->get_resource_if_exists(decoded.info_resource_type, decoded.info_resource_id);
     auto icon_res = this->current_rf->get_resource_if_exists(decoded.icon_resource_type, decoded.icon_resource_id);
-    if (code_res) {
-      disassembly += std::format("# code resource: {:08X} ({}) {}\n",
-          decoded.code_resource_type, ResourceDASM::string_for_resource_type(decoded.code_resource_type), decoded.code_resource_id);
+
+    auto name_str = name_res ? std::format(" \"{}\"", decode_string(name_res)) : " (missing)";
+    auto info_str = info_res ? std::format(" \"{}\"", decode_string(info_res)) : " (missing)";
+
+    phosg::fwrite_fmt(f.get(), "# type: {:08X} ({})\n", decoded.type, ResourceDASM::string_for_resource_type(decoded.type));
+    phosg::fwrite_fmt(f.get(), "# subtype: {:08X} ({})\n", decoded.subtype, ResourceDASM::string_for_resource_type(decoded.subtype));
+    phosg::fwrite_fmt(f.get(), "# manufacturer: {:08X} ({})\n", decoded.manufacturer, ResourceDASM::string_for_resource_type(decoded.manufacturer));
+    phosg::fwrite_fmt(f.get(), "# flags: {:08X} (mask: {:08X})\n", decoded.flags, decoded.flags_mask);
+    phosg::fwrite_fmt(f.get(), "# name resource: {:08X} ({}) {}{}\n", decoded.name_resource_type, ResourceDASM::string_for_resource_type(decoded.name_resource_type), decoded.name_resource_id, name_str);
+    phosg::fwrite_fmt(f.get(), "# info resource: {:08X} ({}) {}{}\n", decoded.info_resource_type, ResourceDASM::string_for_resource_type(decoded.info_resource_type), decoded.info_resource_id, info_str);
+    phosg::fwrite_fmt(f.get(), "# icon resource: {:08X} ({}) {}\n", decoded.icon_resource_type, ResourceDASM::string_for_resource_type(decoded.icon_resource_type), decoded.icon_resource_id);
+    phosg::fwrite_fmt(f.get(), "# version: {:08X}\n", decoded.version);
+
+    std::vector<const char*> flags2_strs;
+    if (decoded.flags2 & 0x01) {
+      flags2_strs.emplace_back("componentDoAutoVersion");
     }
-    if (name_res) {
-      disassembly += std::format("# name resource: {:08X} ({}) {} \"{}\"\n",
-          decoded.name_resource_type, ResourceDASM::string_for_resource_type(decoded.name_resource_type), decoded.name_resource_id, decode_string(name_res));
+    if (decoded.flags2 & 0x02) {
+      flags2_strs.emplace_back("componentWantsUnregister");
     }
-    if (info_res) {
-      disassembly += std::format("# info resource: {:08X} ({}) {} \"{}\"\n",
-          decoded.info_resource_type, ResourceDASM::string_for_resource_type(decoded.info_resource_type), decoded.info_resource_id, decode_string(info_res));
+    if (decoded.flags2 & 0x04) {
+      flags2_strs.emplace_back("componentAutoVersionIncludeFlags");
     }
-    if (icon_res) {
-      disassembly += std::format("# icon resource: {:08X} ({}) {}\n",
-          decoded.info_resource_type, ResourceDASM::string_for_resource_type(decoded.info_resource_type), decoded.info_resource_id);
+    if (decoded.flags2 & 0x08) {
+      flags2_strs.emplace_back("componentHasMultiplePlatforms");
     }
-    if (decoded.extension_present) {
-      disassembly += std::format("# version: {:08X}\n# flags2: {:08X}\n# icon family resource ID: {}\n",
-          decoded.version, decoded.flags2, decoded.icon_family_resource_id);
+    if (decoded.flags2 & 0x10) {
+      flags2_strs.emplace_back("componentLoadResident");
+    }
+    if (flags2_strs.empty()) {
+      flags2_strs.emplace_back("none");
     }
 
-    if (code_res) {
-      disassembly += ResourceDASM::M68KEmulator::disassemble(code_res->data.data(), code_res->data.size());
+    phosg::fwrite_fmt(f.get(), "# flags2: {:08X} ({})\n", decoded.flags2, phosg::join(flags2_strs, ", "));
+    phosg::fwrite_fmt(f.get(), "# icon family resource ID: {}\n", decoded.icon_family_resource_id);
+
+    for (const auto& p : decoded.platforms) {
+      const char* platform_name;
+      if (p.platform == 1) {
+        platform_name = "68k";
+      } else if (p.platform == 2) {
+        platform_name = "powerpc";
+      } else {
+        platform_name = "unknown";
+      }
+      phosg::fwrite_fmt(f.get(), "\n# code for platform {} ({}): {:08X} ({}) {}\n",
+          p.platform, platform_name, p.resource_type, ResourceDASM::string_for_resource_type(p.resource_type),
+          p.resource_id);
+      auto code_res = this->current_rf->get_resource_if_exists(p.resource_type, p.resource_id);
+      if (!code_res) {
+        phosg::fwritex(f.get(), "# (resource is missing)\n");
+      } else if (p.platform == 1) {
+        phosg::fwritex(f.get(), ResourceDASM::M68KEmulator::disassemble(code_res->data.data(), code_res->data.size()));
+      } else if (p.platform == 2) {
+        ResourceDASM::PEFFile("__unnamed__", code_res->data.data(), code_res->data.size()).print(f.get());
+      } else {
+        phosg::fwritex(f.get(), "# (platform is unknown; cannot disassemble resource)\n");
+      }
     }
 
-    this->write_decoded_data(base_filename, res, ".txt", disassembly);
+    phosg::fwrite_fmt(stderr, "... {}\n", filename);
   }
 
   void write_decoded_dcmp(

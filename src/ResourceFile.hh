@@ -355,8 +355,7 @@ public:
     uint32_t subtype = 0;
     uint32_t manufacturer = 0;
     uint32_t flags = 0;
-    uint32_t code_resource_type = 0;
-    int16_t code_resource_id = 0;
+    uint32_t flags_mask = 0;
     uint32_t name_resource_type = 0;
     int16_t name_resource_id = 0;
     uint32_t info_resource_type = 0;
@@ -364,10 +363,17 @@ public:
     uint32_t icon_resource_type = 0;
     int16_t icon_resource_id = 0;
 
-    bool extension_present = false;
     uint32_t version = 0;
     uint32_t flags2 = 0;
     int16_t icon_family_resource_id = 0;
+
+    struct Platform {
+      uint32_t flags;
+      uint32_t resource_type;
+      int16_t resource_id;
+      uint16_t platform; // 1 = 68K, 2 = PowerPC, 3 = interpreted, 4 = Win32, 5 = PPC native entrypoint
+    };
+    std::vector<Platform> platforms;
   };
 
   struct DecodedDecompressorResource {

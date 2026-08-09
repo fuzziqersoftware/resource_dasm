@@ -1413,28 +1413,40 @@ ResourceFile::DecodedComponentDefinition ResourceFile::decode_thng(std::shared_p
 ResourceFile::DecodedComponentDefinition ResourceFile::decode_thng(const void* data, size_t size) const {
   phosg::StringReader r(data, size);
 
-  const auto& base = r.get<ThngResourceBase>(false);
-  const auto* ext = (r.size() >= sizeof(ThngResourceExtended)) ? &r.get<ThngResourceExtended>(false) : nullptr;
-
+  const auto& base = r.pget<ThngResourceBase>(0);
   DecodedComponentDefinition ret;
   ret.type = base.type;
   ret.subtype = base.subtype;
   ret.manufacturer = base.manufacturer;
   ret.flags = base.flags;
-  ret.code_resource_type = base.code_resource_type;
-  ret.code_resource_id = base.code_resource_id;
+  if (base.code_resource_type) {
+    ret.platforms.emplace_back(DecodedComponentDefinition::Platform{
+        .flags = 0, .resource_type = base.code_resource_type, .resource_id = base.code_resource_id, .platform = 1});
+  }
   ret.name_resource_type = base.name_resource_type;
   ret.name_resource_id = base.name_resource_id;
   ret.info_resource_type = base.info_resource_type;
   ret.info_resource_id = base.info_resource_id;
   ret.icon_resource_type = base.icon_resource_type;
   ret.icon_resource_id = base.icon_resource_id;
-  if (ext) {
-    ret.extension_present = true;
-    ret.version = ext->version;
-    ret.flags2 = ext->flags2;
-    ret.icon_family_resource_id = ext->icon_family_resource_id;
+
+  if (r.size() >= sizeof(ThngResourceExtended)) {
+    const auto& ext = r.pget<ThngResourceExtended>(0);
+    ret.version = ext.version;
+    ret.flags2 = ext.flags2;
+    ret.icon_family_resource_id = ext.icon_family_resource_id;
+    if (ret.flags2 & 8) { // Flag 8 = has multiple platforms (or just one, if that one isn't 68k)
+      // In this case, the base's resource reference should be ignored, so delete it
+      ret.platforms.clear();
+      const auto& multi = r.get<ThngResourceMultiPlatform>();
+      for (size_t z = 0; z < multi.platform_count; z++) {
+        const auto& p = r.get<ThngResourceMultiPlatform::Platform>();
+        ret.platforms.emplace_back(DecodedComponentDefinition::Platform{
+            .flags = p.flags, .resource_type = p.resource_type, .resource_id = p.resource_id, .platform = p.platform});
+      }
+    }
   }
+
   return ret;
 }
 
