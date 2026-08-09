@@ -1395,10 +1395,14 @@ private:
     auto f = phosg::fopen_unique(filename, "wt");
 
     auto decode_string = [](std::shared_ptr<const ResourceDASM::ResourceFile::Resource>& res) -> std::string {
-      if (res->type == ResourceDASM::RESOURCE_TYPE_STR) {
+      // TODO: What's the actual logic here? (Is there any?) There are clearly some resources references here that are
+      // pstrings (hence decode_STR) and others that are just raw data.
+      if ((res->type == ResourceDASM::RESOURCE_TYPE_STR) ||
+          (res->type == ResourceDASM::RESOURCE_TYPE_stri) ||
+          (res->type == ResourceDASM::RESOURCE_TYPE_strn)) {
         return ResourceDASM::ResourceFile::decode_STR(res).str;
       } else {
-        return res->data;
+        return ResourceDASM::decode_mac_roman(res->data);
       }
     };
 
