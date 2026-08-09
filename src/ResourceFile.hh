@@ -97,6 +97,8 @@ public:
   bool resource_exists(uint32_t type, const char* name) const;
   std::shared_ptr<const Resource> get_resource(uint32_t type, int16_t id, uint64_t decompression_flags = 0) const;
   std::shared_ptr<const Resource> get_resource(uint32_t type, const char* name, uint64_t decompression_flags = 0) const;
+  std::shared_ptr<const Resource> get_resource_if_exists(uint32_t type, int16_t id, uint64_t decompression_flags = 0) const;
+  std::shared_ptr<const Resource> get_resource_if_exists(uint32_t type, const char* name, uint64_t decompression_flags = 0) const;
   const std::string& get_resource_name(uint32_t type, int16_t id) const;
   size_t count_resources_of_type(uint32_t type) const;
   size_t count_resources() const;
@@ -346,6 +348,26 @@ public:
     // Note: The start offset of the code is 0x16, so function_offsets will be either 0 (no function) or >= 0x16
     uint16_t function_offsets[9];
     std::string code;
+  };
+
+  struct DecodedComponentDefinition {
+    uint32_t type = 0;
+    uint32_t subtype = 0;
+    uint32_t manufacturer = 0;
+    uint32_t flags = 0;
+    uint32_t code_resource_type = 0;
+    int16_t code_resource_id = 0;
+    uint32_t name_resource_type = 0;
+    int16_t name_resource_id = 0;
+    uint32_t info_resource_type = 0;
+    int16_t info_resource_id = 0;
+    uint32_t icon_resource_type = 0;
+    int16_t icon_resource_id = 0;
+
+    bool extension_present = false;
+    uint32_t version = 0;
+    uint32_t flags2 = 0;
+    int16_t icon_family_resource_id = 0;
   };
 
   struct DecodedDecompressorResource {
@@ -635,6 +657,9 @@ public:
   DecodedRSSCResource decode_RSSC(int16_t id, uint32_t type = RESOURCE_TYPE_RSSC) const;
   static DecodedRSSCResource decode_RSSC(std::shared_ptr<const Resource> res);
   static DecodedRSSCResource decode_RSSC(const void* vdata, size_t size);
+  DecodedComponentDefinition decode_thng(int16_t id, uint32_t type = RESOURCE_TYPE_thng) const;
+  DecodedComponentDefinition decode_thng(std::shared_ptr<const Resource> res) const;
+  DecodedComponentDefinition decode_thng(const void* vdata, size_t size) const;
 
   // PowerPC code resources
   PEFFile decode_pef(int16_t id, uint32_t type) const;

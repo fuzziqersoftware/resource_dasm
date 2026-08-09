@@ -304,6 +304,34 @@ struct RSSCResourceHeader {
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////////////
+// thng
+
+struct ThngResourceBase {
+  /* 00 */ phosg::be_uint32_t type;
+  /* 04 */ phosg::be_uint32_t subtype;
+  /* 08 */ phosg::be_uint32_t manufacturer;
+  /* 0C */ phosg::be_uint32_t flags;
+  /* 10 */ phosg::be_uint32_t reserved;
+  /* 14 */ phosg::be_uint32_t code_resource_type;
+  /* 18 */ phosg::be_int16_t code_resource_id;
+  /* 1A */ phosg::be_uint32_t name_resource_type;
+  /* 1E */ phosg::be_int16_t name_resource_id;
+  /* 20 */ phosg::be_uint32_t info_resource_type;
+  /* 24 */ phosg::be_int16_t info_resource_id;
+  /* 26 */ phosg::be_uint32_t icon_resource_type;
+  /* 2A */ phosg::be_int16_t icon_resource_id;
+  /* 2C */
+} __attribute__((packed));
+
+struct ThngResourceExtended {
+  /* 00 */ ThngResourceBase base;
+  /* 2C */ phosg::be_uint32_t version;
+  /* 30 */ phosg::be_uint32_t flags2;
+  /* 34 */ phosg::be_int16_t icon_family_resource_id;
+  /* 36 */
+} __attribute__((packed));
+
+////////////////////////////////////////////////////////////////////////////////
 // cicn
 
 struct ColorIconResourceHeader {

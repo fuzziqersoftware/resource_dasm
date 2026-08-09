@@ -214,6 +214,16 @@ std::shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource(
   throw std::out_of_range("no such resource");
 }
 
+std::shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource_if_exists(
+    uint32_t type, int16_t id, uint64_t decompress_flags) const {
+  return this->resource_exists(type, id) ? this->get_resource(type, id, decompress_flags) : nullptr;
+}
+
+std::shared_ptr<const ResourceFile::Resource> ResourceFile::get_resource_if_exists(
+    uint32_t type, const char* name, uint64_t decompress_flags) const {
+  return this->resource_exists(type, name) ? this->get_resource(type, name, decompress_flags) : nullptr;
+}
+
 const std::string& ResourceFile::get_resource_name(uint32_t type, int16_t id) const {
   return this->key_to_resource.at(this->make_resource_key(type, id))->name;
 }
@@ -1389,6 +1399,42 @@ ResourceFile::DecodedRSSCResource ResourceFile::decode_RSSC(const void* data, si
     }
   }
   ret.code = r.read(r.remaining());
+  return ret;
+}
+
+ResourceFile::DecodedComponentDefinition ResourceFile::decode_thng(int16_t id, uint32_t type) const {
+  return this->decode_thng(this->get_resource(type, id));
+}
+
+ResourceFile::DecodedComponentDefinition ResourceFile::decode_thng(std::shared_ptr<const Resource> res) const {
+  return ResourceFile::decode_thng(res->data.data(), res->data.size());
+}
+
+ResourceFile::DecodedComponentDefinition ResourceFile::decode_thng(const void* data, size_t size) const {
+  phosg::StringReader r(data, size);
+
+  const auto& base = r.get<ThngResourceBase>(false);
+  const auto* ext = (r.size() >= sizeof(ThngResourceExtended)) ? &r.get<ThngResourceExtended>(false) : nullptr;
+
+  DecodedComponentDefinition ret;
+  ret.type = base.type;
+  ret.subtype = base.subtype;
+  ret.manufacturer = base.manufacturer;
+  ret.flags = base.flags;
+  ret.code_resource_type = base.code_resource_type;
+  ret.code_resource_id = base.code_resource_id;
+  ret.name_resource_type = base.name_resource_type;
+  ret.name_resource_id = base.name_resource_id;
+  ret.info_resource_type = base.info_resource_type;
+  ret.info_resource_id = base.info_resource_id;
+  ret.icon_resource_type = base.icon_resource_type;
+  ret.icon_resource_id = base.icon_resource_id;
+  if (ext) {
+    ret.extension_present = true;
+    ret.version = ext->version;
+    ret.flags2 = ext->flags2;
+    ret.icon_family_resource_id = ext->icon_family_resource_id;
+  }
   return ret;
 }
 

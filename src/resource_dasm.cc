@@ -1386,6 +1386,52 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
+  void write_decoded_thng(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    auto decoded = this->current_rf->decode_thng(res);
+
+    auto disassembly = std::format("\
+# type: {:08X} ({})\n\
+# subtype: {:08X} ({})\n\
+# manufacturer: {:08X} ({})\n\
+# flags: {:08X}\n",
+        decoded.type, ResourceDASM::string_for_resource_type(decoded.type),
+        decoded.subtype, ResourceDASM::string_for_resource_type(decoded.subtype),
+        decoded.manufacturer, ResourceDASM::string_for_resource_type(decoded.manufacturer),
+        decoded.flags);
+
+    auto code_res = this->current_rf->get_resource_if_exists(decoded.code_resource_type, decoded.code_resource_id);
+    auto name_res = this->current_rf->get_resource_if_exists(decoded.name_resource_type, decoded.name_resource_id);
+    auto info_res = this->current_rf->get_resource_if_exists(decoded.info_resource_type, decoded.info_resource_id);
+    auto icon_res = this->current_rf->get_resource_if_exists(decoded.icon_resource_type, decoded.icon_resource_id);
+    if (code_res) {
+      disassembly += std::format("# code resource: {:08X} ({}) {}\n",
+          decoded.code_resource_type, ResourceDASM::string_for_resource_type(decoded.code_resource_type), decoded.code_resource_id);
+    }
+    if (name_res) {
+      disassembly += std::format("# name resource: {:08X} ({}) {} \"{}\"\n",
+          decoded.name_resource_type, ResourceDASM::string_for_resource_type(decoded.name_resource_type), decoded.name_resource_id, name_res->data);
+    }
+    if (info_res) {
+      disassembly += std::format("# info resource: {:08X} ({}) {} \"{}\"\n",
+          decoded.info_resource_type, ResourceDASM::string_for_resource_type(decoded.info_resource_type), decoded.info_resource_id, info_res->data);
+    }
+    if (icon_res) {
+      disassembly += std::format("# icon resource: {:08X} ({}) {}\n",
+          decoded.info_resource_type, ResourceDASM::string_for_resource_type(decoded.info_resource_type), decoded.info_resource_id);
+    }
+    if (decoded.extension_present) {
+      disassembly += std::format("# version: {:08X}\n# flags2: {:08X}\n# icon family resource ID: {}\n",
+          decoded.version, decoded.flags2, decoded.icon_family_resource_id);
+    }
+
+    if (code_res) {
+      disassembly += ResourceDASM::M68KEmulator::disassemble(code_res->data.data(), code_res->data.size());
+    }
+
+    this->write_decoded_data(base_filename, res, ".txt", disassembly);
+  }
+
   void write_decoded_dcmp(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     auto decoded = this->current_rf->decode_dcmp(res);
@@ -2422,6 +2468,7 @@ const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> Resourc
     {ResourceDASM::RESOURCE_TYPE_STRN, &ResourceExporter::write_decoded_STRN},
     {ResourceDASM::RESOURCE_TYPE_styl, &ResourceExporter::write_decoded_styl},
     {ResourceDASM::RESOURCE_TYPE_TEXT, &ResourceExporter::write_decoded_TEXT},
+    {ResourceDASM::RESOURCE_TYPE_thng, &ResourceExporter::write_decoded_thng},
     {ResourceDASM::RESOURCE_TYPE_TMPL, &ResourceExporter::write_decoded_TMPL},
     {ResourceDASM::RESOURCE_TYPE_Tune, &ResourceExporter::write_decoded_Tune},
     {ResourceDASM::RESOURCE_TYPE_TwCS, &ResourceExporter::write_decoded_TwCS},
