@@ -172,6 +172,8 @@ resource_dasm can convert these resource types:
       cmu! | .txt (68K assembly)                                     | *C
       CODE | .txt (68K assembly or import table description)         | *B *C
       code | .txt (68K assembly)                                     | *C
+      cpkr | .txt (68K assembly)                                     | *C
+      cpkp | .txt (PPC32 assembly)                                   |
       dcmp | .txt (68K assembly)                                     | *C
       dcod | .txt (PPC32 assembly and header description)            |
       dem  | .txt (68K assembly)                                     | *C

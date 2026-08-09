@@ -2443,6 +2443,8 @@ const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> Resourc
     {ResourceDASM::RESOURCE_TYPE_cmtb, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_cmuN, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_code, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_cpkp, &ResourceExporter::write_decoded_inline_ppc32},
+    {ResourceDASM::RESOURCE_TYPE_cpkr, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_dem, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_dimg, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_drvr, &ResourceExporter::write_decoded_DRVR},

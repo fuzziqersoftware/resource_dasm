@@ -50,6 +50,10 @@ constexpr uint32_t RESOURCE_TYPE_CMNU = resource_type("CMNU");
 constexpr uint32_t RESOURCE_TYPE_cmnu = resource_type("cmnu");
 constexpr uint32_t RESOURCE_TYPE_cmtb = resource_type("cmtb");
 constexpr uint32_t RESOURCE_TYPE_cmuN = resource_type("cmu#");
+// Color Picker component (PPC)
+constexpr uint32_t RESOURCE_TYPE_cpkp = resource_type("cpkp");
+// Color Picker component (68k)
+constexpr uint32_t RESOURCE_TYPE_cpkr = resource_type("cpkr");
 constexpr uint32_t RESOURCE_TYPE_CNTL = resource_type("CNTL");
 constexpr uint32_t RESOURCE_TYPE_CODE = resource_type("CODE");
 constexpr uint32_t RESOURCE_TYPE_code = resource_type("code");
