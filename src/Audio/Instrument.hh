@@ -59,7 +59,7 @@ struct VelocityRegion {
   float freq_mult = 1.0;
   float pitch_sensitivity = 1.0;
   float volume_mult = 1.0;
-  ADSROptions adsr;
+  ADSROptions adsr = {};
   int8_t base_note = -1;
   const Sound* sound = nullptr;
 };

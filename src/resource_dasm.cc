@@ -1400,6 +1400,14 @@ private:
         decoded.manufacturer, ResourceDASM::string_for_resource_type(decoded.manufacturer),
         decoded.flags);
 
+    auto decode_string = [](std::shared_ptr<const ResourceDASM::ResourceFile::Resource>& res) -> std::string {
+      if (res->type == ResourceDASM::RESOURCE_TYPE_STR) {
+        return ResourceDASM::ResourceFile::decode_STR(res).str;
+      } else {
+        return res->data;
+      }
+    };
+
     auto code_res = this->current_rf->get_resource_if_exists(decoded.code_resource_type, decoded.code_resource_id);
     auto name_res = this->current_rf->get_resource_if_exists(decoded.name_resource_type, decoded.name_resource_id);
     auto info_res = this->current_rf->get_resource_if_exists(decoded.info_resource_type, decoded.info_resource_id);
@@ -1410,11 +1418,11 @@ private:
     }
     if (name_res) {
       disassembly += std::format("# name resource: {:08X} ({}) {} \"{}\"\n",
-          decoded.name_resource_type, ResourceDASM::string_for_resource_type(decoded.name_resource_type), decoded.name_resource_id, name_res->data);
+          decoded.name_resource_type, ResourceDASM::string_for_resource_type(decoded.name_resource_type), decoded.name_resource_id, decode_string(name_res));
     }
     if (info_res) {
       disassembly += std::format("# info resource: {:08X} ({}) {} \"{}\"\n",
-          decoded.info_resource_type, ResourceDASM::string_for_resource_type(decoded.info_resource_type), decoded.info_resource_id, info_res->data);
+          decoded.info_resource_type, ResourceDASM::string_for_resource_type(decoded.info_resource_type), decoded.info_resource_id, decode_string(info_res));
     }
     if (icon_res) {
       disassembly += std::format("# icon resource: {:08X} ({}) {}\n",
