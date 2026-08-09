@@ -44,8 +44,10 @@ struct InstrumentMetadata {
 };
 
 SoundEnvironment load_sound_environment(const char* aw_directory);
-SoundEnvironment create_midi_sound_environment(const std::unordered_map<int16_t, InstrumentMetadata>& instrument_metadata);
-SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_json, const std::string& directory);
+SoundEnvironment create_midi_sound_environment(
+    const std::unordered_map<int16_t, InstrumentMetadata>& instrument_metadata);
+SoundEnvironment create_json_sound_environment(
+    const phosg::JSON& instruments_json, float release_seconds, const std::string& directory);
 SoundEnvironment create_quicktime_sound_environment(const std::string& directory);
 
 } // namespace Audio

@@ -645,7 +645,11 @@ SoundEnvironment create_midi_sound_environment(
     auto& inst = inst_bank.id_to_instrument.emplace(it.first, it.first).first->second;
     inst.key_regions.emplace_back(0, 0x7F);
     auto& key_region = inst.key_regions.back();
-    key_region.vel_regions.emplace_back(VelocityRegion{0, 0x7F, 0, static_cast<uint16_t>(it.first)});
+    key_region.vel_regions.emplace_back(VelocityRegion{
+        .vel_low = 0,
+        .vel_high = 0x7F,
+        .sample_bank_id = 0,
+        .sound_id = static_cast<uint16_t>(it.first)});
   }
 
   // Create sample bank 0
@@ -685,7 +689,8 @@ SoundEnvironment create_midi_sound_environment(
   return env;
 }
 
-SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_json, const std::string& directory) {
+SoundEnvironment create_json_sound_environment(
+    const phosg::JSON& instruments_json, float release_seconds, const std::string& directory) {
   // JSON environments have only one instrument and sample bank; everything goes in there
   SoundEnvironment env;
   auto& inst_bank = env.instrument_banks.emplace(0, 0).first->second;
@@ -754,9 +759,8 @@ SoundEnvironment create_json_sound_environment(const phosg::JSON& instruments_js
           .sound_id = static_cast<uint16_t>(sound_id),
           .freq_mult = static_cast<float>(freq_mult),
           .pitch_sensitivity = (constant_pitch ? 0.0f : 1.0f),
-          .volume_mult = 1.0f,
-          .base_note = static_cast<int8_t>(s.base_note),
-          .sound = nullptr});
+          .adsr = {.release_time_secs = release_seconds},
+          .base_note = static_cast<int8_t>(s.base_note)});
 
       // Use up the sound id
       sound_id++;
@@ -840,31 +844,38 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
       log.info_f("  Adding sound {} (base {}, channels {}, rate {}, loop [{}, {}])",
           s.sound_id, s.base_note, s.num_channels, s.sample_rate, s.loop_start, s.loop_end);
 
+      auto get_knob_value = [&](uint32_t knob_id) -> std::optional<int32_t> {
+        if (auto knob_it = rgn.knobs.find(knob_id); knob_it != rgn.knobs.end()) {
+          return knob_it->second;
+        }
+        if (auto knob_it = ssai.knobs.find(knob_id); knob_it != ssai.knobs.end()) {
+          return knob_it->second;
+        }
+        return std::optional<int32_t>();
+      };
+
       // Create the key region and vel region objects
       auto& key_rgn = inst.key_regions.emplace_back(rgn.key_low, rgn.key_high);
+      uint8_t adsr_exp_options = get_knob_value(QTMAKnobID::kQTMSKnobVolumeExpOptionsID).value_or(0);
       key_rgn.vel_regions.emplace_back(VelocityRegion{
           .vel_low = 0,
           .vel_high = 0x7F,
           .sample_bank_id = 0,
           .sound_id = static_cast<uint16_t>(sound_id),
-          .freq_mult = 1.0f,
-          .pitch_sensitivity = 1.0f,
-          .volume_mult = 1.0f,
-          .base_note = static_cast<int8_t>(s.base_note),
-          .sound = nullptr});
+          .freq_mult = static_cast<float>(pow(2, static_cast<double>(get_knob_value(QTMAKnobID::kQTMSKnobPitchTransposeID).value_or(0)) / 0xC00)),
+          .pitch_sensitivity = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobPitchSensitivityID).value_or(100)) / 100, // Knob value is a percentage (but can be <0 or >100)
+          .adsr = {
+              .attack_time_secs = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobVolumeAttackTimeID).value_or(0)) / 1000, // Knob value is milliseconds
+              .attack_exponential = static_cast<bool>(adsr_exp_options & 1),
+              .decay_time_secs = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobVolumeDecayTimeID).value_or(0)) / 1000, // Knob value is milliseconds
+              .decay_exponential = static_cast<bool>(adsr_exp_options & 2),
+              .sustain_level = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobVolumeSustainLevelID).value_or(0x10000)) / 0x10000, // Knob value is 16.16 fixed; 0-1
+              .sustain_exponential = static_cast<bool>(adsr_exp_options & 4),
+              .release_time_secs = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobVolumeReleaseTimeID).value_or(200)) / 1000, // Knob value is milliseconds; default 200 to match SMS MIDI behavior (which is also an assumption, sigh)
+              .release_exponential = static_cast<bool>(adsr_exp_options & 8),
+          },
+          .base_note = static_cast<int8_t>(s.base_note)});
       sound_id++;
-
-      // Handle knob effects
-      if (auto knob_it = rgn.knobs.find(QTMAKnobID::kQTMSKnobPitchTransposeID); knob_it != rgn.knobs.end()) {
-        for (auto& vel_rgn : key_rgn.vel_regions) {
-          vel_rgn.freq_mult *= pow(2, static_cast<double>(knob_it->second) / 0xC00);
-        }
-      }
-      if (auto knob_it = rgn.knobs.find(QTMAKnobID::kQTMSKnobPitchSensitivityID); knob_it != rgn.knobs.end()) {
-        for (auto& vel_rgn : key_rgn.vel_regions) {
-          vel_rgn.pitch_sensitivity = static_cast<float>(knob_it->second) / 100;
-        }
-      }
     }
   }
 

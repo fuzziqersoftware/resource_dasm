@@ -192,8 +192,13 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
         // TODO: We should also multiply by inst->freq_mult here, but it makes Sunshine sequences sound wrong
         // (especially k_dolpic). Figure out why and fix it
         result_key_region.vel_regions.emplace_back(
-            VelocityRegion{vel_low, vel_region->vel_high, vel_region->sample_bank_id, vel_region->sample_num,
-                vel_region->freq_mult, vel_region->volume_mult * volume_mult});
+            VelocityRegion{
+                .vel_low = vel_low,
+                .vel_high = vel_region->vel_high,
+                .sample_bank_id = vel_region->sample_bank_id,
+                .sound_id = vel_region->sample_num,
+                .freq_mult = vel_region->freq_mult,
+                .volume_mult = vel_region->volume_mult * volume_mult});
 
         vel_low = vel_region->vel_high + 1;
       }
@@ -223,8 +228,13 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
         // don't use the INST's freq_mult; figure out if we should do the same here (currently we don't)
         auto& vel_region = pmap_header->vel_regions[y];
         result_key_region.vel_regions.emplace_back(
-            VelocityRegion{vel_low, vel_region.vel_high, vel_region.sample_bank_id, vel_region.sample_num,
-                vel_region.freq_mult * pmap_header->freq_mult, vel_region.volume_mult * pmap_header->volume_mult});
+            VelocityRegion{
+                .vel_low = vel_low,
+                .vel_high = vel_region.vel_high,
+                .sample_bank_id = vel_region.sample_bank_id,
+                .sound_id = vel_region.sample_num,
+                .freq_mult = vel_region.freq_mult * pmap_header->freq_mult,
+                .volume_mult = vel_region.volume_mult * pmap_header->volume_mult});
         vel_low = vel_region.vel_high + 1;
       }
     }
@@ -261,8 +271,13 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
         offset += sizeof(ibnk_inst_instnew_vel_region);
 
         result_key_region.vel_regions.emplace_back(
-            VelocityRegion{vel_low, vel_region->vel_high, vel_region->sample_bank_id, vel_region->sample_num,
-                vel_region->freq_mult, vel_region->volume_mult});
+            VelocityRegion{
+                .vel_low = vel_low,
+                .vel_high = vel_region->vel_high,
+                .sample_bank_id = vel_region->sample_bank_id,
+                .sound_id = vel_region->sample_num,
+                .freq_mult = vel_region->freq_mult,
+                .volume_mult = vel_region->volume_mult});
         vel_low = vel_region->vel_high + 1;
       }
       key_low = key_region->key_high + 1;
@@ -327,10 +342,7 @@ Instrument ibnk_inst_decode(const void* vdata, size_t offset, size_t inst_id) {
               .sample_bank_id = vel_region->sample_bank_id,
               .sound_id = vel_region->sample_num,
               .freq_mult = freq_mult,
-              .pitch_sensitivity = 1.0f,
-              .volume_mult = 1.0f,
-              .base_note = static_cast<int8_t>(x),
-              .sound = nullptr});
+              .base_note = static_cast<int8_t>(x)});
 
       vel_low = vel_region->vel_high + 1;
     }

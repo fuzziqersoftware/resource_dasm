@@ -726,70 +726,59 @@ struct Channel {
 
 class Voice {
 public:
-  Voice(size_t sample_rate, int8_t note, int8_t vel, bool decay_when_off, std::shared_ptr<Channel> channel)
-      : Voice(sample_rate, note, vel, decay_when_off, 0.2f, channel) {}
-  Voice(size_t sample_rate, int8_t note, int8_t vel, bool decay_when_off, float decay_seconds, std::shared_ptr<Channel> channel)
-      : sample_rate(sample_rate),
-        note(note),
-        vel(vel),
-        channel(channel),
-        decay_when_off(decay_when_off),
-        note_off_decay_total(static_cast<ssize_t>(round(
-            static_cast<double>(decay_seconds) * static_cast<double>(this->sample_rate)))),
-        note_off_decay_remaining(-1) {}
+  Voice(size_t output_sample_rate, int8_t note, int8_t vel, std::shared_ptr<Channel> channel)
+      : output_sample_rate(output_sample_rate), note(note), vel(vel), channel(channel) {}
   virtual ~Voice() = default;
 
   virtual std::vector<float> render(size_t count, float freq_mult, float volume_bias) = 0;
+  virtual void off() = 0;
+  virtual bool is_off() const = 0;
+  virtual bool complete() const = 0;
 
-  void off() {
-    // TODO: for now we use a constant release time of 1/5 second except in SMS SONG resources; we probably should get
-    // this from the AAF somewhere but I don't know where
-    this->note_off_decay_remaining = this->note_off_decay_total;
-  }
-
-  bool off_complete() const {
-    return (this->note_off_decay_remaining == 0);
-  }
-
-  float advance_note_off_factor() {
-    if (!this->decay_when_off) {
-      return 1.0f;
-    }
-    if (this->note_off_decay_remaining == 0) {
-      return 0.0f;
-    }
-    if (this->note_off_decay_remaining > 0) {
-      return static_cast<float>(this->note_off_decay_remaining--) / this->note_off_decay_total;
-    }
-    return 1.0f;
-  }
-
-  size_t sample_rate;
+  size_t output_sample_rate;
   int8_t note;
   int8_t vel;
   std::shared_ptr<Channel> channel;
-  bool decay_when_off;
-  ssize_t note_off_decay_total;
-  ssize_t note_off_decay_remaining;
 };
 
 class SilentVoice : public Voice {
 public:
-  SilentVoice(size_t sample_rate, int8_t note, int8_t vel, std::shared_ptr<Channel> channel)
-      : Voice(sample_rate, note, vel, true, channel) {}
+  SilentVoice(size_t output_sample_rate, int8_t note, int8_t vel, std::shared_ptr<Channel> channel)
+      : Voice(output_sample_rate, note, vel, channel) {}
   virtual ~SilentVoice() = default;
 
+  virtual void off() {
+    this->is_finished = true;
+  }
+  virtual bool is_off() const {
+    return this->is_finished;
+  }
+  virtual bool complete() const {
+    return this->is_finished;
+  }
+
   virtual std::vector<float> render(size_t count, float, float) {
-    this->advance_note_off_factor();
     return std::vector<float>(count * 2, 0.0f);
   }
+
+  bool is_finished = false;
 };
 
 class SineVoice : public Voice {
 public:
-  SineVoice(size_t sample_rate, int8_t note, int8_t vel, std::shared_ptr<Channel> channel)
-      : Voice(sample_rate, note, vel, true, channel), offset(0) {}
+  SineVoice(size_t output_sample_rate, int8_t note, int8_t vel, std::shared_ptr<Channel> channel)
+      : Voice(output_sample_rate, note, vel, channel) {}
   virtual ~SineVoice() = default;
+
+  virtual void off() {
+    this->is_finished = true;
+  }
+  virtual bool is_off() const {
+    return this->is_finished;
+  }
+  virtual bool complete() const {
+    return this->is_finished;
+  }
 
   virtual std::vector<float> render(size_t count, float, float volume_bias) {
     // TODO: implement pitch bend and freq_mult somehow
@@ -799,8 +788,7 @@ public:
     float vel_factor = static_cast<float>(this->vel) / 0x7F;
     for (size_t x = 0; x < count; x++) {
       // Panning is 0.0f (left) - 1.0f (right)
-      float off_factor = this->advance_note_off_factor();
-      float sample = volume_bias * vel_factor * off_factor * this->channel->volume.get() * sin((2.0f * M_PI * frequency) / this->sample_rate * (x + this->offset));
+      float sample = volume_bias * vel_factor * this->channel->volume.get() * sin((2.0f * M_PI * frequency) / this->output_sample_rate * (x + this->offset));
       data[2 * x + 0] = sample * (1.0f - this->channel->panning.get());
       data[2 * x + 1] = sample * this->channel->panning.get();
     }
@@ -809,31 +797,29 @@ public:
     return data;
   }
 
-  size_t offset;
+  size_t offset = 0;
+  bool is_finished = false;
 };
 
 class SampleVoice : public Voice {
 public:
   SampleVoice(
-      size_t sample_rate,
+      size_t output_sample_rate,
       std::shared_ptr<const ResourceDASM::Audio::SoundEnvironment> env,
       std::shared_ptr<ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>> cache,
       uint16_t bank_id,
       uint16_t instrument_id,
       int8_t note,
       int8_t vel,
-      bool decay_when_off,
-      float decay_seconds,
       std::shared_ptr<Channel> channel)
-      : Voice(sample_rate, note, vel, decay_when_off, decay_seconds, channel),
+      : Voice(output_sample_rate, note, vel, channel),
         instrument_bank(&env->instrument_banks.at(bank_id)),
         instrument(&this->instrument_bank->id_to_instrument.at(instrument_id)),
         key_region(&this->instrument->region_for_key(note)),
         vel_region(&this->key_region->region_for_velocity(vel)),
-        src_ratio(1.0f),
-        offset(0),
+        adsr_attack_end_samples(this->output_sample_rate * this->vel_region->adsr.attack_time_secs),
+        adsr_decay_end_samples(this->adsr_attack_end_samples + this->output_sample_rate * this->vel_region->adsr.decay_time_secs),
         cache(cache) {
-
     if (!this->vel_region->sound) {
       throw std::out_of_range("instrument sound is missing");
     }
@@ -846,19 +832,88 @@ public:
 
   virtual ~SampleVoice() = default;
 
+  virtual void off() {
+    this->adsr_release_start_level = this->adsr_factor();
+    this->adsr_release_start_samples = this->samples_produced;
+    this->adsr_release_end_samples = this->samples_produced + (this->output_sample_rate * this->vel_region->adsr.release_time_secs);
+    this->release_started = true;
+    // phosg::log_info_f("ADSR: inst {} key {} off at {} level {} interval {} -> {} (time {} secs)", this->instrument->id, this->note, this->samples_produced, this->adsr_release_start_level, this->adsr_release_start_samples, this->adsr_release_end_samples, this->vel_region->adsr.release_time_secs);
+  }
+  virtual bool is_off() const {
+    return this->release_started;
+  }
+  virtual bool complete() const {
+    return this->samples_produced >= this->adsr_release_end_samples;
+  }
+
+  static float interpolate(bool exponential, float start, float end, float progress, float floor = 0.001f) {
+    if (progress >= 1.0f) {
+      return end;
+    }
+    if (progress <= 0.0f) {
+      return start;
+    }
+    if (exponential) {
+      float start_clamped = std::max(start, floor);
+      float end_clamped = std::max(end, floor);
+      return start_clamped * pow(end_clamped / start_clamped, progress);
+    } else {
+      return end * progress + start * (1.0f - progress);
+    }
+  }
+
+  float adsr_factor() const {
+    float ret;
+    if (this->samples_produced < this->adsr_attack_end_samples) {
+      // Linearly interpolate from 0.0f up to 1.0f
+      ret = this->interpolate(this->vel_region->adsr.attack_exponential, 0.0f, 1.0f,
+          static_cast<float>(this->samples_produced) / this->adsr_attack_end_samples);
+      // phosg::log_info_f("ADSR: inst {} key {} attack {} ({} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.attack_exponential ? "exp" : "lin", this->samples_produced, this->adsr_attack_end_samples, ret);
+
+    } else if (this->samples_produced < this->adsr_decay_end_samples) {
+      // Note: If this executes, then it must be true that adsr_decay_end_samples > adsr_attack_end_samples, hence we
+      // cannot divide by zero here (and don't need to check for that case)
+      size_t decay_progress_samples = this->samples_produced - this->adsr_attack_end_samples;
+      size_t decay_total_samples = this->adsr_decay_end_samples - this->adsr_attack_end_samples;
+      float decay_progress = static_cast<float>(decay_progress_samples) / decay_total_samples;
+      // Linearly interpolate from 1.0f down to the sustain level
+      ret = this->vel_region->adsr.sustain_level * decay_progress + (1.0f - decay_progress);
+      // phosg::log_info_f("ADSR: inst {} key {} decay {} ({} < {} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.decay_exponential ? "exp" : "lin", this->adsr_attack_end_samples, this->samples_produced, this->adsr_decay_end_samples, ret);
+
+    } else if (!this->is_off()) {
+      // Hold steady at the sustain level
+      ret = this->vel_region->adsr.sustain_level;
+      // phosg::log_info_f("ADSR: inst {} key {} sustain {} ({} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.sustain_exponential ? "exp" : "lin", this->adsr_decay_end_samples, this->samples_produced, ret);
+
+    } else if (this->samples_produced < this->adsr_release_end_samples) {
+      size_t release_progress_samples = this->samples_produced - this->adsr_release_start_samples;
+      size_t release_total_samples = this->adsr_release_end_samples - this->adsr_release_start_samples;
+      float release_progress = static_cast<float>(release_progress_samples) / release_total_samples;
+      // Linearly interpolate from the sustain level down to 0.0f
+      ret = this->adsr_release_start_level * (1.0f - release_progress);
+      // phosg::log_info_f("ADSR: inst {} key {} release {} ({} < {} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.release_exponential ? "exp" : "lin", this->adsr_release_start_samples, this->samples_produced, this->adsr_release_end_samples, ret);
+
+    } else {
+      // Note has finished; produce silence
+      ret = 0.0f;
+      // phosg::log_info_f("ADSR: inst {} key {} ended ({} < {})", this->instrument->id, this->note, this->adsr_release_end_samples, this->samples_produced);
+    }
+    return ret;
+  }
+
   const std::vector<float>& get_samples(float pitch_bend, float pitch_bend_semitone_range, float freq_mult) {
     const auto& freq = ResourceDASM::Audio::frequency_for_note;
 
-    // Stretch it out by the sample rate difference
-    float sample_rate_factor = static_cast<float>(sample_rate) /
+    // Stretch it out by the sample rate difference (on modern systems, the output sample rate is nearly always higher
+    // than the instrument's sample rate)
+    float sample_rate_factor = static_cast<float>(this->output_sample_rate) /
         static_cast<float>(this->vel_region->sound->sample_rate);
 
-    // Compress it so it's the right note
+    // Stretch or compress it so it's the right note
     int8_t base_note = (this->vel_region->base_note < 0)
         ? this->vel_region->sound->base_note
         : this->vel_region->base_note;
     float note_factor = freq(base_note) / freq(base_note + (this->note - base_note) * this->vel_region->pitch_sensitivity);
-
     {
       float pitch_bend_factor = pow(2, (pitch_bend * pitch_bend_semitone_range) / 12.0) * freq_mult;
       float new_src_ratio = note_factor * sample_rate_factor / (this->vel_region->freq_mult * pitch_bend_factor);
@@ -893,7 +948,7 @@ public:
             note_factor,
             this->vel_region->freq_mult,
             this->vel_region->sound->sample_rate,
-            this->sample_rate,
+            this->output_sample_rate,
             sample_rate_factor,
             this->vel_region->sound->loop_start,
             this->vel_region->sound->loop_end,
@@ -912,28 +967,23 @@ public:
 
     const auto& samples = this->get_samples(
         this->channel->pitch_bend.get(), this->channel->pitch_bend_semitone_range, freq_mult);
-    float vel_factor = static_cast<float>(this->vel) / 0x7F;
+
+    float vol_factor = volume_bias * (static_cast<float>(this->vel) / 0x7F) * this->vel_region->volume_mult * this->channel->volume.get();
     for (size_t x = 0; (x < count) && (this->offset < samples.size()); x++) {
-      float off_factor = this->advance_note_off_factor();
-      float sample = volume_bias * vel_factor * off_factor * this->channel->volume.get() * samples[this->offset];
+      float sample = vol_factor * this->adsr_factor() * samples[this->offset];
       data[2 * x + 0] = sample * (1.0f - this->channel->panning.get());
       data[2 * x + 1] = sample * this->channel->panning.get();
 
       this->offset++;
-      if ((this->note_off_decay_remaining < 0) && (this->loop_end_offset > 0) && (this->offset > this->loop_end_offset)) {
+      this->samples_produced++;
+      if ((this->loop_end_offset > 0) && (this->offset >= this->loop_end_offset)) {
         this->offset = this->loop_start_offset;
       }
     }
 
+    // If there's no more sample data, end the envelope immediately
     if (this->offset == samples.size()) {
-      this->note_off_decay_remaining = 0;
-    }
-
-    // Apply instrument volume factor
-    if (this->vel_region->volume_mult != 1) {
-      for (float& s : data) {
-        s *= this->vel_region->volume_mult;
-      }
+      this->adsr_release_end_samples = this->samples_produced;
     }
 
     return data;
@@ -943,11 +993,19 @@ public:
   const ResourceDASM::Audio::Instrument* instrument;
   const ResourceDASM::Audio::KeyRegion* key_region;
   const ResourceDASM::Audio::VelocityRegion* vel_region;
-  float src_ratio;
+  float src_ratio = 1.0f;
 
   size_t loop_start_offset;
   size_t loop_end_offset;
-  size_t offset;
+  size_t offset = 0;
+
+  size_t samples_produced = 0;
+  size_t adsr_attack_end_samples = 0;
+  size_t adsr_decay_end_samples = 0;
+  float adsr_release_start_level = 0.0f; // Uncomputed until off() is called (and is_off is then true)
+  size_t adsr_release_start_samples = 0; // Uncomputed until off() is called (and is_off is then true)
+  size_t adsr_release_end_samples = 0; // Uncomputed until off() is called (and is_off is then true)
+  bool release_started = false;
 
   std::shared_ptr<ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>> cache;
 };
@@ -983,8 +1041,6 @@ protected:
   std::unordered_set<int16_t> mute_tracks;
   std::unordered_set<int16_t> solo_tracks;
   std::unordered_set<int16_t> disable_tracks;
-  bool decay_when_off;
-  float decay_seconds;
 
   std::shared_ptr<ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>> cache;
 
@@ -998,8 +1054,7 @@ protected:
     if (this->env) {
       try {
         voice = std::make_shared<SampleVoice>(
-            this->sample_rate, this->env, this->cache, t->bank, t->instrument, key, vel, this->decay_when_off,
-            this->decay_seconds, c);
+            this->sample_rate, this->env, this->cache, t->bank, t->instrument, key, vel, c);
       } catch (const std::out_of_range& e) {
         std::string key_str = ResourceDASM::Audio::name_for_note(key);
         if (debug_flags & DebugFlag::SHOW_MISSING_NOTES) {
@@ -1030,8 +1085,7 @@ public:
       const std::unordered_set<int16_t>& disable_tracks,
       double tempo_bias,
       double freq_bias,
-      double volume_bias,
-      bool decay_when_off)
+      double volume_bias)
       : sample_rate(sample_rate),
         current_time(0),
         samples_rendered(0),
@@ -1044,8 +1098,6 @@ public:
         mute_tracks(mute_tracks),
         solo_tracks(solo_tracks),
         disable_tracks(disable_tracks),
-        decay_when_off(decay_when_off),
-        decay_seconds(0.2f),
         cache(new ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>(resample_method)) {}
 
   virtual ~Renderer() = default;
@@ -1134,7 +1186,7 @@ public:
         }
 
         // Only draw the note in the text view if it's on
-        if ((v->note_off_decay_remaining < 0) && (v->note >= 0)) {
+        if (!v->is_off() && (v->note >= 0)) {
           char track_char;
           if (t->id < 0) {
             track_char = '/';
@@ -1157,7 +1209,7 @@ public:
 
       // Attenuate off voices and delete those that are fully off
       for (auto it = t->voices_off.begin(); it != t->voices_off.end();) {
-        if ((*it)->off_complete()) {
+        if ((*it)->complete()) {
           it = t->voices_off.erase(it);
         } else {
           it++;
@@ -1329,8 +1381,7 @@ public:
       const std::unordered_set<int16_t>& disable_tracks,
       double tempo_bias,
       double freq_bias,
-      double volume_bias,
-      bool decay_when_off)
+      double volume_bias)
       : Renderer(
             sample_rate,
             resample_method,
@@ -1340,8 +1391,7 @@ public:
             disable_tracks,
             tempo_bias,
             freq_bias,
-            volume_bias,
-            decay_when_off),
+            volume_bias),
         seq(seq) {
     std::shared_ptr<BMSTrack> default_track(new BMSTrack(-1, this->seq->data, 0, this->seq->index));
     this->tracks.emplace(default_track);
@@ -1723,8 +1773,6 @@ public:
       double tempo_bias,
       double freq_bias,
       double volume_bias,
-      bool decay_when_off,
-      float decay_seconds,
       uint8_t percussion_instrument,
       bool allow_program_change)
       : Renderer(
@@ -1736,8 +1784,7 @@ public:
             disable_tracks,
             tempo_bias,
             freq_bias,
-            volume_bias,
-            decay_when_off),
+            volume_bias),
         seq(seq),
         allow_program_change(allow_program_change) {
     for (uint8_t x = 0; x < 0x10; x++) {
@@ -1746,7 +1793,6 @@ public:
     if (percussion_instrument) {
       this->channel_instrument[9] = percussion_instrument;
     }
-    this->decay_seconds = decay_seconds;
 
     phosg::StringReader r(this->seq->data);
 
@@ -1925,9 +1971,7 @@ public:
       const std::unordered_set<int16_t>& disable_tracks,
       double tempo_bias,
       double freq_bias,
-      double volume_bias,
-      bool decay_when_off,
-      float decay_seconds)
+      double volume_bias)
       : Renderer(
             sample_rate,
             resample_method,
@@ -1937,11 +1981,9 @@ public:
             disable_tracks,
             tempo_bias,
             freq_bias,
-            volume_bias,
-            decay_when_off),
+            volume_bias),
         tune(tune) {
     using T = ResourceDASM::Audio::TuneResource;
-    this->decay_seconds = decay_seconds;
 
     // Create all the tracks
     std::unordered_map<size_t, std::shared_ptr<TuneTrack>> id_to_track;
@@ -1952,7 +1994,7 @@ public:
       auto track_it = id_to_track.find(ev->channel);
       if (track_it == id_to_track.end()) {
         auto t = std::make_shared<TuneTrack>(ev->channel);
-        // TuneResource::PitchBendEvent's value is already in semitone units, so we disable this multiplier here
+        // The pitch bend event's value is already in semitone units, so we disable this multiplier here
         t->channel(0)->pitch_bend_semitone_range = 1.0;
         t->freq_mult = this->freq_bias;
         t->events.emplace_back(ev.get());
@@ -2010,19 +2052,22 @@ protected:
       uint32_t voice_id = (ev->channel << 16) | (ev->key << 8) | ev->vel;
       t->voice_off(voice_id);
 
-    } else if (auto ev = dynamic_cast<const T::PitchBendEvent*>(generic_ev)) {
-      t->channel(0)->pitch_bend.set(ev->semitones);
-
     } else if (auto ev = dynamic_cast<const T::ControllerEvent*>(generic_ev)) {
-      if (ev->message == 0x07) {
-        t->channel(0)->volume.set(static_cast<float>(ev->value) / 0x7F);
-      } else if (ev->message == 0x0A) {
-        t->channel(0)->panning.set(static_cast<float>(ev->value) / 0x7F);
-      } else {
-        // TODO: implement more controller messages
-        phosg::log_warning_f("Unknown controller message: {} {} {}", ev->channel, ev->message, ev->value);
+      switch (ev->message) {
+        case 0x07: // Volume
+          t->channel(0)->volume.set(static_cast<float>(ev->value) / 0x7FFF);
+          break;
+        case 0x0A: // Panning
+          // Values are 256-512 apparently. Why...?
+          t->channel(0)->panning.set(static_cast<float>(ev->value - 0x100) / 0x100);
+          break;
+        case 0x20: // Pitch bend; value is 8.8 fixed (or equivalently, 0x100 = 1 semitone)
+          t->channel(0)->pitch_bend.set(static_cast<float>(ev->value) / 0x100);
+          break;
+        default:
+          // TODO: implement more controller messages
+          phosg::log_warning_f("Unknown controller message: {} {} {}", ev->channel, ev->message, ev->value);
       }
-
     } else {
       throw std::logic_error("Unknown event type");
     }
@@ -2083,8 +2128,6 @@ Logging options:\n\
 Debugging options:\n\
   --default-bank=N: override automatic instrument bank detection and use bank\n\
       N instead.\n\
-  --no-decay-when-off: make note off events only terminate audio loops instead\n\
-      of also tapering off the volume of the note.\n\
   --play-missing-notes: for notes that have no associated instrument/sample,\n\
       play a sine wave instead.\n\
 ");
@@ -2125,8 +2168,6 @@ int main(int argc, char** argv) {
   double volume_bias = 1.0;
   bool list_sequences = false;
   int32_t default_bank = -1;
-  bool decay_when_off = true;
-  float decay_seconds = -1.0f;
   ResourceDASM::Audio::ResampleMethod resample_method = ResourceDASM::Audio::ResampleMethod::LINEAR_INTERPOLATE;
   std::string env_json_filename;
   for (int x = 1; x < argc; x++) {
@@ -2151,10 +2192,6 @@ int main(int argc, char** argv) {
     } else if (!strncmp(argv[x], "--output-filename=", 18)) {
       output_filename = &argv[x][18];
       debug_flags &= ~DebugFlag::SHOW_LONG_STATUS;
-    } else if (!strcmp(argv[x], "--no-decay-when-off")) {
-      decay_when_off = false;
-    } else if (!strncmp(argv[x], "--decay-seconds=", 16)) {
-      decay_seconds = strtof(&argv[x][16], nullptr);
     } else if (!strcmp(argv[x], "--midi")) {
       midi = true;
     } else if (!strncmp(argv[x], "--midi-channel-instrument=", 26)) {
@@ -2243,7 +2280,8 @@ int main(int argc, char** argv) {
   std::shared_ptr<const ResourceDASM::Audio::SoundEnvironment> env;
   if (!env_json.is_null()) {
     env.reset(new ResourceDASM::Audio::SoundEnvironment(
-        ResourceDASM::Audio::create_json_sound_environment(env_json.at("instruments"), env_json_dir)));
+        ResourceDASM::Audio::create_json_sound_environment(
+            env_json.at("instruments"), env_json.get_float("note_decay", 12.0f) / 60.0f, env_json_dir)));
   } else if (aaf_directory) {
     env.reset(new ResourceDASM::Audio::SoundEnvironment(
         ResourceDASM::Audio::load_sound_environment(aaf_directory)));
@@ -2302,8 +2340,8 @@ int main(int argc, char** argv) {
     phosg::StringReader r(seq->data);
     switch (seq->type) {
       case ResourceDASM::Audio::SequenceProgram::Type::TUNE:
-        phosg::fwrite_fmt(stdout, "Tune resource:\n{}\n\nMIDI conversion:\n", seq->source_tune->disassemble());
-        disassemble_midi(r);
+        phosg::fwritex(stdout, seq->source_tune->disassemble());
+        fputc('\n', stdout);
         break;
       case ResourceDASM::Audio::SequenceProgram::Type::MIDI:
         disassemble_midi(r);
@@ -2330,16 +2368,12 @@ int main(int argc, char** argv) {
           disable_tracks,
           tempo_bias,
           freq_bias,
-          volume_bias,
-          decay_when_off));
+          volume_bias));
       break;
 
     case ResourceDASM::Audio::SequenceProgram::Type::TUNE:
       if (!seq->source_tune) {
         throw std::logic_error("TunePlayer requires a parsed TuneResource");
-      }
-      if (decay_seconds < 0) {
-        decay_seconds = 0.2f;
       }
       r.reset(new TuneRenderer(
           seq->source_tune,
@@ -2351,9 +2385,7 @@ int main(int argc, char** argv) {
           disable_tracks,
           tempo_bias,
           freq_bias,
-          volume_bias,
-          decay_when_off,
-          decay_seconds));
+          volume_bias));
       break;
 
     case ResourceDASM::Audio::SequenceProgram::Type::MIDI: {
@@ -2363,13 +2395,7 @@ int main(int argc, char** argv) {
       if (!env_json.is_null()) {
         percussion_instrument = env_json.get_int("percussion_instrument", 0);
         allow_program_change = env_json.get_bool("allow_program_change", true);
-        if (decay_seconds < 0) {
-          decay_seconds = env_json.get_float("note_decay", 12.0f) / 60.0f;
-        }
         tempo_bias *= env_json.get_float("tempo_bias", 1.0);
-      }
-      if (decay_seconds < 0) {
-        decay_seconds = 0.2f;
       }
       r.reset(new MIDIRenderer(
           seq,
@@ -2382,8 +2408,6 @@ int main(int argc, char** argv) {
           tempo_bias,
           freq_bias,
           volume_bias,
-          decay_when_off,
-          decay_seconds,
           percussion_instrument,
           allow_program_change));
       break;

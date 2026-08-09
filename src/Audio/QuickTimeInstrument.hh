@@ -209,16 +209,9 @@ public:
     virtual std::string disassemble() const;
   };
 
-  struct PitchBendEvent : Event {
-    float semitones;
-
-    virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
-    virtual std::string disassemble() const;
-  };
-
   struct ControllerEvent : Event {
     uint8_t message;
-    uint8_t value;
+    int16_t value;
 
     virtual void add_midi_events(std::vector<MIDIEvent>& events) const;
     virtual std::string disassemble() const;

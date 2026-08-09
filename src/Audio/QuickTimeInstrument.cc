@@ -436,24 +436,19 @@ std::string TuneResource::NoteOffEvent::disassemble() const {
       this->disassembly_prefix(), this->channel, this->key, this->vel);
 }
 
-void TuneResource::PitchBendEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
-  auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
-  ev.data.emplace_back(0xE0 | this->channel);
-  // Standard MIDI pitch bend range is +/- 2 semitones in either direction; clamp the result to that range
-  int64_t value = std::clamp<int64_t>(this->semitones * 0x2000, -0x4000, 0x3FFF);
-  ev.data.emplace_back(value & 0x7F);
-  ev.data.emplace_back((value >> 7) & 0x7F);
-}
-std::string TuneResource::PitchBendEvent::disassemble() const {
-  return std::format("{}  pitch_bend     channel {}, semitones {:g}",
-      this->disassembly_prefix(), this->channel, this->semitones);
-}
-
 void TuneResource::ControllerEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
-  ev.data.emplace_back(0xB0 | this->channel);
-  ev.data.emplace_back(this->message);
-  ev.data.emplace_back(this->value);
+  if (this->message == 0x20) { // Pitch bend
+    ev.data.emplace_back(0xE0 | this->channel);
+    // Standard MIDI pitch bend range is +/- 2 semitones in either direction; clamp the result to that range
+    int64_t value = std::clamp<int64_t>(static_cast<int64_t>(this->value) * 0x20, -0x4000, 0x3FFF);
+    ev.data.emplace_back(value & 0x7F);
+    ev.data.emplace_back((value >> 7) & 0x7F);
+  } else {
+    ev.data.emplace_back(0xB0 | this->channel);
+    ev.data.emplace_back(this->message);
+    ev.data.emplace_back(this->value >> 8);
+  }
 }
 std::string TuneResource::ControllerEvent::disassemble() const {
   auto name = SSAIInstrument::name_for_controller(this->message);
@@ -576,43 +571,11 @@ TuneResource::TuneResource(const void* data, size_t size) {
         }
 
         // Controller messages can create channels
-        uint8_t channel = partition_id_to_channel.emplace(partition_id, partition_id_to_channel.size()).first->second;
-        if (channel >= 0x10) {
-          throw std::runtime_error("Too many MIDI channels");
-        }
-
-        if (message == 0) {
-          // Bank select (ignore for now)
-          break;
-
-        } else if (message == 7) { // Volume
-          auto ev = std::make_unique<ControllerEvent>();
-          ev->channel = channel;
-          ev->message = message;
-          ev->value = (value >> 8) & 0x7F;
-          add_event(std::move(ev), start_offset);
-
-        } else if (message == 10) { // Panning
-          auto ev = std::make_unique<ControllerEvent>();
-          ev->channel = channel;
-          ev->message = message;
-          ev->value = (value >> 1) & 0x7F;
-          add_event(std::move(ev), start_offset);
-
-        } else if (message == 32) { // Pitch bend
-          auto ev = std::make_unique<PitchBendEvent>();
-          ev->channel = channel;
-          ev->semitones = static_cast<float>(static_cast<int16_t>(value)) / 0x100; // 8.8 fixed-point apparently
-          add_event(std::move(ev), start_offset);
-
-        } else { // Some other controller message
-          auto ev = std::make_unique<ControllerEvent>();
-          ev->channel = channel;
-          ev->message = message;
-          ev->value = value >> 8;
-          add_event(std::move(ev), start_offset);
-        }
-
+        auto ev = std::make_unique<ControllerEvent>();
+        ev->channel = partition_id_to_channel.emplace(partition_id, partition_id_to_channel.size()).first->second;
+        ev->message = message;
+        ev->value = value;
+        add_event(std::move(ev), start_offset);
         break;
       }
 

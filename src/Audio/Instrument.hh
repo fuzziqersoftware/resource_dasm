@@ -38,6 +38,19 @@ struct Sound {
   const std::vector<float>& samples() const;
 };
 
+struct ADSROptions {
+  float attack_time_secs = 0.0;
+  bool attack_exponential = false;
+  float decay_time_secs = 0.0;
+  bool decay_exponential = false;
+  float sustain_level = 1.0;
+  bool sustain_exponential = false;
+  // TODO: for now we use a constant release time of 1/5 second in BMS sequences; we probably should get this from the
+  // AAF somewhere but I don't know where. SMS MIDI and QTMA Tune override this
+  float release_time_secs = 0.2;
+  bool release_exponential = false;
+};
+
 struct VelocityRegion {
   uint8_t vel_low = 0;
   uint8_t vel_high = 0;
@@ -46,7 +59,7 @@ struct VelocityRegion {
   float freq_mult = 1.0;
   float pitch_sensitivity = 1.0;
   float volume_mult = 1.0;
-
+  ADSROptions adsr;
   int8_t base_note = -1;
   const Sound* sound = nullptr;
 };
