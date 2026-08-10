@@ -410,6 +410,7 @@ public:
     this->debug_hook = hook;
   }
 
+  virtual void execute_one();
   virtual void execute();
 
   template <typename T>

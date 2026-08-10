@@ -6553,6 +6553,24 @@ void PPC32Emulator::print_state(FILE* stream) const {
   }
 }
 
+void PPC32Emulator::execute_one() {
+  if (this->debug_hook) {
+    this->debug_hook(*this);
+  }
+
+  if (this->interrupt_manager) {
+    this->interrupt_manager->on_cycle_start();
+  }
+
+  uint32_t full_op = this->mem->read<phosg::be_uint32_t>(this->regs.pc);
+  uint8_t op = op_get_op(full_op);
+  auto fn = this->fns[op].exec;
+  (this->*fn)(full_op);
+  this->regs.pc += 4;
+  this->regs.tbr += this->regs.tbr_ticks_per_cycle;
+  this->instructions_executed++;
+}
+
 void PPC32Emulator::execute() {
   if (!this->interrupt_manager.get()) {
     this->interrupt_manager = std::make_shared<InterruptManager>();
@@ -6560,20 +6578,7 @@ void PPC32Emulator::execute() {
 
   for (;;) {
     try {
-      if (this->debug_hook) {
-        this->debug_hook(*this);
-      }
-
-      this->interrupt_manager->on_cycle_start();
-
-      uint32_t full_op = this->mem->read<phosg::be_uint32_t>(this->regs.pc);
-      uint8_t op = op_get_op(full_op);
-      auto fn = this->fns[op].exec;
-      (this->*fn)(full_op);
-      this->regs.pc += 4;
-      this->regs.tbr += this->regs.tbr_ticks_per_cycle;
-      this->instructions_executed++;
-
+      this->execute_one();
     } catch (const terminate_emulation&) {
       break;
     }
@@ -6969,13 +6974,19 @@ bool PPC32Emulator::test_assembler(size_t num_threads, uint32_t start_opcode, bo
     return false;
   };
 
+  auto progress_fn = [&errors_histogram](uint64_t, uint64_t, uint64_t current_value, uint64_t start_time) -> void {
+    uint64_t elapsed_time = phosg::now() - start_time;
+    std::string elapsed_str = phosg::format_duration(elapsed_time);
+    size_t failure_count = 0;
+    for (size_t z = 0; z < errors_histogram.size(); z++) {
+      failure_count += errors_histogram[z];
+    }
+    phosg::fwrite_fmt(stderr, "\x1B[K... {:08X}: {} ({} failed, {} elapsed)\r",
+        current_value, PPC32Emulator::disassemble_one(0, current_value), failure_count, elapsed_str);
+  };
+
   uint64_t failed_opcode = phosg::parallel_blocks<uint64_t>(
-      check_opcode, start_opcode, 0x100000000, 0x1000, num_threads,
-      [](uint64_t, uint64_t, uint64_t current_value, uint64_t start_time) -> void {
-        uint64_t elapsed_time = phosg::now() - start_time;
-        std::string elapsed_str = phosg::format_duration(elapsed_time);
-        phosg::fwritex(stderr, std::format("\x1B[K... {:08X}: {} ({})\r", current_value, PPC32Emulator::disassemble_one(0, current_value), elapsed_str));
-      });
+      check_opcode, start_opcode, 0x100000000, 0x1000, num_threads, progress_fn);
 
   for (size_t z = 0; z < 0x40; z++) {
     size_t count = errors_histogram[z];

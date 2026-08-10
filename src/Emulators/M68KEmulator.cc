@@ -3916,6 +3916,25 @@ std::string M68KEmulator::disassemble(
   return ret;
 }
 
+void M68KEmulator::execute_one() {
+  // Call debug hook if present
+  if (this->debug_hook) {
+    this->debug_hook(*this);
+  }
+
+  // Call any timer interrupt functions scheduled for this cycle
+  if (this->interrupt_manager) {
+    this->interrupt_manager->on_cycle_start();
+  }
+
+  // Execute a cycle
+  uint16_t opcode = this->fetch_instruction_word();
+  auto fn = this->fns[(opcode >> 12) & 0x000F].exec;
+  (this->*fn)(opcode);
+
+  this->instructions_executed++;
+}
+
 void M68KEmulator::execute() {
   if (!this->interrupt_manager.get()) {
     this->interrupt_manager = std::make_shared<InterruptManager>();
@@ -3923,21 +3942,7 @@ void M68KEmulator::execute() {
 
   for (;;) {
     try {
-      // Call debug hook if present
-      if (this->debug_hook) {
-        this->debug_hook(*this);
-      }
-
-      // Call any timer interrupt functions scheduled for this cycle
-      this->interrupt_manager->on_cycle_start();
-
-      // Execute a cycle
-      uint16_t opcode = this->fetch_instruction_word();
-      auto fn = this->fns[(opcode >> 12) & 0x000F].exec;
-      (this->*fn)(opcode);
-
-      this->instructions_executed++;
-
+      this->execute_one();
     } catch (const terminate_emulation&) {
       break;
     }

@@ -1351,7 +1351,7 @@ void SH4Emulator::execute_one_F(uint16_t op) {
   }
 }
 
-void SH4Emulator::execute_one(uint16_t op) {
+void SH4Emulator::execute_opcode(uint16_t op) {
   switch (op_get_op(op)) {
     case 0x0:
       this->execute_one_0(op);
@@ -1402,41 +1402,41 @@ void SH4Emulator::execute_one(uint16_t op) {
   }
 }
 
+void SH4Emulator::execute_one() {
+  if (this->debug_hook) {
+    this->debug_hook(*this);
+  }
+  this->assert_aligned(this->regs.pc, 2);
+  this->execute_opcode(this->mem->read_u16l(this->regs.pc));
+  this->instructions_executed++;
+
+  switch (this->regs.instructions_until_branch ? Regs::PendingBranchType::NONE : this->regs.pending_branch_type) {
+    case Regs::PendingBranchType::NONE:
+      this->regs.pc += 2;
+      break;
+    case Regs::PendingBranchType::CALL:
+      this->regs.pr = this->regs.pc + 2;
+      [[fallthrough]];
+    case Regs::PendingBranchType::BRANCH:
+      this->regs.pc = this->regs.pending_branch_target;
+      this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
+      break;
+    case Regs::PendingBranchType::RETURN:
+      this->regs.pc = this->regs.pr;
+      this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
+      break;
+    default:
+      throw std::logic_error("unimplemented branch type");
+  }
+  if (this->regs.instructions_until_branch) {
+    this->regs.instructions_until_branch--;
+  }
+}
+
 void SH4Emulator::execute() {
   for (;;) {
     try {
-      if (this->debug_hook) {
-        try {
-          this->debug_hook(*this);
-        } catch (const terminate_emulation&) {
-          break;
-        }
-      }
-      this->assert_aligned(this->regs.pc, 2);
-      this->execute_one(this->mem->read_u16l(this->regs.pc));
-      this->instructions_executed++;
-
-      switch (this->regs.instructions_until_branch ? Regs::PendingBranchType::NONE : this->regs.pending_branch_type) {
-        case Regs::PendingBranchType::NONE:
-          this->regs.pc += 2;
-          break;
-        case Regs::PendingBranchType::CALL:
-          this->regs.pr = this->regs.pc + 2;
-          [[fallthrough]];
-        case Regs::PendingBranchType::BRANCH:
-          this->regs.pc = this->regs.pending_branch_target;
-          this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
-          break;
-        case Regs::PendingBranchType::RETURN:
-          this->regs.pc = this->regs.pr;
-          this->regs.pending_branch_type = Regs::PendingBranchType::NONE;
-          break;
-        default:
-          throw std::logic_error("unimplemented branch type");
-      }
-      if (this->regs.instructions_until_branch) {
-        this->regs.instructions_until_branch--;
-      }
+      this->execute_one();
     } catch (const terminate_emulation&) {
       break;
     }

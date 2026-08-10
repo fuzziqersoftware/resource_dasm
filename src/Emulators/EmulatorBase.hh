@@ -68,6 +68,7 @@ public:
 
   std::vector<MemoryAccess> get_and_clear_memory_access_log();
 
+  virtual void execute_one() = 0;
   virtual void execute() = 0;
 
   struct AssembleResult {

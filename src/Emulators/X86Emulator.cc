@@ -4158,33 +4158,37 @@ const char* X86Emulator::Overrides::overridden_segment_name() const {
   return name_for_segment(this->segment);
 }
 
+void X86Emulator::execute_one() {
+  // Call debug hook if present
+  if (this->debug_hook) {
+    this->debug_hook(*this);
+  }
+
+  // Execute a cycle. This is a loop because prefix bytes are implemented as separate opcodes, so we want to call the
+  // prefix handler and the opcode handler as if they were a single opcode.
+  for (bool should_execute_again = true; should_execute_again;) {
+    uint8_t opcode = this->fetch_instruction_byte();
+    auto fn = this->fns[opcode].exec;
+    if (fn) {
+      (this->*fn)(opcode);
+    } else {
+      this->exec_unimplemented(opcode);
+    }
+    should_execute_again = !this->overrides.should_clear;
+    this->overrides.on_opcode_complete();
+  }
+
+  this->instructions_executed++;
+}
+
 void X86Emulator::execute() {
   this->execution_labels_computed = false;
   for (;;) {
-    // Call debug hook if present
-    if (this->debug_hook) {
-      try {
-        this->debug_hook(*this);
-      } catch (const terminate_emulation&) {
-        break;
-      }
+    try {
+      this->execute_one();
+    } catch (const terminate_emulation&) {
+      break;
     }
-
-    // Execute a cycle. This is a loop because prefix bytes are implemented as separate opcodes, so we want to call the
-    // prefix handler and the opcode handler as if they were a single opcode.
-    for (bool should_execute_again = true; should_execute_again;) {
-      uint8_t opcode = this->fetch_instruction_byte();
-      auto fn = this->fns[opcode].exec;
-      if (fn) {
-        (this->*fn)(opcode);
-      } else {
-        this->exec_unimplemented(opcode);
-      }
-      should_execute_again = !this->overrides.should_clear;
-      this->overrides.on_opcode_complete();
-    }
-
-    this->instructions_executed++;
   }
   this->execution_labels.clear();
 }

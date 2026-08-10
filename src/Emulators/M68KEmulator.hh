@@ -139,7 +139,7 @@ public:
   static std::string disassemble_one(
       const void* vdata,
       size_t size,
-      uint32_t start_address,
+      uint32_t start_address = 0,
       bool is_mac_environment = true,
       const std::vector<JumpTableEntry>* jump_table = nullptr);
   static std::string disassemble(
@@ -171,6 +171,7 @@ public:
     this->interrupt_manager = im;
   }
 
+  virtual void execute_one();
   virtual void execute();
 
 private:

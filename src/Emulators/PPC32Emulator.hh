@@ -154,6 +154,7 @@ public:
     this->interrupt_manager = im;
   }
 
+  virtual void execute_one();
   virtual void execute();
 
   static std::string disassemble_one(uint32_t pc, uint32_t op);

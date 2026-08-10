@@ -78,8 +78,9 @@ public:
     this->debug_hook = hook;
   }
 
+  void execute_opcode(uint16_t op);
+  virtual void execute_one();
   virtual void execute();
-  virtual void execute_one(uint16_t op);
 
   struct Regs {
     union {

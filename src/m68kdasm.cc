@@ -150,10 +150,6 @@ int main(int argc, char** argv) {
     DISASSEMBLE_PE,
     DISASSEMBLE_ELF,
     DISASSEMBLE_XBE,
-    TEST_EXPRESSION,
-    TEST_PPC_ASSEMBLER,
-    TEST_SH4_ASSEMBLER,
-    TEST_X86_ASSEMBLER,
   };
 
   std::string in_filename;
@@ -163,13 +159,7 @@ int main(int argc, char** argv) {
   bool in_filename_is_data = false;
   bool print_hex_view_for_code = false;
   bool all_sections_as_code = false;
-  bool verbose = false;
   uint32_t start_address = 0;
-  uint64_t start_opcode = 0;
-  std::string start_opcode_str;
-  size_t test_num_threads = 0;
-  bool test_stop_on_failure = false;
-  std::string test_expr_str;
   std::multimap<uint32_t, std::string> labels;
   std::vector<std::string> include_directories;
   for (int x = 1; x < argc; x++) {
@@ -234,28 +224,6 @@ int main(int argc, char** argv) {
       } else if (!strncmp(argv[x], "--include-directory=", 20)) {
         include_directories.emplace_back(&argv[x][20]);
 
-      } else if (!strncmp(argv[x], "--test-expression=", 18)) {
-        behavior = Behavior::TEST_EXPRESSION;
-        test_expr_str = &argv[x][18];
-      } else if (!strncmp(argv[x], "--test-assemble-ppc32", 21)) {
-        behavior = Behavior::TEST_PPC_ASSEMBLER;
-        if (argv[x][21] == '=') {
-          start_opcode = strtoull(&argv[x][22], nullptr, 16);
-        }
-      } else if (!strncmp(argv[x], "--test-assemble-sh4", 19)) {
-        behavior = Behavior::TEST_SH4_ASSEMBLER;
-      } else if (!strncmp(argv[x], "--test-assemble-x86", 19)) {
-        behavior = Behavior::TEST_X86_ASSEMBLER;
-        if (argv[x][19] == '=') {
-          start_opcode_str = phosg::parse_data_string(&argv[x][20]);
-        }
-      } else if (!strncmp(argv[x], "--test-thread-count=", 20)) {
-        test_num_threads = strtoull(&argv[x][20], nullptr, 0);
-      } else if (!strcmp(argv[x], "--test-stop-on-failure")) {
-        test_stop_on_failure = true;
-      } else if (!strcmp(argv[x], "--verbose")) {
-        verbose = true;
-
       } else if (!strncmp(argv[x], "--start-address=", 16)) {
         start_address = strtoul(&argv[x][16], nullptr, 16);
 
@@ -304,19 +272,6 @@ int main(int argc, char** argv) {
         return 1;
       }
     }
-  }
-
-  if (behavior == Behavior::TEST_EXPRESSION) {
-    auto expr = ResourceDASM::Expression::Node::parse(test_expr_str);
-    phosg::fwrite_fmt(stderr, "Expression: {}\n", expr->str());
-    phosg::fwrite_fmt(stderr, "Result: {} ({})\n", expr->evaluate().str(), expr->evaluate().str(true));
-    return 0;
-  } else if (behavior == Behavior::TEST_PPC_ASSEMBLER) {
-    return ResourceDASM::PPC32Emulator::test_assembler(test_num_threads, start_opcode, test_stop_on_failure, verbose) ? 0 : 4;
-  } else if (behavior == Behavior::TEST_SH4_ASSEMBLER) {
-    return ResourceDASM::SH4Emulator::test_assembler(test_stop_on_failure, verbose) ? 0 : 4;
-  } else if (behavior == Behavior::TEST_X86_ASSEMBLER) {
-    return ResourceDASM::X86Emulator::test_assembler(start_opcode_str, test_stop_on_failure, verbose) ? 0 : 4;
   }
 
   std::string data;
