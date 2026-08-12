@@ -2014,9 +2014,11 @@ std::string M68KEmulator::dasm_4(DisassemblyState& s) {
 
       } else if (a == 6) {
         if ((b & (~1)) == 0) {
+          // Note: This must happen before the address is resolved, since the imm data comes before any address
+          // extension words
+          uint16_t args = s.r.get_u16b();
           std::string addr = M68KEmulator::dasm_address(s, op_get_c(op), op_get_d(op), ValueType::LONG);
 
-          uint16_t args = s.r.get_u16b();
           bool is_signed = args & 0x0800;
           bool is_64bit = args & 0x0400;
           if (b & 1) {
