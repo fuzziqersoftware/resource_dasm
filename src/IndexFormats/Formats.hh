@@ -32,6 +32,18 @@ DecodedAppleSingle parse_applesingle_appledouble(phosg::StringReader& r);
 DecodedAppleSingle parse_applesingle_appledouble(const std::string& data);
 ResourceFile parse_applesingle_appledouble_resource_fork(const std::string& data);
 
+// BinHex.cc
+struct DecodedBinHex {
+  std::string file_name;
+  std::string data_fork;
+  std::string resource_fork;
+  uint32_t file_type;
+  uint32_t creator_code;
+  uint16_t finder_flags;
+};
+DecodedBinHex parse_binhex(const std::string& data);
+ResourceFile parse_binhex_resource_fork(const std::string& data);
+
 // CBag.cc
 ResourceFile parse_cbag(const std::string& data);
 

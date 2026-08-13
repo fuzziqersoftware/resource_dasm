@@ -7,6 +7,7 @@ libresource_file_sdl.a
 resource_file-config.cmake
 appledouble_decode
 assemble_images
+binhex_decode
 blobbo_render
 bugs_bannis_render
 decode_data

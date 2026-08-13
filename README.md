@@ -4,7 +4,7 @@ This project contains multiple tools for reverse-engineering applications and ga
 
 The tools in this project are:
 * General tools
-  * **resource_dasm**: A utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, AppleSingle/AppleDouble files, MacBinary files, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
+  * **resource_dasm**: A utility for working with classic Mac OS resources. It can read resources from classic Mac OS resource forks, AppleSingle/AppleDouble files, MacBinary files, BinHex files, Mohawk archives, or HIRF/RMF/IREZ/HSB archives, and convert the resources to modern formats and/or export them verbatim. It can also create and modify resource forks.
   * **libresource_file**: A library implementing most of resource_dasm's functionality.
   * **m68kdasm**: A 68K, PowerPC, x86, and SH-4 binary assembler and disassembler. m68kdasm can also disassemble some common executable formats.
   * **m68kexec**: A 68K, PowerPC, x86, and SH-4 CPU emulator and debugger.
@@ -17,6 +17,7 @@ The tools in this project are:
   * **render_text**: Renders text using bitmap fonts from FONT or NFNT resources.
   * **hypercard_dasm**: Disassembles HyperCard stacks and draws card images.
   * **decode_data**: Decodes some custom compression formats (see below).
+  * **binhex_decode**: Decodes BinHex (.hqx) files.
   * **macbinary_decode**: Decodes MacBinary files.
   * **render_sprite**: Renders sprites from a variety of custom formats (see below).
   * **icon_unarchiver**: Exports icons from an Icon Archiver archive to .icns (see below).

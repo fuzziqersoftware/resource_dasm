@@ -2042,6 +2042,9 @@ private:
         case ResourceDASM::IndexFormat::DIRECTORY:
           this->open_resource_file(ResourceDASM::load_resource_file_from_directory(resource_fork_filename));
           break;
+        case ResourceDASM::IndexFormat::BINHEX:
+          this->open_resource_file(ResourceDASM::parse_binhex_resource_fork(phosg::load_file(resource_fork_filename)));
+          break;
         case ResourceDASM::IndexFormat::MACBINARY:
           this->open_resource_file(ResourceDASM::parse_macbinary_resource_fork(
               phosg::load_file(resource_fork_filename)));
@@ -2601,6 +2604,7 @@ Resource disassembly input options:\n\
         as/ad: Mac OS resource fork inside an AppleSingle or AppleDouble file\n\
         directory: Directory tree with layout ResType/ResID_Name.bin\n\
         macbinary: Mac OS resource fork inside a MacBinary file\n\
+        binhex: Mac OS resource fork inside a BinHex archive\n\
         mohawk: Mohawk archive\n\
         hirf: Beatnik HIRF archive (also known as IREZ, HSB, or RMF)\n\
         dc-data: DC Data file\n\
@@ -2852,6 +2856,9 @@ int main(int argc, char** argv) {
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=as/ad")) {
         exporter.index_format = ResourceDASM::IndexFormat::APPLESINGLE_APPLEDOUBLE;
+        exporter.use_data_fork = true;
+      } else if (!strcmp(argv[x], "--index-format=binhex")) {
+        exporter.index_format = ResourceDASM::IndexFormat::BINHEX;
         exporter.use_data_fork = true;
       } else if (!strcmp(argv[x], "--index-format=macbinary")) {
         exporter.index_format = ResourceDASM::IndexFormat::MACBINARY;

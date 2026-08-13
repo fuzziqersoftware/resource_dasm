@@ -57,6 +57,7 @@ add_library(resource_file
   src/ExecutableFormats/XBEFile.cc
   src/ImageSaver.cc
   src/IndexFormats/AppleSingle-AppleDouble.cc
+  src/IndexFormats/BinHex.cc
   src/IndexFormats/CBag.cc
   src/IndexFormats/DCData.cc
   src/IndexFormats/Directory.cc
@@ -124,7 +125,7 @@ else()
   message("SDL3 is not available; disabling audio playback support in smssynth and modsynth")
 endif()
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kdasm appledouble_decode blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec m68ktest macbinary_decode mshines_render pop2_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver rsrc_info)
+foreach(ExecutableName IN ITEMS resource_dasm m68kdasm appledouble_decode binhex_decode blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec m68ktest macbinary_decode mshines_render pop2_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver rsrc_info)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file)
 endforeach()
