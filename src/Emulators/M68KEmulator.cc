@@ -2918,7 +2918,7 @@ void M68KEmulator::exec_E(uint16_t opcode) {
             case 0: // asl
             case 2: // lsl
               res = static_cast<uint16_t>(v << 1);
-              if (which == 0) { // asl sets V if the sign bit changed
+              if (op == 0) { // asl sets V if the sign bit changed
                 v_flag = (((v ^ res) >> 15) & 1);
               }
               break;
@@ -2961,21 +2961,10 @@ void M68KEmulator::exec_E(uint16_t opcode) {
   uint8_t a = op_get_a(opcode);
   uint8_t k = ((c & 3) << 1) | op_get_g(opcode);
 
-  uint8_t shift_amount;
-  if (shift_is_reg) {
-    if (size == SIZE_BYTE) {
-      shift_amount = this->regs.d[a].u & 0x00000007;
-    } else if (size == SIZE_WORD) {
-      shift_amount = this->regs.d[a].u & 0x0000000F;
-    } else {
-      shift_amount = this->regs.d[a].u & 0x0000001F;
-    }
-  } else {
-    shift_amount = (a == 0) ? 8 : a;
-    if (shift_amount == 8 && size == SIZE_BYTE && ((k & 6) != 4)) { // roxl/roxr handle a bit count of 8 below
-      throw std::runtime_error("unimplemented: shift opcode with size=byte and shift=8");
-    }
-  }
+  // The immediate form encodes counts of 1 to 8, with 8 written as 0. The register form uses the count register
+  // modulo 64, which may well exceed the operand width: a count that large is legal, and shifts the operand out
+  // entirely rather than acting as a smaller count.
+  uint8_t shift_amount = shift_is_reg ? (this->regs.d[a].u & 0x3F) : ((a == 0) ? 8 : a);
 
   switch (k) {
     case 0x00: // asr DREG, COUNT/REG
@@ -2990,22 +2979,22 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       bool logical_shift = (k & 2);
       bool rotate = (k & 4);
 
+      uint8_t size_bits = bytes_for_size[size] * 8;
+      uint32_t mask = (size == SIZE_LONG) ? 0xFFFFFFFF : ((1 << size_bits) - 1);
+      uint32_t v = this->regs.d[Xn].u & mask;
+
       if (rotate && !logical_shift) { // roxl/roxr DREG, COUNT/REG
         // Rotate through the X bit: the operand and X together form a (bits + 1)-bit rotate, so the effective count
-        // is the count modulo (bits + 1). The register form uses Dn mod 64 before that reduction.
-        uint8_t size_bits = bytes_for_size[size] * 8;
-        uint32_t mask = (size == SIZE_LONG) ? 0xFFFFFFFF : ((1 << size_bits) - 1);
-        uint8_t count = shift_is_reg ? (this->regs.d[a].u & 0x3F) : shift_amount;
-        uint32_t v = this->regs.d[Xn].u & mask;
-        if (count == 0) {
+        // is the count modulo (bits + 1).
+        if (shift_amount == 0) {
           // A count of zero leaves X unchanged and sets C to X (unlike the other shift/rotate opcodes), and doesn't
           // modify the value. TODO: Technically the destination register probably should receive a write cycle; in our
           // implementation, it doesn't matter if we skip doing so (and maybe it doesn't on real hardware either;
           // verify this)
-          this->regs.sr.set_c(this->regs.sr.get_x());
+          this->regs.set_ccr_flags(-1, is_negative(v, size), (v == 0), 0, this->regs.sr.get_x());
         } else {
           bool xc = this->regs.sr.get_x();
-          for (uint8_t z = count % (size_bits + 1); z > 0; z--) {
+          for (uint8_t z = shift_amount % (size_bits + 1); z > 0; z--) {
             bool next_xc = left_shift ? ((v >> (size_bits - 1)) & 1) : (v & 1);
             if (left_shift) {
               v = ((v << 1) | xc) & mask;
@@ -3021,153 +3010,56 @@ void M68KEmulator::exec_E(uint16_t opcode) {
       }
 
       if (shift_amount == 0) {
-        this->regs.set_ccr_flags(-1, is_negative(this->regs.d[Xn].u, SIZE_LONG), (this->regs.d[Xn].u == 0), 0, 0);
-
-      } else if (size == SIZE_BYTE) {
-        uint8_t v = this->regs.d[Xn].u & 0x000000FF;
-
-        int8_t last_shifted_bit = (left_shift ? (v & (1 << (8 - shift_amount))) : (v & (1 << (shift_amount - 1))));
-
-        bool msb_changed;
-        if (!rotate && logical_shift && left_shift) {
-          uint32_t msb_values = (v >> (8 - shift_amount));
-          uint32_t mask = (1 << shift_amount) - 1;
-          msb_values &= mask;
-          msb_changed = ((msb_values == mask) || (msb_values == 0));
-        } else {
-          msb_changed = false;
-        }
-
-        if (rotate) {
-          if (logical_shift) { // rotate without extend (rol, ror)
-            if (left_shift) {
-              v = (v << shift_amount) | (v >> (8 - shift_amount));
-            } else {
-              v = (v >> shift_amount) | (v << (8 - shift_amount));
-            }
-            last_shifted_bit = -1; // X unaffected for these opcodes
-
-          } else { // rotate with extend (roxl, roxr) (TODO)
-            throw std::runtime_error("unimplemented: roxl/roxr DREG, COUNT/REG");
-          }
-
-        } else {
-          if (logical_shift) {
-            if (left_shift) {
-              v <<= shift_amount;
-            } else {
-              v >>= shift_amount;
-            }
-          } else {
-            if (left_shift) {
-              v = static_cast<int8_t>(v) << shift_amount;
-            } else {
-              v = static_cast<int8_t>(v) >> shift_amount;
-            }
-          }
-        }
-
-        this->regs.d[Xn].u = (this->regs.d[Xn].u & 0xFFFFFF00) | (v & 0x000000FF);
-        this->regs.set_ccr_flags(last_shifted_bit, (v & 0x80), (v == 0), msb_changed, last_shifted_bit);
-
-      } else if (size == SIZE_WORD) {
-        uint16_t v = this->regs.d[Xn].u & 0x0000FFFF;
-
-        int8_t last_shifted_bit = (left_shift ? (v & (1 << (16 - shift_amount))) : (v & (1 << (shift_amount - 1))));
-
-        bool msb_changed;
-        if (!rotate && logical_shift && left_shift) {
-          uint32_t msb_values = (v >> (16 - shift_amount));
-          uint32_t mask = (1 << shift_amount) - 1;
-          msb_values &= mask;
-          msb_changed = ((msb_values == mask) || (msb_values == 0));
-        } else {
-          msb_changed = false;
-        }
-
-        if (rotate) {
-          if (logical_shift) { // rotate without extend (rol, ror)
-            if (left_shift) {
-              v = (v << shift_amount) | (v >> (16 - shift_amount));
-            } else {
-              v = (v >> shift_amount) | (v << (16 - shift_amount));
-            }
-            last_shifted_bit = -1; // X unaffected for these opcodes
-
-          } else { // rotate with extend (roxl, roxr) (TODO)
-            throw std::runtime_error("unimplemented: roxl/roxr DREG, COUNT/REG");
-          }
-
-        } else {
-          if (logical_shift) {
-            if (left_shift) {
-              v <<= shift_amount;
-            } else {
-              v >>= shift_amount;
-            }
-          } else {
-            if (left_shift) {
-              v = static_cast<int16_t>(v) << shift_amount;
-            } else {
-              v = static_cast<int16_t>(v) >> shift_amount;
-            }
-          }
-        }
-
-        this->regs.d[Xn].u = (this->regs.d[Xn].u & 0xFFFF0000) | (v & 0x0000FFFF);
-        this->regs.set_ccr_flags(last_shifted_bit, (v & 0x8000), (v == 0), msb_changed, last_shifted_bit);
-
-      } else if (size == SIZE_LONG) {
-        uint32_t& target = this->regs.d[Xn].u;
-
-        int8_t last_shifted_bit =
-            (left_shift ? (target & (1 << (32 - shift_amount))) : (target & (1 << (shift_amount - 1))));
-
-        bool msb_changed;
-        if (!rotate && logical_shift && left_shift) {
-          uint32_t msb_values = (target >> (32 - shift_amount));
-          uint32_t mask = (1 << shift_amount) - 1;
-          msb_values &= mask;
-          msb_changed = ((msb_values == mask) || (msb_values == 0));
-        } else {
-          msb_changed = false;
-        }
-
-        if (rotate) {
-          if (logical_shift) { // rotate without extend (rol, ror)
-            if (left_shift) {
-              target = (target << shift_amount) | (target >> (32 - shift_amount));
-            } else {
-              target = (target >> shift_amount) | (target << (32 - shift_amount));
-            }
-            last_shifted_bit = -1; // X unaffected for these opcodes
-
-          } else { // rotate with extend (roxl, roxr) (TODO)
-            throw std::runtime_error("unimplemented: roxl/roxr DREG, COUNT/REG");
-          }
-
-        } else {
-          if (logical_shift) {
-            if (left_shift) {
-              target <<= shift_amount;
-            } else {
-              target >>= shift_amount;
-            }
-          } else {
-            if (left_shift) {
-              target = static_cast<int32_t>(target) << shift_amount;
-            } else {
-              target = static_cast<int32_t>(target) >> shift_amount;
-            }
-          }
-        }
-
-        this->regs.set_ccr_flags(
-            last_shifted_bit, (target & 0x80000000), (target == 0), msb_changed, last_shifted_bit);
-
-      } else {
-        throw std::runtime_error("invalid size for bit shift operation");
+        // A count of zero doesn't modify the value; it clears C and V, leaves X alone, and computes N and Z from the
+        // operand at the instruction's size
+        this->regs.set_ccr_flags(-1, is_negative(v, size), (v == 0), 0, 0);
+        return;
       }
+
+      bool msb_changed = false;
+      int64_t last_shifted_bit;
+      if (rotate) { // rol/ror
+        uint8_t steps = shift_amount % size_bits;
+        if (steps) {
+          v = left_shift
+              ? (((v << steps) | (v >> (size_bits - steps))) & mask)
+              : (((v >> steps) | (v << (size_bits - steps))) & mask);
+        }
+        // C is the bit that came around last, which is now at the far end of the result. A count that's a nonzero
+        // multiple of the operand width restores the original value, but still rotates a bit through C.
+        last_shifted_bit = left_shift ? (v & 1) : ((v >> (size_bits - 1)) & 1);
+
+      } else if (left_shift) { // asl/lsl
+        last_shifted_bit = (shift_amount > size_bits) ? 0 : ((v >> (size_bits - shift_amount)) & 1);
+        if (!logical_shift) {
+          // asl sets V if the MSB changed at any point during the shift, which is the case exactly when the
+          // shift_amount + 1 most significant bits of the operand aren't all equal
+          if (shift_amount >= size_bits) {
+            msb_changed = (v != 0);
+          } else {
+            uint32_t top_bits = v >> (size_bits - shift_amount - 1);
+            msb_changed = (top_bits != 0) && (top_bits != (mask >> (size_bits - shift_amount - 1)));
+          }
+        }
+        v = (shift_amount >= size_bits) ? 0 : ((v << shift_amount) & mask);
+
+      } else { // asr/lsr
+        last_shifted_bit = (shift_amount > size_bits)
+            ? (logical_shift ? 0 : ((v >> (size_bits - 1)) & 1))
+            : ((v >> (shift_amount - 1)) & 1);
+        if (logical_shift) {
+          v = (shift_amount >= size_bits) ? 0 : (v >> shift_amount);
+        } else {
+          // asr shifts copies of the sign bit in, so a count at or past the operand width fills the operand with it
+          uint8_t effective_count = (shift_amount >= size_bits) ? (size_bits - 1) : shift_amount;
+          v = static_cast<uint32_t>(sign_extend(v, size) >> effective_count) & mask;
+        }
+      }
+
+      this->regs.d[Xn].u = (this->regs.d[Xn].u & (~mask)) | v;
+      // rol/ror don't affect X; the shifts set it to the last bit shifted out, like C
+      this->regs.set_ccr_flags(
+          rotate ? -1 : last_shifted_bit, is_negative(v, size), (v == 0), msb_changed, last_shifted_bit);
       break;
     }
 
