@@ -1725,7 +1725,9 @@ void M68KEmulator::exec_4(uint16_t opcode) {
         // b == 1
         if (M == 0) { // swap.w REG
           uint8_t reg = op_get_d(opcode);
-          this->regs.d[reg].u = (this->regs.d[reg].u >> 16) | (this->regs.d[reg].u << 16);
+          uint32_t value = (this->regs.d[reg].u >> 16) | (this->regs.d[reg].u << 16);
+          this->regs.d[reg].u = value;
+          this->regs.set_ccr_flags(-1, is_negative(value, SIZE_LONG), (value == 0), 0, 0);
           return;
         }
 
