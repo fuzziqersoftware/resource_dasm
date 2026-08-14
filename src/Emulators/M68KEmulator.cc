@@ -305,8 +305,9 @@ void M68KEmulator::Regs::set_ccr_flags_integer_subtract(int32_t left_value, int3
   right_value = sign_extend(right_value, size);
   int32_t result = sign_extend(left_value - right_value, size);
 
-  bool overflow = (((left_value > 0) && (right_value < 0) && (result < 0)) ||
-      ((left_value < 0) && (right_value > 0) && (result > 0)));
+  // The operands' signs differ and the result's sign differs from the destination's. Comparing the signs pairwise
+  // instead misses left_value == 0 with right_value == INT_MIN, which does overflow.
+  bool overflow = (((left_value ^ right_value) & (left_value ^ result)) < 0);
   bool carry = (static_cast<uint32_t>(left_value) < static_cast<uint32_t>(right_value));
   this->set_ccr_flags(-1, (result < 0), (result == 0), overflow, carry);
 }
@@ -2599,9 +2600,18 @@ void M68KEmulator::exec_B(uint16_t opcode) {
     right_value = this->read(addr, size);
 
   } else if ((opmode & 3) == 3) { // cmpa.S AREG, ADDR
-    size = (opmode & 4) ? SIZE_LONG : SIZE_WORD;
+    // cmpa compares the entire 32-bit address register. The .w form sign-extends its source operand to 32 bits
+    // first; it does not truncate the destination to a word.
+    uint8_t src_size = (opmode & 4) ? SIZE_LONG : SIZE_WORD;
     left_value = this->regs.a[dest];
-    right_value = this->read(this->resolve_address(M, Xn, size), size);
+    right_value = sign_extend(this->read(this->resolve_address(M, Xn, src_size), src_size), src_size);
+    size = SIZE_LONG;
+
+  } else if (M == 1) { // cmpm.S [AREG]+, [AREG]+
+    size = opmode & 3;
+    // The source operand is read first, then the destination; both pointers post-increment.
+    right_value = this->read(this->resolve_address(3, Xn, size), size);
+    left_value = this->read(this->resolve_address(3, dest, size), size);
 
   } else { // xor.S DREG, ADDR  (memory ^= Dn)
     size = opmode & 3;
