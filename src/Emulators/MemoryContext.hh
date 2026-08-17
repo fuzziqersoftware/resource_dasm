@@ -263,6 +263,8 @@ public:
 
   // Returns true if ALL of the <size> bytes starting at <addr> are accessible.
   bool exists(uint32_t addr, size_t size = 1, bool skip_strict = false) const;
+  // Returns the number of bytes in the same region after the given address.
+  size_t exists_after(uint32_t addr, bool skip_strict = false) const;
 
   // Returns a list of (addr, size) pairs for every allocated region
   std::vector<std::pair<uint32_t, uint32_t>> allocated_blocks() const;

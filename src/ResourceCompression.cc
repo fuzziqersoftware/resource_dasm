@@ -459,7 +459,6 @@ std::shared_ptr<Resource> decompress_resource(
 
           // Set up environment. Unlike in PPC-land, we implement a few basic system calls here, because there are some
           // dcmps that actually use them.
-          std::unordered_map<uint16_t, uint32_t> trap_to_call_stub_addr;
           emu.set_syscall_handler([&](M68KEmulator& emu, uint16_t opcode) -> void {
             auto& regs = emu.registers();
             uint16_t trap_number;
@@ -485,35 +484,8 @@ std::shared_ptr<Resource> decompress_resource(
               regs.d[0].u = 0; // Result code (0 = success)
 
             } else if (trap_number == 0x0046) { // GetTrapAddress
-              uint16_t trap_number = regs.d[0].u & 0xFFFF;
-              if ((trap_number > 0x4F) && (trap_number != 0x54) && (trap_number != 0x57)) {
-                trap_number |= 0x0800;
-              }
-
-              // If it already has a call routine, just return that
-              try {
-                regs.a[0] = trap_to_call_stub_addr.at(trap_number);
-                if (verbose) {
-                  phosg::fwrite_fmt(stderr, "GetTrapAddress: using cached call stub for trap {:04X} -> {:08X}\n",
-                      trap_number, regs.a[0]);
-                }
-
-              } catch (const std::out_of_range&) {
-                // Create a call stub
-                uint32_t call_stub_addr = mem->allocate(4);
-                phosg::be_uint16_t* call_stub = mem->at<phosg::be_uint16_t>(call_stub_addr, 4);
-                trap_to_call_stub_addr.emplace(trap_number, call_stub_addr);
-                call_stub[0] = 0xA000 | trap_number; // A-trap opcode
-                call_stub[1] = 0x4E75; // rts
-
-                // Return the address
-                regs.a[0] = call_stub_addr;
-
-                if (verbose) {
-                  phosg::fwrite_fmt(stderr, "GetTrapAddress: created call stub for trap {:04X} -> {:08X}\n",
-                      trap_number, regs.a[0]);
-                }
-              }
+              // Return an invalid address; this will trigger an exception if the dcmp actually calls the trap
+              regs.a[0] = 0xFFFFFFFF;
 
             } else if (verbose) {
               if (trap_number & 0x0800) {

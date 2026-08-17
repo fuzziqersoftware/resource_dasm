@@ -85,10 +85,11 @@ public:
 
   struct DisassembleResult {
     struct Segment {
+      bool is_valid;
       uint32_t address;
       size_t size;
       std::string disassembly;
-      std::set<std::pair<uint32_t, size_t>> imm_offsets; // Only used by x86
+      std::set<std::pair<uint32_t, size_t>> imm_offsets; // Only used by 68k and x86
     };
     struct Label {
       uint32_t address;
@@ -339,11 +340,13 @@ private:
           uint32_t addr = stoul(tokens.at(0), nullptr, 16);
           uint32_t size = stoul(tokens.at(1), nullptr, 16);
           const void* data = mem->template at<void>(addr, size);
-          try {
+          if (!data) {
+            phosg::fwrite_fmt(stderr, "Cannot read 0x{:08X} bytes from memory from {:08X}\n", size, addr);
+          } else if (tokens.size() > 2) {
             auto f = phosg::fopen_unique(tokens.at(2), "wb");
             phosg::fwritex(f.get(), data, size);
-          } catch (const std::out_of_range&) {
-            phosg::print_data(stderr, data, size, addr, nullptr,
+          } else {
+            phosg::print_data(stderr, data, size, addr,
                 phosg::FormatDataFlags::PRINT_ASCII | phosg::FormatDataFlags::OFFSET_32_BITS);
           }
 
@@ -407,7 +410,7 @@ private:
                 it.first, it.first + it.second, phosg::format_size(it.second));
           }
 
-        } else if ((cmd == "t") || (cmd == "f") || (cmd == "find")) {
+        } else if ((cmd == "f") || (cmd == "find")) {
           std::string search_data = phosg::parse_data_string(args);
           for (const auto& it : mem->allocated_blocks()) {
             if (it.second < search_data.size()) {
