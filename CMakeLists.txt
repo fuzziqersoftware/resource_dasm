@@ -210,3 +210,8 @@ add_test(
     NAME "trap_info"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMAND ${CMAKE_BINARY_DIR}/test_trap_info)
+
+add_test(
+    NAME "assemble_sh4"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${CMAKE_BINARY_DIR}/m68ktest --test-assemble-sh4)

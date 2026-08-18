@@ -331,6 +331,7 @@ private:
     uint32_t start_address;
     std::deque<StreamItem> stream;
     std::unordered_map<std::string, uint32_t> label_offsets;
+    std::unordered_map<std::string, uint32_t> static_label_addresses;
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
 
@@ -340,6 +341,7 @@ private:
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
 
     int64_t resolve_immediate(const Argument& arg) const;
+    int64_t resolve_immediate(const Expression::Node& expr) const;
     int32_t compute_branch_delta(const Argument& target_arg, uint32_t opcode_base, uint32_t opcode_size) const;
 
     uint16_t asm_add_addc_addv_sub_subc_subv(const StreamItem& si) const;

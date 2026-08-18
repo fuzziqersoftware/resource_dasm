@@ -2618,15 +2618,18 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
 }
 
 int64_t SH4Emulator::Assembler::resolve_immediate(const Argument& arg) const {
-  if (!arg.value_expr) {
-    return 0;
-  }
-  auto ret = arg.value_expr->evaluate([this](const std::string& name) -> int64_t {
-    try {
-      return this->label_offsets.at(name);
-    } catch (const std::out_of_range&) {
-      throw std::runtime_error("Unknown label: " + name);
+  return arg.value_expr ? this->resolve_immediate(*arg.value_expr) : 0;
+}
+
+int64_t SH4Emulator::Assembler::resolve_immediate(const Expression::Node& expr) const {
+  auto ret = expr.evaluate([this](const std::string& name) -> int64_t {
+    if (auto it = this->static_label_addresses.find(name); it != this->static_label_addresses.end()) {
+      return it->second;
     }
+    if (auto it = this->label_offsets.find(name); it != this->label_offsets.end()) {
+      return it->second;
+    }
+    throw std::runtime_error("Unknown label: " + name);
   });
   if (!ret.is_int()) {
     throw std::runtime_error(std::format("Expression value ({}) is not an integer", ret.str()));
@@ -3916,6 +3919,15 @@ void SH4Emulator::Assembler::assemble(
               this->metadata_keys.emplace(args_str.substr(0, equals_pos),
                   phosg::parse_data_string(args_str.substr(equals_pos + 1)));
             }
+            continue;
+          } else if (op_name == ".label") {
+            auto arg_tokens = phosg::split(tokens[1], ',', 1);
+            if (arg_tokens.size() != 2) {
+              throw std::runtime_error("incorrect argument count in .label directive");
+            }
+            const auto& name_arg = arg_tokens[0];
+            auto expr = Expression::Node::parse(arg_tokens[1]);
+            this->static_label_addresses.emplace(name_arg, this->resolve_immediate(*expr));
             continue;
           } else if ((op_name == ".binary") || (op_name == ".include")) {
             args.emplace_back(args_str, true);
