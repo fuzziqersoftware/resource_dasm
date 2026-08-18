@@ -3052,9 +3052,13 @@ std::string M68KEmulator::DisassemblyState::on_exg_d_a(uint8_t d_reg, uint8_t a_
   return std::format("exg        D{}, A{}", d_reg, a_reg);
 }
 void M68KEmulator::on_exg_d_a(uint8_t d_reg, uint8_t a_reg) {
-  uint32_t tmp = this->regs.a[d_reg];
-  this->regs.a[d_reg] = this->regs.d[a_reg].u;
-  this->regs.d[a_reg].u = tmp;
+  // 1100DDD110001AAA: the register in bits 9-11 is the DATA register and the
+  // one in bits 0-2 is the ADDRESS register (as the disassembler above prints).
+  // Indexing regs.a with d_reg (and regs.d with a_reg) exchanges two entirely
+  // unrelated registers.
+  uint32_t tmp = this->regs.a[a_reg];
+  this->regs.a[a_reg] = this->regs.d[d_reg].u;
+  this->regs.d[d_reg].u = tmp;
   // Note: ccr not affected
 }
 
