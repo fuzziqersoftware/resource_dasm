@@ -403,17 +403,7 @@ VisitorT::DecodeReturnT M68KEmulator::decode_instruction(VisitorT& visitor) {
             return visitor.on_movep(b & 1, b & 2, b, Xn, visitor.read_ins_s16(2));
           }
         } else {
-          // For the immediate forms, the bit-number word precedes the EA extension
-          // words in the instruction stream, so it must be consumed first (the
-          // read_ins_* calls are sequential).
-          uint16_t v = 0;
-          if (!(b & 4)) {
-            // 0000100000MMMRRR 00000000VVVVVVVV (DATA) btst
-            // 0000100001MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bchg
-            // 0000100010MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bclr
-            // 0000100011MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bset
-            v = visitor.read_ins_u16(1);
-          }
+          uint16_t v = (b & 4) ? 0 : visitor.read_ins_u16(1);
           auto addr = decode_address(M, Xn, Size::BYTE, false);
           if (((b & 3) == 0) ? !addr.is_data_mode() : !addr.is_data_alterable_mode()) {
             return visitor.on_invalid(nullptr, &addr);
@@ -427,6 +417,10 @@ VisitorT::DecodeReturnT M68KEmulator::decode_instruction(VisitorT& visitor) {
           } else if (v & 0xFF00) {
             return visitor.on_invalid("Immediate btst/bchg/bclr/bset operation has high value bits set", &addr);
           } else {
+            // 0000100000MMMRRR 00000000VVVVVVVV (DATA) btst
+            // 0000100001MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bchg
+            // 0000100010MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bclr
+            // 0000100011MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bset
             return visitor.on_btst_bchg_bclr_bset(b & 3, addr, 0xFF, v);
           }
         }
@@ -2367,9 +2361,6 @@ std::string M68KEmulator::DisassemblyState::on_pea(const DecodedAddress& addr) {
       : std::format("pea.l      {}", this->dasm_address(addr, ValueType::LONG));
 }
 void M68KEmulator::on_pea(const DecodedAddress& addr) {
-  // The effective address must be computed before the push: for A7-relative
-  // operands (pea (d16,A7), the take-the-address-of-a-stack-local idiom), the
-  // address register value at EA-calculation time is the pre-push A7.
   auto ea = this->resolve_memory_address(addr, Size::LONG);
   this->regs.a[7] -= 4;
   this->write(this->regs.a[7], ea, Size::LONG);
@@ -3052,10 +3043,6 @@ std::string M68KEmulator::DisassemblyState::on_exg_d_a(uint8_t d_reg, uint8_t a_
   return std::format("exg        D{}, A{}", d_reg, a_reg);
 }
 void M68KEmulator::on_exg_d_a(uint8_t d_reg, uint8_t a_reg) {
-  // 1100DDD110001AAA: the register in bits 9-11 is the DATA register and the
-  // one in bits 0-2 is the ADDRESS register (as the disassembler above prints).
-  // Indexing regs.a with d_reg (and regs.d with a_reg) exchanges two entirely
-  // unrelated registers.
   uint32_t tmp = this->regs.a[a_reg];
   this->regs.a[a_reg] = this->regs.d[d_reg].u;
   this->regs.d[d_reg].u = tmp;
