@@ -234,7 +234,7 @@ VisitorT::DecodeReturnT M68KEmulator::decode_instruction(VisitorT& visitor) {
             switch (size) {
               case Size::BYTE: {
                 uint16_t v = visitor.read_ins_u16(1);
-                if (v & 0xFF) {
+                if (v & 0xFF00) {
                   return DecodedAddress{
                       .mode = AM::INVALID, .invalid_reason = "bits above immediate 8-bit value are set"};
                 }
@@ -403,6 +403,17 @@ VisitorT::DecodeReturnT M68KEmulator::decode_instruction(VisitorT& visitor) {
             return visitor.on_movep(b & 1, b & 2, b, Xn, visitor.read_ins_s16(2));
           }
         } else {
+          // For the immediate forms, the bit-number word precedes the EA extension
+          // words in the instruction stream, so it must be consumed first (the
+          // read_ins_* calls are sequential).
+          uint16_t v = 0;
+          if (!(b & 4)) {
+            // 0000100000MMMRRR 00000000VVVVVVVV (DATA) btst
+            // 0000100001MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bchg
+            // 0000100010MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bclr
+            // 0000100011MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bset
+            v = visitor.read_ins_u16(1);
+          }
           auto addr = decode_address(M, Xn, Size::BYTE, false);
           if (((b & 3) == 0) ? !addr.is_data_mode() : !addr.is_data_alterable_mode()) {
             return visitor.on_invalid(nullptr, &addr);
@@ -413,17 +424,10 @@ VisitorT::DecodeReturnT M68KEmulator::decode_instruction(VisitorT& visitor) {
             // 0000RRR110MMMRRR (DATA ALTERABLE) bclr
             // 0000RRR111MMMRRR (DATA ALTERABLE) bset
             return visitor.on_btst_bchg_bclr_bset(b & 3, addr, a, 0);
+          } else if (v & 0xFF00) {
+            return visitor.on_invalid("Immediate btst/bchg/bclr/bset operation has high value bits set", &addr);
           } else {
-            // 0000100000MMMRRR 00000000VVVVVVVV (DATA) btst
-            // 0000100001MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bchg
-            // 0000100010MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bclr
-            // 0000100011MMMRRR 00000000VVVVVVVV (DATA ALTERABLE) bset
-            uint16_t v = visitor.read_ins_u16(1);
-            if (v & 0xFF00) {
-              return visitor.on_invalid("Immediate btst/bchg/bclr/bset operation has high value bits set", &addr);
-            } else {
-              return visitor.on_btst_bchg_bclr_bset(b & 3, addr, 0xFF, v);
-            }
+            return visitor.on_btst_bchg_bclr_bset(b & 3, addr, 0xFF, v);
           }
         }
 
@@ -2363,8 +2367,11 @@ std::string M68KEmulator::DisassemblyState::on_pea(const DecodedAddress& addr) {
       : std::format("pea.l      {}", this->dasm_address(addr, ValueType::LONG));
 }
 void M68KEmulator::on_pea(const DecodedAddress& addr) {
-  this->regs.a[7] -= 4;
+  // The effective address must be computed before the push: for A7-relative
+  // operands (pea (d16,A7), the take-the-address-of-a-stack-local idiom), the
+  // address register value at EA-calculation time is the pre-push A7.
   auto ea = this->resolve_memory_address(addr, Size::LONG);
+  this->regs.a[7] -= 4;
   this->write(this->regs.a[7], ea, Size::LONG);
   // Note: ccr not affected
 }
