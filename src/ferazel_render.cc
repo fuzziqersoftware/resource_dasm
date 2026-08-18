@@ -304,8 +304,7 @@ static const std::unordered_map<int16_t, SpriteDefinition> sprite_defs({
     {2893, {2893, 0, false, true}}, // cloud
     {2911, {2910, 5, true}}, // reversed wooden door
 
-    // These are invisible in-game and have no graphics, but we special-case them
-    // to be visible
+    // These are invisible in-game and have no graphics, but we special-case them to be visible
     {1058, {0, 0, false}}, // perm flag trigger
     {1059, {0, 0, false}}, // secret area
     {3249, {0, 0, false}}, // level exit
@@ -315,8 +314,7 @@ static const std::unordered_map<int16_t, SpriteDefinition> sprite_defs({
     {1731, {1730, 0, false}}, // blue blob
     {1732, {1730, 0, false}}, // orange blob
 
-    // TODO: These are multiple sprites in-game but defined as only one in the map
-    // file (see their PICTs)
+    // TODO: These are multiple sprites in-game but defined as only one in the map file (see their PICTs)
     {1425, {1435, 0, false}}, // seesaw platform
     {1860, {1860, 8, false}}, // large fly
     {1920, {1920, 0, false}}, // right fire guardian (probably auto-spawns the left one)
@@ -593,8 +591,7 @@ static const std::unordered_set<int16_t> passthrough_sprite_defs({
     3225, // mist potion
     3226, // ziridium seeds
 
-    // TODO: These are multiple sprites in-game but defined as only one in the map
-    // file (see their PICTs)
+    // TODO: These are multiple sprites in-game but defined as only one in the map file (see their PICTs)
     2930, // mine cart
     1420, // springboard
     1869, // small fly swarm
@@ -728,10 +725,13 @@ struct FerazelsWandLevel {
   }
 
   const phosg::be_int16_t* parallax_background_tiles(uint16_t layer) const {
-    return reinterpret_cast<const phosg::be_int16_t*>(&this->data[layer * this->parallax_background_layer_length * sizeof(int16_t)]);
+    return reinterpret_cast<const phosg::be_int16_t*>(
+        &this->data[layer * this->parallax_background_layer_length * sizeof(int16_t)]);
   }
   const phosg::be_int16_t* parallax_middle_tiles(uint16_t layer) const {
-    return reinterpret_cast<const phosg::be_int16_t*>(&this->data[this->parallax_background_layers_size() + layer * this->parallax_background_layer_length * sizeof(int16_t)]);
+    return reinterpret_cast<const phosg::be_int16_t*>(
+        &this->data[this->parallax_background_layers_size() +
+            layer * this->parallax_background_layer_length * sizeof(int16_t)]);
   }
   const ForegroundLayerTile* foreground_tiles() const {
     return reinterpret_cast<const ForegroundLayerTile*>(
@@ -1068,8 +1068,7 @@ int main(int argc, char** argv) {
         if (level->abstract_background == 1) {
           pxback_pict = decode_PICT_cached(6000, sprites_cache, sprites);
         } else if (level->abstract_background == 6) {
-          // This one is animated with all frames in one PICT; just pick the
-          // first frame
+          // This one is animated with all frames in one PICT; just pick the first frame
           std::shared_ptr<phosg::ImageRGBA8888N> loaded = decode_PICT_cached(357, backgrounds_cache, backgrounds);
           if (loaded.get()) {
             pxback_pict = std::make_shared<phosg::ImageRGBA8888N>(128, 128);
@@ -1080,7 +1079,8 @@ int main(int argc, char** argv) {
           // 3=secret
           // 4-9=bosses
           // the PICTs appear to mostly be around PICT 6000 in the sprites file
-          phosg::fwrite_fmt(stderr, "error: this level has an abstract background ({}); skipping rendering parallax background\n",
+          phosg::fwrite_fmt(stderr,
+              "error: this level has an abstract background ({}); skipping rendering parallax background\n",
               level->abstract_background);
         }
         if (pxback_pict.get()) {
@@ -1094,9 +1094,7 @@ int main(int argc, char** argv) {
           }
         }
       } else {
-        pxback_pict = decode_PICT_cached(
-            level->parallax_background_pict_id,
-            backgrounds_cache, backgrounds);
+        pxback_pict = decode_PICT_cached(level->parallax_background_pict_id, backgrounds_cache, backgrounds);
 
         if (pxback_pict.get()) {
           phosg::fwrite_fmt(stderr, "... (Level {}) parallax background\n", level_id);
@@ -1126,7 +1124,8 @@ int main(int argc, char** argv) {
           ssize_t letterbox_height = (level->height * 32 - parallax_height) / 2;
           uint64_t top_r = 0, top_g = 0, top_b = 0, bottom_r = 0, bottom_g = 0, bottom_b = 0;
           if (letterbox_height < 0) {
-            phosg::fwrite_fmt(stderr, "warning: parallax background height ({}) exceeds level height ({}); background will be truncated\n",
+            phosg::fwrite_fmt(stderr,
+                "warning: parallax background height ({}) exceeds level height ({}); background will be truncated\n",
                 parallax_height, level->height * 32);
             letterbox_height = 0;
           } else if (letterbox_height > 0 && !parallax_layers.empty()) {
@@ -1257,8 +1256,7 @@ int main(int argc, char** argv) {
       if (foreground_opacity) {
         phosg::fwrite_fmt(stderr, "... (Level {}) foreground tiles\n", level_id);
         if (!foreground_pict.get()) {
-          phosg::fwrite_fmt(stderr, "warning: background pict {} is missing\n",
-              level->background_tile_pict_id);
+          phosg::fwrite_fmt(stderr, "warning: background pict {} is missing\n", level->background_tile_pict_id);
 
         } else {
           auto alpha_blit_pixel_fn = [&](uint32_t d, uint32_t s) -> uint32_t {
@@ -1603,7 +1601,8 @@ int main(int argc, char** argv) {
             } else if (sprite.params[2] == 0) {
               full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "empty");
             } else {
-              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}x {}", sprite.params[2], sprite.params[1]);
+              full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}x {}",
+                  sprite.params[2], sprite.params[1]);
             }
             break;
 
@@ -1623,7 +1622,8 @@ int main(int argc, char** argv) {
             break;
 
           case 3070: // snowball
-            full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}->{}", sprite.params[0], sprite.params[1]);
+            full_result.draw_text(sprite_rel_x, text_y, 0xFFFFFF80, 0x00000040, "{}->{}",
+                sprite.params[0], sprite.params[1]);
             break;
 
           case 2902:
