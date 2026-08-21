@@ -381,12 +381,26 @@ const char* SSAIInstrument::name_for_controller(uint32_t controller_id) {
   return (it == names.end()) ? nullptr : it->second;
 }
 
+struct ToneDescription {
+  /* 00 */ phosg::be_uint32_t collection_type; // 'ss  ' (0x73730202)
+  /* 04 */ uint8_t collection_name[0x20]; // Pascal string
+  /* 24 */ uint8_t instrument_name[0x20]; // Pascal string
+  /* 44 */ phosg::be_uint32_t instrument_number;
+  /* 48 */ phosg::be_uint32_t general_midi_instrument_number;
+  /* 4C */
+} __attribute__((packed));
+
 struct TuneInstrumentDefinition {
-  /* 00 */ uint8_t unknown_a1[0x0C];
-  /* 0C */ uint8_t collection_name[0x20]; // Pascal string
-  /* 2C */ uint8_t instrument_name[0x20]; // Pascal string
-  /* 4C */ phosg::be_uint32_t instrument_number;
-  /* 50 */ phosg::be_uint32_t unknown_a3;
+  // Flag bits (from MPW headers):
+  //   01 = kNoteRequestNoGM: don't degrade to a GM synth
+  //   02 = kNoteRequestNoSynthType: don't degrade to another synth of same type but different name
+  //   04 = kNoteRequestSynthMustMatch: synthType must be a match, including kGMSynthComponentSubType
+  //   80 = kNoteRequestSpecifyMIDIChannel (not described in MPW headers)
+  /* 00 */ uint8_t flags;
+  /* 01 */ uint8_t midi_channel_number;
+  /* 02 */ phosg::be_uint16_t max_polyphony; // Maximum number of concurrent voices
+  /* 04 */ phosg::be_uint32_t typical_polyphony;
+  /* 08 */ ToneDescription desc;
   /* 54 */ phosg::be_uint16_t flags_and_type;
   /* 56 */ phosg::be_uint16_t message_size; // In 4-byte words
   /* 58 */
@@ -397,11 +411,7 @@ struct TuneExtendedInstrumentDefinition {
   /* 00 */ uint8_t unknown_a1[0x0C];
   /* 0C */ BlockHeader sean_block_header; // SEAN_TYPE, size 0x74, block index 1, child count 1
   /* 20 */ BlockHeader tone_block_header; // TONE_TYPE, size 0x60, block index 1, child count 0
-  /* 34 */ phosg::be_uint32_t unknown_a2; // 'ss  ' (0x73730202)
-  /* 38 */ uint8_t collection_name[0x20]; // Pascal string
-  /* 58 */ uint8_t instrument_name[0x20]; // Pascal string
-  /* 78 */ phosg::be_uint32_t instrument_number;
-  /* 7C */ phosg::be_uint32_t unknown_a3;
+  /* 34 */ ToneDescription desc;
   /* 80 */ phosg::be_uint16_t flags_and_type;
   /* 82 */ phosg::be_uint16_t message_size; // In 4-byte words
   /* 84 */
@@ -608,9 +618,9 @@ TuneResource::TuneResource(const void* data, size_t size) {
             const auto& inst = msg_r.get<TuneInstrumentDefinition>();
             auto ev = std::make_unique<ChannelSetupEvent>();
             ev->channel = channel;
-            ev->instrument_number = inst.instrument_number;
-            ev->collection_name = decode_pstring<0x20>(inst.collection_name);
-            ev->instrument_name = decode_pstring<0x20>(inst.instrument_name);
+            ev->instrument_number = inst.desc.instrument_number;
+            ev->collection_name = decode_pstring<0x20>(inst.desc.collection_name);
+            ev->instrument_name = decode_pstring<0x20>(inst.desc.instrument_name);
             add_event(std::move(ev), start_offset);
             break;
           }
@@ -621,14 +631,14 @@ TuneResource::TuneResource(const void* data, size_t size) {
             }
             const auto& inst = msg_r.get<TuneExtendedInstrumentDefinition>();
             if ((inst.sean_block_header.type != SEAN_TYPE) || (inst.tone_block_header.type != TONE_TYPE) ||
-                (inst.unknown_a2 != SS_TYPE)) {
+                (inst.desc.collection_type != SS_TYPE)) {
               throw std::runtime_error("Extended instrument definition format is unrecognized");
             }
             auto ev = std::make_unique<ChannelSetupEvent>();
             ev->channel = channel;
-            ev->instrument_number = inst.instrument_number;
-            ev->collection_name = decode_pstring<0x20>(inst.collection_name);
-            ev->instrument_name = decode_pstring<0x20>(inst.instrument_name);
+            ev->instrument_number = inst.desc.instrument_number;
+            ev->collection_name = decode_pstring<0x20>(inst.desc.collection_name);
+            ev->instrument_name = decode_pstring<0x20>(inst.desc.instrument_name);
             add_event(std::move(ev), start_offset);
             break;
           }
