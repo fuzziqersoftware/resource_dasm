@@ -23,7 +23,7 @@ struct MohawkFileHeader {
   phosg::be_uint32_t remaining_file_size; // == file_size - 8
   phosg::be_uint32_t resource_signature; // 'RSRC'
   phosg::be_uint16_t version;
-  phosg::be_uint16_t compation_type;
+  phosg::be_uint16_t compaction_type;
   phosg::be_uint32_t file_size;
   phosg::be_uint32_t resource_dir_offset;
   phosg::be_uint16_t file_table_offset; // relative to resource dir base
@@ -133,13 +133,30 @@ static std::vector<ResourceEntry> load_index(phosg::StringReader& r) {
   return ret;
 }
 
+struct ResourceDataHeader {
+  phosg::be_uint32_t signature;
+  phosg::be_uint32_t size;
+  phosg::be_uint32_t type;
+} __attribute__((packed));
+
+std::string get_resource_data(phosg::StringReader& r, const ResourceEntry& e) {
+  const auto& h = r.pget<ResourceDataHeader>(e.offset);
+  if (h.signature != 0x4D48574B) {
+    throw std::runtime_error("Mohawk resource entry signature is incorrect");
+  }
+  return r.pread(e.offset + sizeof(ResourceDataHeader), h.size - 4);
+}
+
 ResourceFile parse_mohawk(const std::string& data) {
   phosg::StringReader r(data.data(), data.size());
 
   ResourceFile ret(IndexFormat::MOHAWK);
   std::vector<ResourceEntry> resource_entries = load_index(r);
   for (const auto& e : resource_entries) {
-    ret.add(ResourceFile::Resource{e.type, e.id, r.pread(e.offset, e.size)});
+    // TODO: Some Mohawk versions apparently need just r.pread(e.offset, e.size) here instead of get_resource_data.
+    // (Prince of Persia 2 needs get_resource_data, for example.) Figure out which versions need what, and whether this
+    // is controlled by some header / format flag.
+    ret.add(ResourceFile::Resource{e.type, e.id, get_resource_data(r, e)});
   }
 
   return ret;
