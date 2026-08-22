@@ -16,20 +16,18 @@ namespace ResourceDASM {
 
 static const std::string BINHEX_ALPHABET = "!\"#$%&\'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr";
 
-static const std::array<int8_t, 0x100>& decode_map() {
-  static bool initialized = false;
-  static std::array<int8_t, 0x100> ret;
-  if (!initialized) {
-    for (size_t z = 0; z < 0x100; z++) {
-      ret[z] = -1;
-    }
-    for (size_t z = 0; z < BINHEX_ALPHABET.size(); z++) {
-      ret[BINHEX_ALPHABET[z]] = z;
-    }
-    initialized = true;
+static std::array<int8_t, 0x100> generate_decode_map() {
+  std::array<int8_t, 0x100> ret;
+  for (size_t z = 0; z < 0x100; z++) {
+    ret[z] = -1;
+  }
+  for (size_t z = 0; z < BINHEX_ALPHABET.size(); z++) {
+    ret[BINHEX_ALPHABET[z]] = z;
   }
   return ret;
 }
+
+static const std::array<int8_t, 0x100> BINHEX_DECODE_MAP = generate_decode_map();
 
 static constexpr bool is_return(uint8_t v) {
   return (v == 0x0A) || (v == 0x0D);
@@ -77,7 +75,6 @@ DecodedBinHex parse_binhex(const std::string& data) {
   }
 
   // Decode 6-bit encoding (similar to base64)
-  const auto& decode_map = ResourceDASM::decode_map();
   std::string decoded;
   size_t input_char_count = 0;
   uint8_t pending_bits = 0;
@@ -87,18 +84,18 @@ DecodedBinHex parse_binhex(const std::string& data) {
       continue;
     } else if (v == ':') {
       break;
-    } else if (decode_map[v] < 0) {
+    } else if (BINHEX_DECODE_MAP[v] < 0) {
       throw std::runtime_error("Invalid character in BinHex data segment");
     } else if ((input_char_count & 3) == 0) {
-      pending_bits = decode_map[v] << 2;
+      pending_bits = BINHEX_DECODE_MAP[v] << 2;
     } else if ((input_char_count & 3) == 1) {
-      decoded.push_back(pending_bits | (decode_map[v] >> 4));
-      pending_bits = decode_map[v] << 4;
+      decoded.push_back(pending_bits | (BINHEX_DECODE_MAP[v] >> 4));
+      pending_bits = BINHEX_DECODE_MAP[v] << 4;
     } else if ((input_char_count & 3) == 2) {
-      decoded.push_back(pending_bits | (decode_map[v] >> 2));
-      pending_bits = decode_map[v] << 6;
+      decoded.push_back(pending_bits | (BINHEX_DECODE_MAP[v] >> 2));
+      pending_bits = BINHEX_DECODE_MAP[v] << 6;
     } else {
-      decoded.push_back(pending_bits | decode_map[v]);
+      decoded.push_back(pending_bits | BINHEX_DECODE_MAP[v]);
       // Don't need to clear pending_bits here since the 0 case above will overwrite it
     }
     input_char_count++;
