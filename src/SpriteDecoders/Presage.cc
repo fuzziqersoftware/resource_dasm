@@ -13,7 +13,8 @@
 
 namespace ResourceDASM {
 
-static phosg::ImageRGBA8888N decode_PPSS_lzss_section(phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut) {
+static phosg::ImageRGBA8888N decode_PPSS_lzss_section(
+    phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut) {
   size_t max_output_bytes = w * h;
   size_t compressed_bytes = r.remaining();
   const void* compressed_data = r.getv(compressed_bytes);
@@ -33,7 +34,8 @@ static phosg::ImageRGBA8888N decode_PPSS_lzss_section(phosg::StringReader& r, si
   return ret;
 }
 
-phosg::ImageGA11 decode_presage_mono_image(phosg::StringReader& r, size_t width, size_t height, bool use_and_compositing) {
+phosg::ImageGA11 decode_presage_mono_image(
+    phosg::StringReader& r, size_t width, size_t height, bool use_and_compositing) {
   // Monochrome images are encoded in very similar ways in all games that use this library. The width is rounded up to
   // a word boundary (16 pixels), and the image data consists of alternating words of mask and image data. The pixels
   // are arranged in reading order, so the first two words specify the mask and color values (in that order) for the
@@ -156,7 +158,8 @@ phosg::ImageRGBA8888N decode_presage_v1_commands(
   return ret;
 }
 
-phosg::ImageRGBA8888N decode_presage_v2_commands(phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGBA8888N decode_presage_v2_commands(
+    phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut) {
   // This format was used in Flashback and Mario Teaches Typing. It's similar to v1, but the command numbers are
   // changed and extended counts are now words instead of bytes. The stop opcodes are also different.
   phosg::ImageRGBA8888N ret(w, h);
@@ -228,7 +231,7 @@ phosg::ImageRGBA8888N decode_presage_v2_commands(phosg::StringReader& r, size_t 
   return ret;
 }
 
-std::vector<phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+std::map<size_t, phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut) {
   phosg::StringReader r(data);
 
   // If the high bit isn't set in the first byte, assume it's compressed
@@ -242,7 +245,7 @@ std::vector<phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, const st
   size_t num_images = r.get_u16b();
   r.skip(4); // Unknown
 
-  std::vector<phosg::ImageRGBA8888N> ret;
+  std::map<size_t, phosg::ImageRGBA8888N> ret;
   for (size_t z = 0; z < num_images; z++) {
     size_t start_offset = r.get_u32b();
     if (start_offset != 0) {
@@ -251,9 +254,9 @@ std::vector<phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, const st
       uint16_t h = section_r.get_u16b();
       if (format == 0xC211) {
         section_r.skip(4); // Unknown - could be origin coordinates
-        ret.emplace_back(decode_presage_v2_commands(section_r, w, h, clut));
+        ret.emplace(z, decode_presage_v2_commands(section_r, w, h, clut));
       } else if (format == 0xC103) {
-        ret.emplace_back(decode_PPSS_lzss_section(section_r, w, h, clut));
+        ret.emplace(z, decode_PPSS_lzss_section(section_r, w, h, clut));
       } else {
         throw std::runtime_error("unknown PPSS format");
       }

@@ -33,6 +33,7 @@ The tools in this project are:
   * **blobbo_render**: Generates maps from Blobbo levels.
   * **bugs_bannis_render**: Generates maps from Bugs Bannis levels.
   * **ferazel_render**: Generates maps from Ferazel's Wand world files.
+  * **flashback_render**: Generates maps from Flashback: The Quest for Identity. Further work is needed to make these maps match the game's room layout model.
   * **gamma_zee_render**: Generates maps of Gamma Zee mazes.
   * **harry_render**: Generates maps from Harry the Handsome Executive world files.
   * **infotron_render**: Generates maps from Infotron levels files.

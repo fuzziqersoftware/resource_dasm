@@ -88,7 +88,7 @@ phosg::ImageRGBA8888N decode_presage_v1_commands(
     phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut);
 phosg::ImageRGBA8888N decode_presage_v2_commands(
     phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut);
-std::vector<phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut);
+std::map<size_t, phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut);
 std::vector<phosg::ImageRGBA8888N> decode_Pak(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
 // PrinceOfPersia2-SHAP.cc

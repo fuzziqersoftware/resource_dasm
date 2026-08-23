@@ -35,7 +35,21 @@ void write_output(
 
 template <phosg::PixelFormat Format>
 void write_output(
-    const ResourceDASM::ImageSaver& image_saver, const std::string& output_prefix, const std::unordered_map<std::string, phosg::Image<Format>>& dict) {
+    const ResourceDASM::ImageSaver& image_saver,
+    const std::string& output_prefix,
+    const std::unordered_map<std::string, phosg::Image<Format>>& dict) {
+  for (const auto& it : dict) {
+    std::string filename = std::format("{}.{}", output_prefix, it.first);
+    filename = image_saver.save_image(it.second, filename);
+    phosg::fwrite_fmt(stderr, "... {}\n", filename);
+  }
+};
+
+template <phosg::PixelFormat Format>
+void write_output(
+    const ResourceDASM::ImageSaver& image_saver,
+    const std::string& output_prefix,
+    const std::map<size_t, phosg::Image<Format>>& dict) {
   for (const auto& it : dict) {
     std::string filename = std::format("{}.{}", output_prefix, it.first);
     filename = image_saver.save_image(it.second, filename);
@@ -65,8 +79,8 @@ struct Format {
   using DecoderRGBA8888 = std::function<phosg::ImageRGBA8888N(const std::string&)>;
   using DecoderRGBA8888Multi = std::function<std::vector<phosg::ImageRGBA8888N>(const std::string&)>;
   using DecoderRGBA8888MultiWithCLUT = std::function<std::vector<phosg::ImageRGBA8888N>(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888MapFromResCollWithCLUT = std::function<
-      std::unordered_map<std::string, phosg::ImageRGBA8888N>(ResourceDASM::ResourceFile&, const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGBA8888NumberedMapWithCLUT = std::function<std::map<size_t, phosg::ImageRGBA8888N>(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGBA8888MapFromResCollWithCLUT = std::function<std::unordered_map<std::string, phosg::ImageRGBA8888N>(ResourceDASM::ResourceFile&, const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
   using DecoderPICT = std::function<ResourceDASM::ResourceFile::DecodedPICTResource(const std::string&)>;
   using DecoderModelAndVectorImage = std::function<ResourceDASM::DecodedShap3D(const std::string&)>;
 
@@ -80,6 +94,7 @@ struct Format {
       DecoderRGBA8888,
       DecoderRGBA8888Multi,
       DecoderRGBA8888MultiWithCLUT,
+      DecoderRGBA8888NumberedMapWithCLUT,
       DecoderRGBA8888MapFromResCollWithCLUT,
       DecoderPICT,
       DecoderModelAndVectorImage>;
@@ -157,6 +172,7 @@ Input parsing options:\n\
 \n\
 Color table options:\n\
   --default-clut: use the default 256-color table\n\
+  --grayscale-clut: use a table of 256 grays increasing from black to white\n\
   --clut=FILE: use a clut resource (.bin file) as the color table\n\
   --pltt=FILE: use a pltt resource (.bin file) as the color table\n\
   --CTBL=FILE: use a CTBL resource (.bin file) as the color table\n\
@@ -167,6 +183,7 @@ The = sign is required for these options, unlike the format options above.\n\
 enum class ColorTableType {
   NONE,
   DEFAULT,
+  GRAYSCALE,
   CLUT,
   PLTT,
   CTBL,
@@ -191,6 +208,8 @@ int main(int argc, char** argv) {
         input_is_macbinary = true;
       } else if (!strcmp(argv[x], "--default-clut")) {
         color_table_type = ColorTableType::DEFAULT;
+      } else if (!strcmp(argv[x], "--grayscale-clut")) {
+        color_table_type = ColorTableType::GRAYSCALE;
       } else if (!strncmp(&argv[x][2], "clut=", 5)) {
         color_table_filename = &argv[x][7];
         color_table_type = ColorTableType::CLUT;
@@ -243,6 +262,12 @@ int main(int argc, char** argv) {
       case ColorTableType::DEFAULT:
         color_table = ResourceDASM::create_default_clut();
         break;
+      case ColorTableType::GRAYSCALE:
+        for (size_t z = 0; z < 0x100; z++) {
+          uint16_t v = (z << 8) | z;
+          color_table.emplace_back(ResourceDASM::ColorTableEntry{.color_num = static_cast<uint16_t>(z), .c{v, v, v}});
+        }
+        break;
       case ColorTableType::CLUT: {
         auto data = phosg::load_file(color_table_filename);
         color_table = ResourceDASM::ResourceFile::decode_clut(data.data(), data.size());
@@ -294,6 +319,8 @@ int main(int argc, char** argv) {
     write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888MultiWithCLUT>(format->decode)(sprite_data, color_table));
   } else if (holds_alternative<Format::DecoderPICT>(format->decode)) {
     write_output(image_saver, output_prefix, get<Format::DecoderPICT>(format->decode)(sprite_data).image);
+  } else if (holds_alternative<Format::DecoderRGBA8888NumberedMapWithCLUT>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888NumberedMapWithCLUT>(format->decode)(sprite_data, color_table));
   } else if (holds_alternative<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode)) {
     if (input_is_macbinary) {
       auto decoded = ResourceDASM::parse_macbinary(sprite_data);

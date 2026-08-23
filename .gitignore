@@ -13,6 +13,7 @@ bugs_bannis_render
 decode_data
 dupe_finder
 ferazel_render
+flashback_render
 gamma_zee_render
 gcmasm
 gcmdump
@@ -24,6 +25,7 @@ infotron_render
 lemmings_render
 m68kdasm
 m68kexec
+m68ktest
 macbinary_decode
 modsynth
 mshines_render
@@ -35,6 +37,7 @@ render_sprite
 render_text
 replace_clut
 resource_dasm
+rsrc_info
 smsdumpbanks
 smssynth
 test_trap_info
