@@ -11,6 +11,20 @@
 
 namespace ResourceDASM {
 
+// TODO: This isn't really the right place for such a thing, but it doesn't seem to belong anywhere else currently.
+// Find an appropriate place for this.
+template <typename ImageT>
+phosg::ImageRGBA8888N apply_clut(const ImageT& indexed_image, const std::vector<ColorTableEntry>& clut) {
+  phosg::ImageRGBA8888N ret{indexed_image.get_width(), indexed_image.get_height()};
+  for (size_t y = 0; y < indexed_image.get_height(); y++) {
+    for (size_t x = 0; x < indexed_image.get_width(); x++) {
+      uint32_t src = indexed_image.read(x, y);
+      ret.write(x, y, clut.at(phosg::get_r(src)).c.rgba8888(phosg::get_a(src)));
+    }
+  }
+  return ret;
+}
+
 // Ambrosia-btSP-HrSp.cc
 phosg::ImageRGBA8888N decode_btSP(const std::string& data, const std::vector<ColorTableEntry>& clut);
 phosg::ImageRGBA8888N decode_HrSp(
@@ -82,13 +96,25 @@ phosg::ImageRGBA8888N decode_NTEX(const std::string& data);
 std::vector<phosg::ImageRGBA8888N> decode_SHPS(const std::string& data);
 
 // Presage.cc
+struct ColorPPSSEntry {
+  int16_t origin_x = 0;
+  int16_t origin_y = 0;
+  phosg::ImageRGBA8888N image;
+};
+struct IndexedPPSSEntry {
+  int16_t origin_x = 0;
+  int16_t origin_y = 0;
+  phosg::ImageGA88N image;
+  inline ColorPPSSEntry apply_clut(const std::vector<ColorTableEntry>& clut) const {
+    return ColorPPSSEntry{this->origin_x, this->origin_y, ResourceDASM::apply_clut(this->image, clut)};
+  }
+};
 phosg::ImageGA11 decode_presage_mono_image(
     phosg::StringReader& r, size_t width, size_t height, bool use_and_compositing);
-phosg::ImageRGBA8888N decode_presage_v1_commands(
-    phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut);
-phosg::ImageRGBA8888N decode_presage_v2_commands(
-    phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut);
-std::map<size_t, phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut);
+phosg::ImageGA88N decode_presage_v1_commands(phosg::StringReader& r, size_t w, size_t h);
+phosg::ImageGA88N decode_presage_v2_commands(phosg::StringReader& r, size_t w, size_t h);
+std::map<size_t, IndexedPPSSEntry> decode_PPSS_indexed(const std::string& data);
+std::map<size_t, ColorPPSSEntry> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut);
 std::vector<phosg::ImageRGBA8888N> decode_Pak(const std::string& data, const std::vector<ColorTableEntry>& clut);
 
 // PrinceOfPersia2-SHAP.cc

@@ -125,7 +125,7 @@ std::vector<DecodedSHPDImage> decode_SHPD_images(
       img.origin_x = image_r.get_u16b();
       img.origin_y = image_r.get_u16b();
       if (!clut.empty()) {
-        img.image = decode_presage_v1_commands(image_r, width, height, clut);
+        img.image = apply_clut(decode_presage_v1_commands(image_r, width, height), clut);
       } else {
         // Prince of Persia appears to use a different default compositing mode; looks like AND rather than MASK_COPY
         img.image = decode_presage_mono_image(image_r, width, height, true).convert_monochrome_to_color();

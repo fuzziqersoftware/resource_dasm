@@ -25,13 +25,15 @@ void write_output(
 
 template <phosg::PixelFormat Format>
 void write_output(
-    const ResourceDASM::ImageSaver& image_saver, const std::string& output_prefix, const std::vector<phosg::Image<Format>>& seq) {
+    const ResourceDASM::ImageSaver& image_saver,
+    const std::string& output_prefix,
+    const std::vector<phosg::Image<Format>>& seq) {
   for (size_t x = 0; x < seq.size(); x++) {
     std::string filename = std::format("{}.{}", output_prefix, x);
     filename = image_saver.save_image(seq[x], filename);
     phosg::fwrite_fmt(stderr, "... {}\n", filename);
   }
-};
+}
 
 template <phosg::PixelFormat Format>
 void write_output(
@@ -43,19 +45,18 @@ void write_output(
     filename = image_saver.save_image(it.second, filename);
     phosg::fwrite_fmt(stderr, "... {}\n", filename);
   }
-};
+}
 
-template <phosg::PixelFormat Format>
 void write_output(
     const ResourceDASM::ImageSaver& image_saver,
     const std::string& output_prefix,
-    const std::map<size_t, phosg::Image<Format>>& dict) {
+    const std::map<size_t, ResourceDASM::ColorPPSSEntry>& dict) {
   for (const auto& it : dict) {
     std::string filename = std::format("{}.{}", output_prefix, it.first);
-    filename = image_saver.save_image(it.second, filename);
+    filename = image_saver.save_image(it.second.image, filename);
     phosg::fwrite_fmt(stderr, "... {}\n", filename);
   }
-};
+}
 
 void write_output(const std::string& output_prefix, const ResourceDASM::DecodedShap3D& shap) {
   std::string filename = output_prefix + "_model.stl";
@@ -79,7 +80,7 @@ struct Format {
   using DecoderRGBA8888 = std::function<phosg::ImageRGBA8888N(const std::string&)>;
   using DecoderRGBA8888Multi = std::function<std::vector<phosg::ImageRGBA8888N>(const std::string&)>;
   using DecoderRGBA8888MultiWithCLUT = std::function<std::vector<phosg::ImageRGBA8888N>(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888NumberedMapWithCLUT = std::function<std::map<size_t, phosg::ImageRGBA8888N>(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGBA8888PPSSMapWithCLUT = std::function<std::map<size_t, ResourceDASM::ColorPPSSEntry>(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
   using DecoderRGBA8888MapFromResCollWithCLUT = std::function<std::unordered_map<std::string, phosg::ImageRGBA8888N>(ResourceDASM::ResourceFile&, const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
   using DecoderPICT = std::function<ResourceDASM::ResourceFile::DecodedPICTResource(const std::string&)>;
   using DecoderModelAndVectorImage = std::function<ResourceDASM::DecodedShap3D(const std::string&)>;
@@ -94,7 +95,7 @@ struct Format {
       DecoderRGBA8888,
       DecoderRGBA8888Multi,
       DecoderRGBA8888MultiWithCLUT,
-      DecoderRGBA8888NumberedMapWithCLUT,
+      DecoderRGBA8888PPSSMapWithCLUT,
       DecoderRGBA8888MapFromResCollWithCLUT,
       DecoderPICT,
       DecoderModelAndVectorImage>;
@@ -319,8 +320,8 @@ int main(int argc, char** argv) {
     write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888MultiWithCLUT>(format->decode)(sprite_data, color_table));
   } else if (holds_alternative<Format::DecoderPICT>(format->decode)) {
     write_output(image_saver, output_prefix, get<Format::DecoderPICT>(format->decode)(sprite_data).image);
-  } else if (holds_alternative<Format::DecoderRGBA8888NumberedMapWithCLUT>(format->decode)) {
-    write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888NumberedMapWithCLUT>(format->decode)(sprite_data, color_table));
+  } else if (holds_alternative<Format::DecoderRGBA8888PPSSMapWithCLUT>(format->decode)) {
+    write_output(image_saver, output_prefix, get<Format::DecoderRGBA8888PPSSMapWithCLUT>(format->decode)(sprite_data, color_table));
   } else if (holds_alternative<Format::DecoderRGBA8888MapFromResCollWithCLUT>(format->decode)) {
     if (input_is_macbinary) {
       auto decoded = ResourceDASM::parse_macbinary(sprite_data);

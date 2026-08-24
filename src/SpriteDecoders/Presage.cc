@@ -13,8 +13,7 @@
 
 namespace ResourceDASM {
 
-static phosg::ImageRGBA8888N decode_PPSS_lzss_section(
-    phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut) {
+static phosg::ImageGA88N decode_PPSS_lzss_section(phosg::StringReader& r, size_t w, size_t h) {
   size_t max_output_bytes = w * h;
   size_t compressed_bytes = r.remaining();
   const void* compressed_data = r.getv(compressed_bytes);
@@ -23,11 +22,12 @@ static phosg::ImageRGBA8888N decode_PPSS_lzss_section(
     throw std::runtime_error("decompression did not produce enough output");
   }
 
-  phosg::ImageRGBA8888N ret(w, h);
+  phosg::ImageGA88N ret(w, h);
   phosg::StringReader decompressed_r(decompressed);
   for (size_t y = 0; y < h; y++) {
     for (size_t x = 0; x < w; x++) {
-      ret.write(x, y, clut.at(decompressed_r.get_u8()).c.rgba8888());
+      uint8_t v = decompressed_r.get_u8();
+      ret.write(x, y, phosg::rgba8888(v, v, v, 0xFF));
     }
   }
 
@@ -69,11 +69,10 @@ phosg::ImageGA11 decode_presage_mono_image(
   return ret;
 }
 
-phosg::ImageRGBA8888N decode_presage_v1_commands(
-    phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageGA88N decode_presage_v1_commands(phosg::StringReader& r, size_t w, size_t h) {
   // This format was used in Prince of Persia. The input is a series of commands, documented in the comments below.
 
-  phosg::ImageRGBA8888N ret(w, h);
+  phosg::ImageGA88N ret(w, h);
   ret.clear(0x00000000);
 
   std::vector<std::pair<size_t, size_t>> loc_stack; // [(count, offset)]
@@ -110,7 +109,8 @@ phosg::ImageRGBA8888N decode_presage_v1_commands(
         if (count == 1) {
           should_stop = true;
         } else {
-          uint32_t c = clut.at(r.get_u8()).c.rgba8888();
+          uint8_t v = r.get_u8();
+          uint32_t c = phosg::rgba8888(v, v, v, 0xFF);
           for (size_t z = 0; z < count; z++) {
             ret.write(x, y, c);
             x++;
@@ -120,7 +120,8 @@ phosg::ImageRGBA8888N decode_presage_v1_commands(
       case 0x20:
         // R01CCCCC <data>: Write (C + 1) bytes directly from input
         for (size_t z = 0; z < count; z++) {
-          ret.write(x, y, clut.at(r.get_u8()).c.rgba8888());
+          uint32_t v = r.get_u8();
+          ret.write(x, y, phosg::rgba8888(v, v, v, 0xFF));
           x++;
         }
         break;
@@ -158,11 +159,10 @@ phosg::ImageRGBA8888N decode_presage_v1_commands(
   return ret;
 }
 
-phosg::ImageRGBA8888N decode_presage_v2_commands(
-    phosg::StringReader& r, size_t w, size_t h, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageGA88N decode_presage_v2_commands(phosg::StringReader& r, size_t w, size_t h) {
   // This format was used in Flashback and Mario Teaches Typing. It's similar to v1, but the command numbers are
   // changed and extended counts are now words instead of bytes. The stop opcodes are also different.
-  phosg::ImageRGBA8888N ret(w, h);
+  phosg::ImageGA88N ret(w, h);
   ssize_t x = 0;
   ssize_t y = 0;
 
@@ -209,7 +209,7 @@ phosg::ImageRGBA8888N decode_presage_v2_commands(
         } else {
           // R10CCCCC VVVVVVVV: Write C bytes of V
           uint8_t v = r.get_u8();
-          uint32_t c = clut.at(v).c.rgba8888();
+          uint32_t c = phosg::rgba8888(v, v, v, 0xFF);
           for (; count > 0; count--) {
             ret.write(x, y, c);
             x++;
@@ -221,7 +221,7 @@ phosg::ImageRGBA8888N decode_presage_v2_commands(
         // R11CCCCC: Write C bytes directly from the input
         for (; count > 0; count--) {
           uint8_t v = r.get_u8();
-          ret.write(x, y, clut.at(v).c.rgba8888());
+          ret.write(x, y, phosg::rgba8888(v, v, v, 0xFF));
           x++;
         }
         break;
@@ -231,7 +231,7 @@ phosg::ImageRGBA8888N decode_presage_v2_commands(
   return ret;
 }
 
-std::map<size_t, phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+std::map<size_t, IndexedPPSSEntry> decode_PPSS_indexed(const std::string& data) {
   phosg::StringReader r(data);
 
   // If the high bit isn't set in the first byte, assume it's compressed
@@ -245,24 +245,34 @@ std::map<size_t, phosg::ImageRGBA8888N> decode_PPSS(const std::string& data, con
   size_t num_images = r.get_u16b();
   r.skip(4); // Unknown
 
-  std::map<size_t, phosg::ImageRGBA8888N> ret;
+  std::map<size_t, IndexedPPSSEntry> ret;
   for (size_t z = 0; z < num_images; z++) {
     size_t start_offset = r.get_u32b();
     if (start_offset != 0) {
       phosg::StringReader section_r = r.sub(start_offset);
       uint16_t w = section_r.get_u16b();
       uint16_t h = section_r.get_u16b();
+      auto& ret_entry = ret[z];
       if (format == 0xC211) {
-        section_r.skip(4); // Unknown - could be origin coordinates
-        ret.emplace(z, decode_presage_v2_commands(section_r, w, h, clut));
+        ret_entry.origin_x = section_r.get_u16b();
+        ret_entry.origin_y = section_r.get_u16b();
+        ret_entry.image = decode_presage_v2_commands(section_r, w, h);
       } else if (format == 0xC103) {
-        ret.emplace(z, decode_PPSS_lzss_section(section_r, w, h, clut));
+        ret_entry.image = decode_PPSS_lzss_section(section_r, w, h);
       } else {
         throw std::runtime_error("unknown PPSS format");
       }
     }
   }
 
+  return ret;
+}
+
+std::map<size_t, ColorPPSSEntry> decode_PPSS(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+  std::map<size_t, ColorPPSSEntry> ret;
+  for (const auto& [image_index, entry] : decode_PPSS_indexed(data)) {
+    ret.emplace(image_index, entry.apply_clut(clut));
+  }
   return ret;
 }
 
@@ -282,7 +292,7 @@ std::vector<phosg::ImageRGBA8888N> decode_Pak(const std::string& data, const std
       uint16_t w = section_r.get_u16b();
       uint16_t h = section_r.get_u16b();
       if (format == 0x8002) {
-        ret.emplace_back(decode_presage_v2_commands(section_r, w, h, clut));
+        ret.emplace_back(apply_clut(decode_presage_v2_commands(section_r, w, h), clut));
       } else if (format == 0x8101) {
         ret.emplace_back(decode_presage_mono_image(section_r, w, h, false).convert_monochrome_to_color());
       } else {

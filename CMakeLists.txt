@@ -215,3 +215,8 @@ add_test(
     NAME "assemble_sh4"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMAND ${CMAKE_BINARY_DIR}/m68ktest --test-assemble-sh4)
+
+add_test(
+    NAME "NOCOMMIT"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMAND ${CMAKE_SOURCE_DIR}/nocommit.test.sh)
