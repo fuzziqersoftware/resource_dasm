@@ -749,3 +749,9 @@ icon_dearchiver unpacks the icons in an Icon Archiver (by Alessandro Levi Montal
 * For Monkey Shines maps: `mshines_render world_file [output_directory]`
 * For Oh No! More Lemmings (Mac version) maps: Use `lemmings_render` as for original Lemmings, but also use the `--v2` option
 * For Realmz maps and scripts: `realmz_dasm global_data_dir [scenario_dir] out_dir` (if scenario_dir is not given, disassembles the shared data instead)
+
+## Contributing
+
+This is a personal project undertaken for the joy and education of reverse-engineering. Issues and pull requests are welcome as long as they align with the project's theme. If you're not sure if a change you want to make is aligned with the project's goals, you can start a discussion on the GitHub repository to ask.
+
+No code written by fuzziqersoftware in this project was AI-generated. PRs authored by AI agents are allowed, but will be held to the same code quality standard as the rest of the project.
