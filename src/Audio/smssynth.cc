@@ -834,6 +834,9 @@ public:
 
   virtual void off() {
     this->adsr_release_start_level = this->adsr_factor();
+    // End attack and decay early if they aren't complete yet
+    this->adsr_attack_end_samples = std::min<size_t>(this->samples_produced, this->adsr_attack_end_samples);
+    this->adsr_decay_end_samples = std::min<size_t>(this->samples_produced, this->adsr_decay_end_samples);
     this->adsr_release_start_samples = this->samples_produced;
     this->adsr_release_end_samples = this->samples_produced + (this->output_sample_rate * this->vel_region->adsr.release_time_secs);
     this->release_started = true;
@@ -865,7 +868,6 @@ public:
   float adsr_factor() const {
     float ret;
     if (this->samples_produced < this->adsr_attack_end_samples) {
-      // Linearly interpolate from 0.0f up to 1.0f
       ret = this->interpolate(this->vel_region->adsr.attack_exponential, 0.0f, 1.0f,
           static_cast<float>(this->samples_produced) / this->adsr_attack_end_samples);
       // phosg::log_info_f("ADSR: inst {} key {} attack {} ({} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.attack_exponential ? "exp" : "lin", this->samples_produced, this->adsr_attack_end_samples, ret);
@@ -877,11 +879,13 @@ public:
       size_t decay_total_samples = this->adsr_decay_end_samples - this->adsr_attack_end_samples;
       float decay_progress = static_cast<float>(decay_progress_samples) / decay_total_samples;
       // Linearly interpolate from 1.0f down to the sustain level
-      ret = this->vel_region->adsr.sustain_level * decay_progress + (1.0f - decay_progress);
-      // phosg::log_info_f("ADSR: inst {} key {} decay {} ({} < {} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.decay_exponential ? "exp" : "lin", this->adsr_attack_end_samples, this->samples_produced, this->adsr_decay_end_samples, ret);
+      ret = this->interpolate(
+          this->vel_region->adsr.sustain_exponential, 1.0f, this->vel_region->adsr.sustain_level, decay_progress);
+      // phosg::log_info_f("ADSR: inst {} key {} decay {} progress {:g} ({} < {} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.decay_exponential ? "exp" : "lin", decay_progress, this->adsr_attack_end_samples, this->samples_produced, this->adsr_decay_end_samples, ret);
 
     } else if (!this->is_off()) {
       // Hold steady at the sustain level
+      // TODO: Implement exponential sustain
       ret = this->vel_region->adsr.sustain_level;
       // phosg::log_info_f("ADSR: inst {} key {} sustain {} ({} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.sustain_exponential ? "exp" : "lin", this->adsr_decay_end_samples, this->samples_produced, ret);
 
@@ -889,9 +893,9 @@ public:
       size_t release_progress_samples = this->samples_produced - this->adsr_release_start_samples;
       size_t release_total_samples = this->adsr_release_end_samples - this->adsr_release_start_samples;
       float release_progress = static_cast<float>(release_progress_samples) / release_total_samples;
-      // Linearly interpolate from the sustain level down to 0.0f
-      ret = this->adsr_release_start_level * (1.0f - release_progress);
-      // phosg::log_info_f("ADSR: inst {} key {} release {} ({} < {} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.release_exponential ? "exp" : "lin", this->adsr_release_start_samples, this->samples_produced, this->adsr_release_end_samples, ret);
+      ret = this->interpolate(
+          this->vel_region->adsr.release_exponential, this->adsr_release_start_level, 0.0f, release_progress);
+      // phosg::log_info_f("ADSR: inst {} key {} release {} progress {:g} start level {:g} ({} < {} < {}) = {:g}", this->instrument->id, this->note, this->vel_region->adsr.release_exponential ? "exp" : "lin", release_progress, this->adsr_release_start_level, this->adsr_release_start_samples, this->samples_produced, this->adsr_release_end_samples, ret);
 
     } else {
       // Note has finished; produce silence
