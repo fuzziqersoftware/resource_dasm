@@ -3900,37 +3900,57 @@ void M68KEmulator::on_coprocessor(uint16_t) {
 }
 
 std::string M68KEmulator::DisassemblyState::dasm_reg_mask(uint16_t mask, bool reverse) {
-  if (mask == 0) {
-    return "<none>";
-  }
+  std::vector<uint8_t> d_ranges;
+  std::vector<uint8_t> a_ranges;
+  auto add_reg = [&](uint8_t num) {
+    auto& ranges = (num & 8) ? a_ranges : d_ranges;
+    num &= 7;
+    if (!ranges.empty() && (ranges.back() == num - 1)) {
+      ranges.back() = num;
+    } else {
+      ranges.emplace_back(num);
+      ranges.emplace_back(num);
+    }
+  };
 
-  std::string ret;
+  std::string ret = "(";
+  auto add_formatted_ranges = [&ret](char reg_type, const std::vector<uint8_t>& ranges) -> void {
+    for (size_t z = 0; z < ranges.size(); z += 2) {
+      uint8_t low = ranges[z];
+      uint8_t high = ranges.at(z + 1);
+      if (ret.size() > 1) {
+        ret += ", ";
+      }
+      if (low == high) {
+        ret += std::format("{:c}{}", reg_type, low);
+      } else {
+        ret += std::format("{:c}{}-{:c}{}", reg_type, low, reg_type, high);
+      }
+    }
+  };
+
   if (reverse) {
-    for (ssize_t x = 15; x >= 8; x--) {
+    for (ssize_t x = 15; x >= 0; x--) {
       if (mask & (1 << x)) {
-        ret += std::format("D{},", 15 - x);
+        add_reg(15 - x);
       }
     }
-    for (ssize_t x = 7; x >= 0; x--) {
-      if (mask & (1 << x)) {
-        ret += std::format("A{},", 7 - x);
-      }
-    }
+    std::reverse(d_ranges.begin(), d_ranges.end());
+    std::reverse(a_ranges.begin(), a_ranges.end());
+    add_formatted_ranges('A', a_ranges);
+    add_formatted_ranges('D', d_ranges);
 
   } else {
-    for (ssize_t x = 0; x < 8; x++) {
+    for (ssize_t x = 0; x < 16; x++) {
       if (mask & (1 << x)) {
-        ret += std::format("D{},", x);
+        add_reg(x);
       }
     }
-    for (ssize_t x = 8; x < 16; x++) {
-      if (mask & (1 << x)) {
-        ret += std::format("A{},", x - 8);
-      }
-    }
+    add_formatted_ranges('D', d_ranges);
+    add_formatted_ranges('A', a_ranges);
   }
 
-  ret.resize(ret.size() - 1); // Remove the last ','
+  ret.push_back(')');
   return ret;
 }
 
