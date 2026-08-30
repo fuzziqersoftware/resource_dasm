@@ -58,6 +58,7 @@ constexpr uint32_t RESOURCE_TYPE_csnd = resource_type("csnd");
 constexpr uint32_t RESOURCE_TYPE_CTBL = resource_type("CTBL");
 constexpr uint32_t RESOURCE_TYPE_CTYN = resource_type("CTY#");
 constexpr uint32_t RESOURCE_TYPE_CURS = resource_type("CURS");
+constexpr uint32_t RESOURCE_TYPE_DATA = resource_type("DATA");
 constexpr uint32_t RESOURCE_TYPE_dbex = resource_type("dbex");
 constexpr uint32_t RESOURCE_TYPE_dcmp = resource_type("dcmp");
 constexpr uint32_t RESOURCE_TYPE_dcod = resource_type("dcod");
@@ -66,6 +67,7 @@ constexpr uint32_t RESOURCE_TYPE_dem = resource_type("dem ");
 constexpr uint32_t RESOURCE_TYPE_dimg = resource_type("dimg");
 constexpr uint32_t RESOURCE_TYPE_DITL = resource_type("DITL");
 constexpr uint32_t RESOURCE_TYPE_DLOG = resource_type("DLOG");
+constexpr uint32_t RESOURCE_TYPE_DREL = resource_type("DREL");
 constexpr uint32_t RESOURCE_TYPE_DRVR = resource_type("DRVR");
 constexpr uint32_t RESOURCE_TYPE_drvr = resource_type("drvr");
 constexpr uint32_t RESOURCE_TYPE_ecmi = resource_type("ecmi");
@@ -296,5 +298,6 @@ constexpr uint32_t RESOURCE_TYPE_wstr = resource_type("wstr");
 constexpr uint32_t RESOURCE_TYPE_XCMD = resource_type("XCMD");
 constexpr uint32_t RESOURCE_TYPE_XFCN = resource_type("XFCN");
 constexpr uint32_t RESOURCE_TYPE_Ysnd = resource_type("Ysnd");
+constexpr uint32_t RESOURCE_TYPE_ZERO = resource_type("ZERO");
 
 } // namespace ResourceDASM

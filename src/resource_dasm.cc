@@ -1182,6 +1182,34 @@ private:
     if (code0_res->data.size() + 0x10 > code0_dec.above_a5_size) {
       throw std::runtime_error("CODE 0 does not fit in space above A5");
     }
+
+    // If there are DATA and ZERO resources, try to generate the initial global state
+    constexpr static int16_t global_init_res_id = 0;
+    auto data_res = this->current_rf->get_resource_if_exists(ResourceDASM::RESOURCE_TYPE_DATA, global_init_res_id);
+    auto zero_res = this->current_rf->get_resource_if_exists(ResourceDASM::RESOURCE_TYPE_ZERO, global_init_res_id);
+    if (data_res && zero_res) {
+      phosg::StringWriter global_data_w;
+      phosg::StringReader data_r(data_res->data);
+      phosg::StringReader zero_r(zero_res->data);
+      while (!data_r.eof()) {
+        uint16_t v = data_r.get_u16b();
+        global_data_w.put_u16b(v);
+        if (v == 0) {
+          global_data_w.extend_by(zero_r.get_u16b(), 0);
+        }
+      }
+      if (global_data_w.size() > code0_dec.below_a5_size) {
+        throw std::runtime_error("Decompressed global data does not fit in below A5 region");
+      } else if (global_data_w.size() < code0_dec.below_a5_size) {
+        phosg::fwrite_fmt(stderr,
+            "warning: decompressed global data (0x{:X} bytes) is smaller than below A5 region (0x{:X} bytes)\n",
+            global_data_w.size(), code0_dec.below_a5_size);
+      }
+      ret.data = std::move(global_data_w.str());
+    } else {
+      phosg::fwrite_fmt(stderr, "warning: global segment is not initialized\n");
+    }
+
     ret.data.resize(code0_dec.below_a5_size + 0x10 + code0_dec.above_a5_size, '\0');
     ret.a5 = ret.base + code0_dec.below_a5_size;
     memcpy(ret.code0(), code0_res->data.data(), code0_res->data.size());
@@ -1225,6 +1253,23 @@ private:
           entry.trap_opcode = target & 0xFFFF;
         }
       }
+    }
+
+    auto drel_res = this->current_rf->get_resource_if_exists(ResourceDASM::RESOURCE_TYPE_DREL, global_init_res_id);
+    if (drel_res) {
+      phosg::StringReader r(drel_res->data);
+      while (!r.eof()) {
+        int32_t v = static_cast<int32_t>(r.get_s16b());
+        // If the low bit is set, it's relative to the start of the first code resource?
+        uint32_t base_offset = (code0_dec.below_a5_size + ((v & 1) * (0x10 + code0_dec.above_a5_size)));
+        uint32_t relocation_offset = base_offset + (v & (~1));
+        if (relocation_offset > ret.data.size() - 4) {
+          throw std::runtime_error("Invalid relocation");
+        }
+        *reinterpret_cast<phosg::be_uint32_t*>(ret.data.data() + relocation_offset) += ret.base + base_offset;
+      }
+    } else {
+      phosg::fwrite_fmt(stderr, "warning: DREL:0 is missing; skipping relocations\n");
     }
 
     return ret;
