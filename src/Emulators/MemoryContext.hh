@@ -35,7 +35,10 @@ public:
     // detect accidental usage of memcpy() and the like on empty handles, so we keep this failure mode.
     size_t start_page_num = this->page_number_for_addr(addr);
     size_t end_page_num = this->page_number_for_addr(addr + size - 1);
-    auto arena = this->arena_for_page_number[start_page_num];
+    // Bind by reference: copying this shared_ptr costs an atomic refcount
+    // inc/dec on EVERY memory access (incl. every instruction fetch), which
+    // dominated the emulator's non-arithmetic cost. The arena outlives the call.
+    const auto& arena = this->arena_for_page_number[start_page_num];
     if (!arena.get()) {
       throw std::out_of_range(std::format("address {:08X} (size=0x{:X}) not within any arena", addr, size));
     }
