@@ -16,9 +16,7 @@ struct SpriHeader {
   phosg::be_uint16_t side;
   // For some reason, they also store the area, even though this value is always equal to side * side.
   phosg::be_uint16_t area;
-  // The TMPL says that for mask_type, 0 = mask and 1 = 68k executable code, but this appears not to be the case. Every
-  // sprite in the file has 0 here, and all of them contain executable code.
-  uint8_t mask_type;
+  uint8_t mask_type; // 0 = 68K executable code; 1 = mask (not supported here, since there were no examples of this)
   uint8_t unused;
   // Variable-length fields:
   // uint8_t sprite_data[area]
