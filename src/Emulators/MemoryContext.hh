@@ -36,7 +36,7 @@ public:
     size_t start_page_num = this->page_number_for_addr(addr);
     size_t end_page_num = this->page_number_for_addr(addr + size - 1);
     auto arena = this->arena_for_page_number[start_page_num];
-    if (!arena.get()) {
+    if (!arena) {
       throw std::out_of_range(std::format("address {:08X} (size=0x{:X}) not within any arena", addr, size));
     }
     for (size_t z = start_page_num + 1; z <= end_page_num; z++) {
@@ -58,7 +58,7 @@ public:
     return const_cast<MemoryContext*>(this)->at<T>(addr, size, skip_strict);
   }
 
-  inline uint32_t at(const void* host_addr) const {
+  inline uint32_t at(const void* host_addr, size_t size = 1) const {
     auto arena_it = this->arenas_by_host_addr.upper_bound(host_addr);
     if (arena_it == this->arenas_by_host_addr.begin()) {
       throw std::out_of_range("address before any arena");
@@ -335,9 +335,9 @@ private:
 
   // TODO: We probably should have an index of {free block size: Arena ptr} to make allocations sub-linear time. I'm
   // not going to implement this just yet.
-  std::map<uint32_t, std::shared_ptr<Arena>> arenas_by_addr;
-  std::map<const void*, std::shared_ptr<Arena>> arenas_by_host_addr;
-  std::vector<std::shared_ptr<Arena>> arena_for_page_number;
+  std::map<uint32_t, Arena> arenas_by_addr; // This map owns the arenas; the following two reference these objects
+  std::map<const void*, Arena*> arenas_by_host_addr;
+  std::vector<Arena*> arena_for_page_number;
 
   std::unordered_map<std::string, uint32_t> symbol_addrs;
   std::unordered_map<uint32_t, std::string> addr_symbols;
@@ -362,8 +362,8 @@ private:
     return this->page_size_for_size(size) >> this->page_bits;
   }
 
-  std::shared_ptr<Arena> create_arena(uint32_t addr, size_t min_size);
-  void delete_arena(std::shared_ptr<Arena> arena);
+  Arena* create_arena(uint32_t addr, size_t min_size);
+  void delete_arena(Arena* arena);
 };
 
 } // namespace ResourceDASM
