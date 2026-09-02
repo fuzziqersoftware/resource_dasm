@@ -1395,7 +1395,7 @@ public:
       }
     }
 
-    // NOCOMMIT: S decorations on Ruins are still placed incorrectly (see level 2006 room 10, near left side)
+    // TODO(DX): S decorations on Ruins are still placed incorrectly (see level 2006 room 10, near left side)
     if (env.cust) {
       for (size_t z = 0; z < env.cust->pieces.size(); z++) {
         const auto& piece = env.cust->pieces[z];
