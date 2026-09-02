@@ -52,9 +52,13 @@ enum class TileType : uint16_t {
   DESERT_ROCKS = 0x001C,
   DESERT_PLANKS = 0x001D,
   DESERT_QUICKSAND_STONE = 0x001E,
+  JAFFAR_CHESS_PIECE = 0x001F,
   TORCH_WITH_DEBRIS = 0x0020,
   DART_GUN = 0x0021,
   PRESSURE_PLATE = 0x0022,
+  FINAL_SPIDER = 0x0028,
+  FINAL_CRYSTAL = 0x0029,
+  FINAL_GARGOYLE = 0x002A,
   FLAME = 0x002B,
   BRIDGE = 0x002C,
   DOCK_PILLAR = 0x002F,
@@ -68,6 +72,13 @@ bool is_space_tile(TileType tt) {
       (tt == TileType::CARPET_GATE) ||
       (tt == TileType::DOCK_PILLAR) ||
       (tt == TileType::WINDOW));
+}
+bool is_wall_tile(TileType tt) {
+  return ((tt == TileType::WALL) ||
+      (tt == TileType::SPIKES) ||
+      (tt == TileType::TUNNEL) ||
+      (tt == TileType::HORIZONTAL_CRUSHER) ||
+      (tt == TileType::FLAME));
 }
 
 // PIEC format (resource data is a list of these)
@@ -780,7 +791,7 @@ struct CustomRoomDefinition {
   //   0000 00D8 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
 
   struct CUSTHeader {
-    /* 00 */ phosg::be_uint16_t unknown_a1;
+    /* 00 */ phosg::be_uint16_t palette_type;
     /* 02 */ phosg::be_uint16_t base_shap_id;
     /* 04 */ phosg::be_uint16_t max_piece_id;
     /* 06 */ phosg::be_uint16_t unknown_a2[11];
@@ -803,12 +814,14 @@ struct CustomRoomDefinition {
     uint16_t type;
   };
 
+  uint16_t palette_type;
   uint16_t base_shap_id;
   std::vector<Piece> pieces;
 
   CustomRoomDefinition(const std::string& res_data) {
     phosg::StringReader r(res_data);
     const auto& header = r.get<CUSTHeader>();
+    this->palette_type = header.palette_type;
     this->base_shap_id = header.base_shap_id;
     while (this->pieces.size() < header.num_pieces) {
       const auto& cust_piece = r.get<CUSTPiece>();
@@ -968,41 +981,55 @@ struct PrinceOfPersia2Level {
   /* 424A */ uint8_t unknown_a5[0x0780];
   /* 49CA */
 
+  bool room_has_cust(uint8_t room_id) const {
+    // If any tile in the room has modifiers with either of bits 0xC000 set in the foreground, then there is a CUST
+    for (int8_t tile_y = 2; tile_y >= 0; tile_y--) {
+      for (int8_t tile_x = 0; tile_x < 10; tile_x++) {
+        auto [_1, foreground, _2] = this->tile_info(room_id, tile_x, tile_y, std::make_tuple(TileType::EMPTY, 0, 0));
+        if (foreground & 0xC000) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   static inline uint8_t index_for_tile_coords(int8_t x, int8_t y) {
     if (x < 0 || x >= 10 || y < 0 || y >= 3) {
       throw std::logic_error("Invalid tile coordinates");
     }
     return (y * 10) + x;
   }
-  std::tuple<TileType, uint16_t, uint16_t> tile_info(uint8_t room_id, int8_t x, int8_t y) const {
+  std::tuple<TileType, uint16_t, uint16_t> tile_info(
+      uint8_t room_id, int8_t x, int8_t y, const std::tuple<TileType, uint16_t, uint16_t>& defaults) const {
     if (room_id >= 0x20) {
-      return std::make_tuple(TileType::WALL, 0x0000, 0x0000);
+      return defaults;
     }
     while (y < 0) {
       room_id = this->room_links[room_id].above - 1;
       if (room_id >= 0x20) {
-        return std::make_tuple(TileType::WALL, 0x0000, 0x0000);
+        return defaults;
       }
       y += 3;
     }
     while (y >= 3) {
       room_id = this->room_links[room_id].below - 1;
       if (room_id >= 0x20) {
-        return std::make_tuple(TileType::WALL, 0x0000, 0x0000);
+        return defaults;
       }
       y -= 3;
     }
     while (x < 0) {
       room_id = this->room_links[room_id].left - 1;
       if (room_id >= 0x20) {
-        return std::make_tuple(TileType::WALL, 0x0000, 0x0000);
+        return defaults;
       }
       x += 10;
     }
     while (x >= 10) {
       room_id = this->room_links[room_id].right - 1;
       if (room_id >= 0x20) {
-        return std::make_tuple(TileType::WALL, 0x0000, 0x0000);
+        return defaults;
       }
       x -= 10;
     }
@@ -1086,48 +1113,51 @@ public:
     return this->pieces.at(which);
   }
 
-  struct DrawLayers {
+  struct Env {
     std::array<phosg::ImageRGBA8888N, 5> layers;
+    const PrinceOfPersia2Level* level = nullptr;
+    uint8_t room_id = 0;
+    const CustomRoomDefinition* cust = nullptr;
+    int8_t tile_x = 0;
+    int8_t tile_y = 0;
 
     enum Layer {
       SKY = 0,
-      BACKGROUND = 5,
-      CUSTOM = 11,
-      FOREGROUND = 1,
-      OVERLAY = 0xFF, // Not used in the game
+      BG = 5,
+      CUST = 11,
+      FG = 1,
+      OVL = 0xFF, // Not used in the game
     };
 
-    DrawLayers(size_t w, size_t h) {
+    Env(const PrinceOfPersia2Level* level, size_t w, size_t h) : level(level) {
       for (size_t z = 0; z < this->layers.size(); z++) {
         this->layers[z].resize(w, h);
       }
     }
 
-    DrawLayers view(size_t x, size_t y, size_t w, size_t h) {
-      DrawLayers ret(0, 0);
+    Env view(size_t x, size_t y, size_t w, size_t h) {
+      Env ret(this->level, 0, 0);
       for (size_t z = 0; z < this->layers.size(); z++) {
         ret.layers[z] = this->layers[z].view(x, y, w, h);
       }
+      ret.room_id = this->room_id;
+      ret.cust = this->cust;
+      ret.tile_x = this->tile_x;
+      ret.tile_y = this->tile_y;
       return ret;
     }
 
-    inline phosg::ImageRGBA8888N& sky() { return this->layers[0]; }
-    inline phosg::ImageRGBA8888N& bg() { return this->layers[1]; }
-    inline phosg::ImageRGBA8888N& cust() { return this->layers[2]; }
-    inline phosg::ImageRGBA8888N& fg() { return this->layers[3]; }
-    inline phosg::ImageRGBA8888N& ovl() { return this->layers[4]; }
-
-    phosg::ImageRGBA8888N& get(size_t layer) {
+    phosg::ImageRGBA8888N& get_layer(size_t layer) {
       switch (layer) {
         case Layer::SKY:
           return this->layers[0];
-        case Layer::BACKGROUND:
+        case Layer::BG:
           return this->layers[1];
-        case Layer::CUSTOM:
+        case Layer::CUST:
           return this->layers[2];
-        case Layer::FOREGROUND:
+        case Layer::FG:
           return this->layers[3];
-        case Layer::OVERLAY:
+        case Layer::OVL:
           return this->layers[4];
         default:
           throw std::runtime_error(std::format("Invalid layer number {}", layer));
@@ -1143,312 +1173,276 @@ public:
 
   // Draws an image, anchored at the lower-left corner (like the game does internally)
   static void draw_image_at_anchor(
-      phosg::ImageRGBA8888N& map,
+      Env& env,
+      Env::Layer layer,
       const phosg::ImageRGBA8888N& src,
-      int8_t tile_x,
-      int8_t tile_y,
       ssize_t delta_x = 0,
       ssize_t delta_y = 0) {
-    ssize_t anchor_x = (tile_x * TILE_W_PIXELS) + delta_x;
-    ssize_t anchor_y = ((tile_y + 1) * TILE_H_PIXELS) + delta_y;
-    map.copy_from_with_blend(src, anchor_x, anchor_y - src.get_height(), src.get_width(), src.get_height(), 0, 0);
+    ssize_t anchor_x = (env.tile_x * TILE_W_PIXELS) + delta_x;
+    ssize_t anchor_y = ((env.tile_y + 1) * TILE_H_PIXELS) + delta_y;
+    env.get_layer(layer).copy_from_with_blend(
+        src, anchor_x, anchor_y - src.get_height(), src.get_width(), src.get_height(), 0, 0);
   }
-  void draw_SHAP_at_anchor(
+  void draw_SHAP_at_anchor(Env& env, Env::Layer layer, int16_t shap_id, ssize_t delta_x, ssize_t delta_y) {
+    this->draw_image_at_anchor(env, layer, this->get_SHAP(shap_id), delta_x, delta_y);
+  }
+
+  virtual const std::tuple<TileType, uint16_t, uint16_t>& default_tile(int8_t) {
+    static const std::tuple<TileType, uint16_t, uint16_t> ret = std::make_tuple(TileType::WALL, 0, 0);
+    return ret;
+  }
+
+  virtual void draw_tile(Env& env) = 0;
+
+  inline std::tuple<TileType, uint16_t, uint16_t> tile_info(Env& env, int8_t tile_x, int8_t tile_y) {
+    return env.level->tile_info(env.room_id, tile_x, tile_y, this->default_tile(tile_x));
+  }
+
+  void draw_overlay_tile(
       phosg::ImageRGBA8888N& map,
-      int16_t shap_id,
+      const PrinceOfPersia2Level& level,
+      uint8_t room_id,
       int8_t tile_x,
       int8_t tile_y,
-      ssize_t delta_x,
-      ssize_t delta_y) {
-    this->draw_image_at_anchor(map, this->get_SHAP(shap_id), tile_x, tile_y, delta_x, delta_y);
-  }
-
-  virtual void draw_tile(
-      DrawLayers& layers, const PrinceOfPersia2Level& level, uint8_t room_id, int8_t tile_x, int8_t tile_y) {
-    // This logic is not correct for most level kinds and should be overridden!
-    auto [_, foreground, background] = level.tile_info(room_id, tile_x, tile_y);
-    if (background & 0xFF) {
-      try {
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + (background & 0xFF), tile_x, tile_y, 0, 0);
-      } catch (const std::out_of_range&) {
-      }
-    }
-    if (foreground & 0xFF) {
-      try {
-        this->draw_SHAP_at_anchor(layers.fg(), 3551 + (foreground & 0xFF), tile_x, tile_y, 0, 0);
-      } catch (const std::out_of_range&) {
-      }
-    }
-  }
-
-  void draw_error_tile(phosg::ImageRGBA8888N& layer, int8_t tile_x, int8_t tile_y, uint8_t alpha) {
+      bool is_error,
+      uint8_t overlay_alpha,
+      uint8_t annotation_alpha) {
     if (tile_x < 0 || tile_x > 9 || tile_y < 0 || tile_y > 2) {
       return;
     }
-    auto view = layer.view(tile_x * TILE_W_PIXELS, tile_y * TILE_H_PIXELS, TILE_W_PIXELS, TILE_H_PIXELS);
-    for (size_t y = 0; y < view.get_height(); y++) {
-      for (size_t x = 0; x < view.get_width(); x++) {
-        view.write(x, y, ((x + y) & 8) ? (0x80000000 | alpha) : alpha);
+
+    auto tile_view = map.view(tile_x * TILE_W_PIXELS, tile_y * TILE_H_PIXELS, TILE_W_PIXELS, TILE_H_PIXELS);
+    auto [tile_type, foreground, background] = level.tile_info(
+        room_id, tile_x, tile_y, std::make_tuple(TileType::EMPTY, 0, 0));
+
+    if (!is_error && (overlay_alpha > 0)) {
+      switch (tile_type) {
+        case TileType::EMPTY:
+          break;
+        case TileType::FLOOR:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          break;
+        case TileType::SPIKES:
+          tile_view.write_rect(0, 0, TILE_W_PIXELS - 10, TILE_H_PIXELS, 0x80808000 | overlay_alpha);
+          tile_view.write_rect(TILE_W_PIXELS - 10, 0, 10, TILE_H_PIXELS, 0xFF800000 | overlay_alpha);
+          break;
+        case TileType::SMALL_PILLAR:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(3 * TILE_W_PIXELS / 8, 0, TILE_W_PIXELS / 4, TILE_H_PIXELS - 6, 0xC0C0C000 | overlay_alpha);
+          break;
+        case TileType::GATE:
+          tile_view.write_rect(TILE_W_PIXELS - 3, 0, 3, TILE_H_PIXELS - 6, 0x0080FF00 | overlay_alpha);
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          break;
+        case TileType::RAISE_TILE:
+          tile_view.write_rect(0, TILE_H_PIXELS - 8, TILE_W_PIXELS, 6, 0x00800000 | overlay_alpha);
+          break;
+        case TileType::DROP_TILE:
+          tile_view.write_rect(0, TILE_H_PIXELS - 8, TILE_W_PIXELS, 6, 0x80000000 | overlay_alpha);
+          break;
+        case TileType::TUNNEL:
+          tile_view.write_rect(0, 0, TILE_W_PIXELS, TILE_H_PIXELS / 2, 0x80808000 | overlay_alpha);
+          tile_view.write_rect(0, TILE_H_PIXELS / 2, TILE_W_PIXELS, TILE_H_PIXELS / 2 - 6, 0xE0E0E000 | overlay_alpha);
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          break;
+        case TileType::LARGE_PILLAR_BOTTOM:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(TILE_W_PIXELS / 3, 0, TILE_W_PIXELS / 3, TILE_H_PIXELS - 6, 0xC0C0C000 | overlay_alpha);
+          break;
+        case TileType::LARGE_PILLAR_TOP:
+          tile_view.write_rect(TILE_W_PIXELS / 3, 0, TILE_W_PIXELS / 3, TILE_H_PIXELS, 0xC0C0C000 | overlay_alpha);
+          break;
+        case TileType::POTION:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(0 + 3 * TILE_W_PIXELS / 8, TILE_H_PIXELS - TILE_W_PIXELS / 4 - 8,
+              TILE_W_PIXELS / 4, TILE_W_PIXELS / 4, 0xFF800000 | overlay_alpha);
+          break;
+        case TileType::LOOSE_FLOOR:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00808000 | overlay_alpha);
+          break;
+        case TileType::SCYTHE_LEFT:
+          tile_view.write_rect((TILE_W_PIXELS / 4), TILE_H_PIXELS / 2 - 3, TILE_W_PIXELS - (TILE_W_PIXELS / 4), 6, 0xC0000000 | overlay_alpha);
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          break;
+        case TileType::SCYTHE_RIGHT:
+          tile_view.write_rect(0, TILE_H_PIXELS / 2 - 3, TILE_W_PIXELS - (TILE_W_PIXELS / 4), 6, 0xC0000000 | overlay_alpha);
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          break;
+        case TileType::DEBRIS:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(TILE_W_PIXELS / 4, TILE_H_PIXELS - 8, TILE_W_PIXELS / 2, 2, 0x40404000 | overlay_alpha);
+          break;
+        case TileType::SUPER_LOOSE_FLOOR:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00C0C000 | overlay_alpha);
+          break;
+        case TileType::LEVEL_DOOR_LEFT:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.draw_vertical_line(20, 20, TILE_H_PIXELS - 6, 0, 0x00800000 | overlay_alpha);
+          tile_view.draw_vertical_line(21, 21, TILE_H_PIXELS - 6, 0, 0x00800000 | overlay_alpha);
+          tile_view.draw_horizontal_line(0 + 20, 0 + TILE_W_PIXELS, 20, 0, 0x00800000 | overlay_alpha);
+          tile_view.draw_horizontal_line(0 + 20, 0 + TILE_W_PIXELS, 21, 0, 0x00800000 | overlay_alpha);
+          break;
+        case TileType::LEVEL_DOOR_RIGHT:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.draw_vertical_line(0 + TILE_W_PIXELS - 20, 20, TILE_H_PIXELS - 6, 0, 0x00800000 | overlay_alpha);
+          tile_view.draw_vertical_line(0 + TILE_W_PIXELS - 21, 21, TILE_H_PIXELS - 6, 0, 0x00800000 | overlay_alpha);
+          tile_view.draw_horizontal_line(0, 0 + TILE_W_PIXELS - 20, 20, 0, 0x00800000 | overlay_alpha);
+          tile_view.draw_horizontal_line(0, 0 + TILE_W_PIXELS - 20, 21, 0, 0x00800000 | overlay_alpha);
+          break;
+        case TileType::TORCH:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(0 + 3 * TILE_W_PIXELS / 8, TILE_H_PIXELS / 3,
+              TILE_W_PIXELS / 4, TILE_H_PIXELS / 3, 0xFFC08000 | overlay_alpha);
+          break;
+        case TileType::WALL:
+          tile_view.write_rect(0, 0, TILE_W_PIXELS, TILE_H_PIXELS, 0x80808000 | overlay_alpha);
+          break;
+        case TileType::SKELETON:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(TILE_W_PIXELS / 4, TILE_H_PIXELS - 8, TILE_W_PIXELS / 2, 2, 0x815D1C00 | overlay_alpha);
+          break;
+        case TileType::SWORD:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(TILE_W_PIXELS / 4, TILE_H_PIXELS - 12, TILE_W_PIXELS / 2, 2, 0x00008000 | overlay_alpha);
+          break;
+        case TileType::LAVA_LEFT:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS / 4, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(TILE_W_PIXELS / 4, TILE_H_PIXELS - 6, 3 * TILE_W_PIXELS / 4, 6, 0xFF800000 | overlay_alpha);
+          break;
+        case TileType::LAVA_RIGHT:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, 3 * TILE_W_PIXELS / 4, 6, 0xFF800000 | overlay_alpha);
+          tile_view.write_rect(3 * TILE_W_PIXELS / 4, TILE_H_PIXELS - 6, TILE_W_PIXELS / 4, 6, 0x00000000 | overlay_alpha);
+          break;
+        case TileType::HORIZONTAL_CRUSHER:
+          tile_view.write_rect(0, 0, 10, TILE_H_PIXELS, 0xFF800000 | overlay_alpha);
+          tile_view.write_rect(10, 0, TILE_W_PIXELS - 10, 30, 0x80808000 | overlay_alpha);
+          tile_view.write_rect(10, 30, TILE_W_PIXELS - 10, 15, 0x40404000 | overlay_alpha);
+          tile_view.write_rect(10, 45, TILE_W_PIXELS - 10, 30, 0x80808000 | overlay_alpha);
+          tile_view.write_rect(10, 75, TILE_W_PIXELS - 10, 15, 0x40404000 | overlay_alpha);
+          tile_view.write_rect(10, 90, TILE_W_PIXELS - 10, 30, 0x80808000 | overlay_alpha);
+          break;
+        case TileType::TRAP_DOOR:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x0000C000 | overlay_alpha);
+          break;
+        case TileType::DART_GUN:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
+          tile_view.write_rect(TILE_W_PIXELS / 8, TILE_H_PIXELS - TILE_W_PIXELS / 4 - 8, TILE_W_PIXELS / 4, TILE_W_PIXELS / 4, 0xFF000000 | overlay_alpha);
+          break;
+        case TileType::PRESSURE_PLATE:
+          tile_view.write_rect(0, TILE_H_PIXELS - 8, TILE_W_PIXELS, 6, 0x00800000 | overlay_alpha);
+          break;
+        case TileType::DOCK_PILLAR:
+          tile_view.write_rect(TILE_W_PIXELS / 4, 0, TILE_W_PIXELS / 2, TILE_H_PIXELS, 0x562B0000 | overlay_alpha);
+          break;
+        case TileType::DESERT_QUICKSAND_STONE:
+          tile_view.write_rect(0, TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x562B0000 | overlay_alpha);
+          break;
+        case TileType::DESERT_ROCKS:
+        case TileType::DESERT_PLANKS:
+        case TileType::SHIP:
+        case TileType::WINDOW:
+          break;
+        default:
+          is_error = true;
       }
     }
+    uint32_t annotation_color = 0xFFFFFF00 | annotation_alpha;
+    if (is_error) {
+      for (size_t y = 0; y < tile_view.get_height(); y++) {
+        for (size_t x = 0; x < tile_view.get_width(); x++) {
+          tile_view.write(x, y, ((x + y) & 8) ? 0x800000FF : 0x000000FF);
+        }
+      }
+      annotation_color = 0xFF0000FF;
+    }
+    tile_view.draw_text(
+        1, 1, annotation_color, overlay_alpha, "{:04X}\n{:04X}\n{:04X}",
+        static_cast<uint16_t>(tile_type), foreground, background);
   }
 
   void draw_tile_annotation(
-      DrawLayers& layers,
-      uint32_t color,
-      int8_t tile_x,
-      int8_t tile_y,
-      uint16_t tile_type,
-      uint16_t foreground,
-      uint16_t background) {
-    layers.ovl().draw_text(tile_x * TILE_W_PIXELS, tile_y * TILE_H_PIXELS, color, "{:04X}\n{:04X}\n{:04X}",
+      Env& env, uint32_t color, uint16_t tile_type, uint16_t foreground, uint16_t background) {
+    env.get_layer(Env::BG).draw_text(
+        env.tile_x * TILE_W_PIXELS, env.tile_y * TILE_H_PIXELS, color, "{:04X}\n{:04X}\n{:04X}",
         tile_type, foreground, background);
   }
 
-  void draw_room(
-      DrawLayers& layers,
-      const PrinceOfPersia2Level& level,
-      uint8_t room_id,
-      bool render_basic_graphics,
-      bool render_custom_graphics,
-      uint8_t overlay_alpha,
-      uint8_t annotation_alpha) {
-    if (render_basic_graphics) {
-      // Tiles are drawn left to right, bottom to top
-
-      this->draw_tile(layers, level, room_id, -1, 3);
-      for (int8_t tile_x = 0; tile_x < 10; tile_x++) {
-        this->draw_tile(layers, level, room_id, tile_x, 3);
+  void draw_room(Env& env, uint8_t overlay_alpha, uint8_t annotation_alpha) {
+    int16_t cust_id = (env.room_id * 25) + 4000;
+    if (env.level->room_has_cust(env.room_id)) {
+      try {
+        env.cust = &this->get_CUST(cust_id);
+      } catch (const std::out_of_range&) {
+        phosg::log_warning_f("(Room {:02X}) CUST:{} missing", env.room_id, cust_id);
       }
-      for (int8_t tile_y = 2; tile_y >= 0; tile_y--) {
-        this->draw_tile(layers, level, room_id, -1, tile_y);
-        for (int8_t tile_x = 0; tile_x < 10; tile_x++) {
-          this->draw_tile(layers, level, room_id, tile_x, tile_y);
-          // if (room_id == 0x14) { // TODO(DX): Uncomment for debugging
-          //   for (size_t layer_index = 0; layer_index < layers.layers.size(); layer_index++) {
-          //     std::string filename = std::format("./pop2_debug_room{}_tile{}_{}_layer{}.png", room_id, tile_x, tile_y, layer_index);
-          //     phosg::save_file(filename, layers.layers[layer_index].serialize(phosg::ImageFormat::WINDOWS_BITMAP));
-          //     phosg::log_info_f("... {}", filename);
-          //   }
-          // }
+    }
+
+    // Tiles are drawn left to right, bottom to top; we draw the bottom/left edge tiles first
+    std::array<std::array<bool, 10>, 3> tile_errors{};
+    for (env.tile_y = 3; env.tile_y >= 0; env.tile_y--) {
+      for (env.tile_x = -1; env.tile_x < 10; env.tile_x++) {
+        auto [_1, foreground, _2] = env.level->tile_info(
+            env.room_id, env.tile_x, env.tile_y, this->default_tile(env.tile_x));
+        if ((env.tile_x < 0) || (env.tile_y == 3) || (foreground & 0xC000) != 0xC000) {
+          try {
+            this->draw_tile(env);
+          } catch (const std::invalid_argument&) {
+            if (env.tile_x >= 0 && env.tile_x < 10 && env.tile_y >= 0 && env.tile_y < 3) {
+              tile_errors[env.tile_y][env.tile_x] = true;
+            }
+          }
         }
       }
     }
 
-    if (render_custom_graphics) {
-      // If any tile in the room has modifiers with either of bits 0xC000 set in the foreground, then there is a CUST
-      bool has_cust = false;
-      for (int8_t tile_y = 2; tile_y >= 0 && !has_cust; tile_y--) {
-        for (int8_t tile_x = 0; tile_x < 10 && !has_cust; tile_x++) {
-          auto [_1, foreground, _2] = level.tile_info(room_id, tile_x, tile_y);
-          has_cust = has_cust || (foreground & 0xC000);
+    // NOCOMMIT: S decorations on Ruins are still placed incorrectly (see level 2006 room 10, near left side)
+    if (env.cust) {
+      for (size_t z = 0; z < env.cust->pieces.size(); z++) {
+        const auto& piece = env.cust->pieces[z];
+        // TODO: Should 2 be a separate layer from 1? It's separate in the actual game, but for drawing maps that may
+        // not be necessary
+        auto& layer = env.get_layer((piece.type == 0) ? 5 : ((piece.type == 2) ? 1 : piece.type));
+        try {
+          const auto& shap = this->get_SHAP(piece.shap_id);
+          layer.copy_from_with_blend(shap.view(), piece.left_offset, piece.vert_offset - shap.h, shap.w, shap.h, 0, 0);
+        } catch (const std::out_of_range&) {
+          phosg::log_warning_f(
+              "(Room {:02X}) SHAP:{} (CUST:{}#{}) missing; would render at left_offset={} vert_offset={} layer={}",
+              env.room_id, piece.shap_id, cust_id, z, piece.left_offset, piece.vert_offset, piece.type);
         }
       }
 
-      // If there is a CUST for this level, use it
-      if (has_cust) {
-        int16_t cust_id = (room_id * 25) + 4000;
-        try {
-          auto cust = this->get_CUST(cust_id);
-          for (size_t z = 0; z < cust.pieces.size(); z++) {
-            const auto& piece = cust.pieces[z];
-            // TODO: Should 2 be a separate layer from 1? It's separate in the actual game, but for drawing maps that
-            // may not be necessary
-            auto& layer = layers.get((piece.type == 2) ? 1 : piece.type);
+      for (env.tile_y = 3; env.tile_y >= 0; env.tile_y--) {
+        for (env.tile_x = -1; env.tile_x < 10; env.tile_x++) {
+          auto [_1, foreground, _2] = this->tile_info(env, env.tile_x, env.tile_y);
+          if ((foreground & 0xC000) == 0x8000) {
             try {
-              const auto& shap = this->get_SHAP(piece.shap_id);
-              layer.copy_from_with_blend(shap.view(), piece.left_offset, piece.vert_offset - shap.h, shap.w, shap.h, 0, 0);
-            } catch (const std::out_of_range&) {
-              phosg::log_warning_f(
-                  "(Room {:02X}) SHAP:{} (CUST:{}#{}) missing; would render at left_offset={} vert_offset={} layer={}",
-                  room_id, piece.shap_id, cust_id, z, piece.left_offset, piece.vert_offset, piece.type);
+              this->draw_tile(env);
+            } catch (const std::invalid_argument&) {
+              if (env.tile_x >= 0 && env.tile_x < 10 && env.tile_y >= 0 && env.tile_y < 3) {
+                tile_errors[env.tile_y][env.tile_x] = true;
+              }
             }
           }
-        } catch (const std::out_of_range&) {
-          phosg::log_warning_f("(Room {:02X}) CUST:{} missing", room_id, cust_id);
         }
       }
     }
 
     if (overlay_alpha > 0) {
-      auto& overlay_layer = layers.ovl();
-      for (size_t tile_y = 0; tile_y < 3; tile_y++) {
-        for (size_t tile_x = 0; tile_x < 10; tile_x++) {
-          auto [tile_type, foreground, background] = level.tile_info(room_id, tile_x, tile_y);
-          size_t tile_x_px = tile_x * TILE_W_PIXELS;
-          size_t tile_y_px = tile_y * TILE_H_PIXELS;
-
-          uint32_t annotation_color;
-          switch (tile_type) {
-            case TileType::EMPTY:
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::FLOOR:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::SPIKES:
-              overlay_layer.write_rect(tile_x_px, tile_y_px, TILE_W_PIXELS - 10, TILE_H_PIXELS, 0x80808000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS - 10, tile_y_px, 10, TILE_H_PIXELS, 0xFF800000 | overlay_alpha);
-              annotation_color = 0x40404000 | annotation_alpha;
-              break;
-            case TileType::SMALL_PILLAR:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + 3 * TILE_W_PIXELS / 8, tile_y_px, TILE_W_PIXELS / 4, TILE_H_PIXELS - 6, 0xC0C0C000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::GATE:
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS - 3, tile_y_px, 3, TILE_H_PIXELS - 6, 0x0080FF00 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::RAISE_TILE:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 8, TILE_W_PIXELS, 6, 0x00800000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::DROP_TILE:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 8, TILE_W_PIXELS, 6, 0x80000000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::TUNNEL:
-              overlay_layer.write_rect(tile_x_px, tile_y_px, TILE_W_PIXELS, TILE_H_PIXELS / 2, 0x80808000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS / 2, TILE_W_PIXELS, TILE_H_PIXELS / 2 - 6, 0xE0E0E000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              annotation_color = 0x40404000 | annotation_alpha;
-              break;
-            case TileType::LARGE_PILLAR_BOTTOM:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS / 3, tile_y_px, TILE_W_PIXELS / 3, TILE_H_PIXELS - 6, 0xC0C0C000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::LARGE_PILLAR_TOP:
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS / 3, tile_y_px, TILE_W_PIXELS / 3, TILE_H_PIXELS, 0xC0C0C000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::POTION:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(
-                  tile_x_px + 3 * TILE_W_PIXELS / 8,
-                  tile_y_px + TILE_H_PIXELS - TILE_W_PIXELS / 4 - 8,
-                  TILE_W_PIXELS / 4, TILE_W_PIXELS / 4, 0xFF800000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::LOOSE_FLOOR:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00808000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::SCYTHE_LEFT:
-              overlay_layer.write_rect(tile_x_px + (TILE_W_PIXELS / 4), tile_y_px + TILE_H_PIXELS / 2 - 3, TILE_W_PIXELS - (TILE_W_PIXELS / 4), 6, 0xC00000FF | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::SCYTHE_RIGHT:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS / 2 - 3, TILE_W_PIXELS - (TILE_W_PIXELS / 4), 6, 0xC00000FF | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::DEBRIS:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS / 4, tile_y_px + TILE_H_PIXELS - 8, TILE_W_PIXELS / 2, 2, 0x40404000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::SUPER_LOOSE_FLOOR:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00C0C000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::LEVEL_DOOR_LEFT:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.draw_vertical_line(tile_x_px + 20, tile_y_px + 20, tile_y_px + TILE_H_PIXELS - 6, 0, 0x00800000 | overlay_alpha);
-              overlay_layer.draw_vertical_line(tile_x_px + 21, tile_y_px + 21, tile_y_px + TILE_H_PIXELS - 6, 0, 0x00800000 | overlay_alpha);
-              overlay_layer.draw_horizontal_line(tile_x_px + 20, tile_x_px + TILE_W_PIXELS, tile_y_px + 20, 0, 0x00800000 | overlay_alpha);
-              overlay_layer.draw_horizontal_line(tile_x_px + 20, tile_x_px + TILE_W_PIXELS, tile_y_px + 21, 0, 0x00800000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::LEVEL_DOOR_RIGHT:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.draw_vertical_line(tile_x_px + TILE_W_PIXELS - 20, tile_y_px + 20, tile_y_px + TILE_H_PIXELS - 6, 0, 0x00800000 | overlay_alpha);
-              overlay_layer.draw_vertical_line(tile_x_px + TILE_W_PIXELS - 21, tile_y_px + 21, tile_y_px + TILE_H_PIXELS - 6, 0, 0x00800000 | overlay_alpha);
-              overlay_layer.draw_horizontal_line(tile_x_px, tile_x_px + TILE_W_PIXELS - 20, tile_y_px + 20, 0, 0x00800000 | overlay_alpha);
-              overlay_layer.draw_horizontal_line(tile_x_px, tile_x_px + TILE_W_PIXELS - 20, tile_y_px + 21, 0, 0x00800000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::TORCH:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(
-                  tile_x_px + 3 * TILE_W_PIXELS / 8,
-                  tile_y_px + TILE_H_PIXELS / 3,
-                  TILE_W_PIXELS / 4, TILE_H_PIXELS / 3, 0xFFC08000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::WALL:
-              overlay_layer.write_rect(tile_x_px, tile_y_px, TILE_W_PIXELS, TILE_H_PIXELS, 0x80808000 | overlay_alpha);
-              annotation_color = 0x40404000 | annotation_alpha;
-              break;
-            case TileType::SKELETON:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS / 4, tile_y_px + TILE_H_PIXELS - 8, TILE_W_PIXELS / 2, 2, 0x815D1C00 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::SWORD:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS / 4, tile_y_px + TILE_H_PIXELS - 12, TILE_W_PIXELS / 2, 2, 0x00008000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::LAVA_LEFT:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS / 4, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS / 4, tile_y_px + TILE_H_PIXELS - 6, 3 * TILE_W_PIXELS / 4, 6, 0xFF800000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::LAVA_RIGHT:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, 3 * TILE_W_PIXELS / 4, 6, 0xFF800000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + 3 * TILE_W_PIXELS / 4, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS / 4, 6, 0x00000000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::HORIZONTAL_CRUSHER:
-              overlay_layer.write_rect(tile_x_px, tile_y_px, 10, TILE_H_PIXELS, 0xFF800000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + 10, tile_y_px + 0, TILE_W_PIXELS - 10, 30, 0x80808000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + 10, tile_y_px + 30, TILE_W_PIXELS - 10, 15, 0x40404000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + 10, tile_y_px + 45, TILE_W_PIXELS - 10, 30, 0x80808000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + 10, tile_y_px + 75, TILE_W_PIXELS - 10, 15, 0x40404000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + 10, tile_y_px + 90, TILE_W_PIXELS - 10, 30, 0x80808000 | overlay_alpha);
-              annotation_color = 0x40404000 | annotation_alpha;
-              break;
-            case TileType::TRAP_DOOR:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x0000C000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::DART_GUN:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x00000000 | overlay_alpha);
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS / 8, tile_y_px + TILE_H_PIXELS - TILE_W_PIXELS / 4 - 8, TILE_W_PIXELS / 4, TILE_W_PIXELS / 4, 0xFF000000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::PRESSURE_PLATE:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 8, TILE_W_PIXELS, 6, 0x00800000 | overlay_alpha);
-              annotation_color = 0xA0A0A000 | annotation_alpha;
-              break;
-            case TileType::DOCK_PILLAR:
-              overlay_layer.write_rect(tile_x_px + TILE_W_PIXELS / 4, tile_y_px, TILE_W_PIXELS / 2, TILE_H_PIXELS, 0x562B0000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::DESERT_QUICKSAND_STONE:
-              overlay_layer.write_rect(tile_x_px, tile_y_px + TILE_H_PIXELS - 6, TILE_W_PIXELS, 6, 0x562B0000 | overlay_alpha);
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            case TileType::DESERT_ROCKS:
-            case TileType::DESERT_PLANKS:
-            case TileType::SHIP:
-            case TileType::WINDOW:
-              annotation_color = 0xC0C0C000 | annotation_alpha;
-              break;
-            default:
-              this->draw_error_tile(overlay_layer, tile_x, tile_y, overlay_alpha);
-              annotation_color = 0xFF000000 | annotation_alpha;
-          }
-          overlay_layer.draw_text(
-              tile_x_px, tile_y_px, annotation_color, "{:04X}\n{:04X}\n{:04X}", static_cast<uint16_t>(tile_type), foreground, background);
+      for (env.tile_y = 0; env.tile_y < 3; env.tile_y++) {
+        for (env.tile_x = 0; env.tile_x < 10; env.tile_x++) {
+          this->draw_overlay_tile(
+              env.get_layer(Env::OVL),
+              *env.level,
+              env.room_id,
+              env.tile_x,
+              env.tile_y,
+              tile_errors[env.tile_y][env.tile_x],
+              overlay_alpha,
+              annotation_alpha);
         }
       }
-      overlay_layer.draw_text(26, 0, 0xFF000000 | overlay_alpha, "RM{:02X}", room_id);
+      env.get_layer(Env::OVL).draw_text(26, 1, 0xFF00FF00 | annotation_alpha, overlay_alpha, "RM{:02X}", env.room_id);
     }
   }
 
@@ -1469,9 +1463,14 @@ public:
   DesertLevelKind(std::string&& resource_filename)
       : LevelKind(std::move(resource_filename), {{4000, 3500}, {4001, 3500}, {4002, 3500}, {4003, 3500}, {4004, 3500}, {4005, 3500}, {4006, 3500}, {4007, 3500}, {4008, 3500}, {4009, 3500}, {4010, 3500}, {4011, 3500}, {4012, 3500}, {4013, 3500}, {4014, 3500}, {4015, 3500}, {4016, 3500}, {4017, 3500}, {4018, 3500}, {4019, 3500}, {4020, 3500}, {4021, 3500}, {4022, 3500}, {4023, 3500}, {4024, 3500}, {4050, 3500}, {4051, 3500}, {4052, 3500}, {4053, 3500}, {4054, 3500}, {4075, 3500}, {4076, 3500}, {4077, 3500}, {4078, 3500}}) {}
 
-  virtual void draw_tile(
-      DrawLayers& layers, const PrinceOfPersia2Level& level, uint8_t room_id, int8_t tile_x, int8_t tile_y) {
-    auto [tile_type, foreground, background] = level.tile_info(room_id, tile_x, tile_y);
+  virtual const std::tuple<TileType, uint16_t, uint16_t>& default_tile(int8_t tile_x) {
+    static const std::tuple<TileType, uint16_t, uint16_t> even = std::make_tuple(TileType::WALL, 0, 0x0009);
+    static const std::tuple<TileType, uint16_t, uint16_t> odd = std::make_tuple(TileType::WALL, 0, 0x0109);
+    return (tile_x & 1) ? odd : even;
+  }
+
+  virtual void draw_tile(Env& env) {
+    auto [tile_type, foreground, background] = this->tile_info(env, env.tile_x, env.tile_y);
     switch (tile_type) {
       // GATE, DESERT_ROCKS and DESERT_PLANKS each just move and draw CUST pieces; for a static map we don't need to
       // move anything. So the only tile type that actually draws something relevant for us is DESERT_QUICKSAND_STONE
@@ -1485,10 +1484,10 @@ public:
       case TileType::DESERT_QUICKSAND_STONE:
         // Technically we should draw nothing here, since the tiles don't rise until after the player enters the room.
         // But it's more intuitive to draw them already raised
-        this->draw_SHAP_at_anchor(layers.cust(), 4015, tile_x, tile_y, 0x13, 0);
+        this->draw_SHAP_at_anchor(env, Env::CUST, 4015, 0x13, 0);
         break;
       default:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+        throw std::invalid_argument("Invalid tile type");
     }
   }
 };
@@ -1498,19 +1497,16 @@ public:
   CavernsLevelKind(std::string&& resource_filename)
       : LevelKind(std::move(resource_filename), {{25303, 3500}, {25304, 3500}, {25305, 3500}, {25306, 3500}, {25307, 3500}, {25308, 3500}, {25309, 3500}, {25310, 3500}, {25311, 3500}, {25312, 3500}, {25313, 3500}, {25314, 3500}, {25315, 3500}, {25316, 3500}, {25317, 3500}, {25318, 3500}, {3501, 3500}, {3502, 3500}, {3503, 3500}, {3504, 3500}, {3505, 3500}, {3506, 3500}, {3507, 3500}, {3508, 3500}, {3509, 3500}, {3510, 3500}, {3511, 3500}, {3512, 3500}, {3513, 3500}, {3514, 3500}, {3515, 3500}, {3516, 3500}, {3517, 3500}, {3518, 3500}, {3519, 3500}, {3520, 3500}, {3521, 3500}, {3522, 3500}, {3523, 3500}, {3524, 3500}, {3525, 3500}, {3526, 3500}, {3527, 3500}, {3528, 3500}, {3529, 3500}, {3530, 3500}, {3531, 3500}, {3532, 3500}, {3533, 3500}, {3534, 3500}, {3535, 3500}, {3536, 3500}, {3537, 3500}, {3538, 3500}, {3539, 3500}, {3540, 3500}, {3541, 3500}, {3542, 3500}, {3543, 3500}, {3544, 3500}, {3545, 3500}, {3546, 3500}, {3547, 3500}, {3548, 3500}, {3549, 3500}, {3550, 3500}, {3551, 3500}, {3552, 3500}, {3553, 3500}, {3554, 3500}, {3555, 3500}, {3556, 3500}, {3557, 3500}, {3558, 3500}, {3559, 3500}, {3560, 3500}, {3561, 3500}, {3562, 3500}, {3563, 3500}, {3564, 3500}, {3565, 3500}, {3566, 3500}, {3567, 3500}, {3568, 3500}, {3569, 3500}, {3570, 3500}, {3571, 3500}, {3572, 3500}, {3573, 3500}, {3574, 3500}, {3575, 3500}, {3576, 3500}, {3577, 3500}, {3578, 3500}, {3579, 3500}, {3580, 3500}, {3581, 3500}, {3582, 3500}, {3583, 3500}, {3584, 3500}, {3585, 3500}, {3586, 3500}, {3587, 3500}, {3588, 3500}, {3589, 3500}, {3590, 3500}, {3591, 3500}, {3592, 3500}, {3593, 3500}, {3594, 3500}, {3595, 3500}, {3596, 3500}, {3597, 3500}, {3598, 3500}, {3599, 3500}, {3600, 3500}, {3601, 3500}, {3602, 3500}, {3603, 3500}, {3604, 3500}, {3605, 3500}, {3606, 3500}, {3607, 3500}, {3608, 3500}, {3609, 3500}, {3610, 3500}, {3611, 3500}, {3612, 3500}, {3613, 3500}, {3614, 3500}, {3615, 3500}, {3616, 3500}, {3617, 3500}, {3618, 3500}, {3619, 3500}, {3620, 3500}, {3621, 3500}, {3622, 3500}, {3623, 3500}, {3624, 3500}, {3625, 3500}, {3626, 3500}, {3627, 3500}, {3628, 3500}, {3629, 3500}, {3630, 3500}, {3631, 3500}, {3632, 3500}, {3633, 3500}, {3634, 3500}, {3635, 3500}, {3636, 3500}, {3637, 3500}, {3638, 3500}, {3639, 3500}, {3640, 3500}, {3641, 3500}, {3642, 3500}, {3643, 3500}, {3644, 3500}, {3645, 3500}, {3646, 3500}, {3647, 3500}, {3648, 3500}, {3649, 3500}, {3650, 3500}, {3651, 3500}, {3652, 3500}, {3653, 3500}, {3654, 3500}, {3655, 3500}, {3656, 3500}, {3657, 3500}, {3658, 3500}, {3659, 3500}, {3660, 3500}, {3661, 3500}, {3662, 3500}, {3663, 3500}, {3664, 3500}, {3665, 3500}, {3666, 3500}, {3667, 3500}, {3668, 3500}, {3669, 3500}, {3670, 3500}, {3671, 3500}, {3672, 3500}, {4050, 3500}, {4051, 3500}, {4052, 3500}, {4053, 3500}, {4054, 3500}, {4055, 3500}, {4056, 3500}, {4057, 3500}, {4058, 3500}, {4059, 3500}, {4060, 3500}, {4061, 3500}, {4062, 3500}, {4063, 3500}, {4064, 3500}, {4225, 3500}, {4226, 3500}, {4227, 3500}, {4228, 3500}, {4229, 3500}, {4230, 3500}, {4231, 3500}, {4232, 3500}, {4233, 3500}, {4234, 3500}, {4235, 3500}, {4236, 3500}, {4237, 3500}, {4238, 3500}, {4239, 3500}}) {}
 
-  void draw_background(DrawLayers& layers, int8_t tile_x, int8_t tile_y, uint16_t background) {
+  void draw_background(Env& env, uint16_t background) {
     size_t piece_index = (background & 0x0F00) >> 8;
     size_t shap_id_delta = background & 0x001F;
     if (shap_id_delta) {
       const auto& piece = this->get_PIEC_entry(0x24 + piece_index);
-      this->draw_SHAP_at_anchor(layers.sky(), 3500 + shap_id_delta, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+      this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + shap_id_delta, piece.layer0_x, piece.layer0_y);
     }
   }
 
-  void draw_extra_foreground(DrawLayers& layers, int8_t tile_x, int8_t tile_y, uint16_t foreground) {
-    auto& sky = layers.sky();
-    auto& fg = layers.fg();
-
+  void draw_extra_foreground(Env& env, uint16_t foreground) {
     static const std::array<ExtraDef, 15> defs{
         ExtraDef{0x5F, 0x00, -0x56, true},
         ExtraDef{0x60, 0x00, -0x4A, true},
@@ -1533,192 +1529,231 @@ public:
     if (which != 0) {
       if (which == 0x0E) {
         const auto& def = defs[0x0D];
-        this->draw_SHAP_at_anchor(sky, 3500 + def.shap_id_delta, tile_x, tile_y, def.x_delta, def.y_delta);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + def.shap_id_delta, def.x_delta, def.y_delta);
       } else {
         which--;
       }
       const auto& def = defs[which];
-      this->draw_SHAP_at_anchor(fg, 3500 + def.shap_id_delta, tile_x, tile_y, def.x_delta, def.y_delta);
+      this->draw_SHAP_at_anchor(env, Env::FG, 3500 + def.shap_id_delta, def.x_delta, def.y_delta);
     }
   }
 
-  void draw_floor(DrawLayers& layers, int8_t tile_x, int8_t tile_y, uint16_t foreground, uint16_t background, bool draw_sky = true) {
+  void draw_floor(Env& env, uint16_t foreground, uint16_t background, bool draw_sky = true) {
     uint8_t which = foreground & 3;
     const auto& piece = this->get_PIEC_entry(0x01);
     if (draw_sky) {
-      this->draw_background(layers, tile_x, tile_y, background);
+      this->draw_background(env, background);
     }
-    this->draw_SHAP_at_anchor(layers.bg(), 3500 + which + 0x19, tile_x, tile_y, (which == 3) ? 9 : 2, piece.layer5_y);
-    this->draw_SHAP_at_anchor(layers.fg(), 3500 + ((which == 3) ? 0x18 : 0x17), tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-    this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+    this->draw_SHAP_at_anchor(env, Env::BG, 3500 + which + 0x19, (which == 3) ? 9 : 2, piece.layer5_y);
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + ((which == 3) ? 0x18 : 0x17), piece.layer1_x, piece.layer1_y);
+    this->draw_extra_foreground(env, foreground);
   }
 
-  void draw_pressure_plate(DrawLayers& layers, const PrinceOfPersia2Level& level, uint8_t room_id, int8_t tile_x, int8_t tile_y, uint16_t foreground, uint16_t background) {
+  void draw_pressure_plate(Env& env, uint16_t foreground, uint16_t background) {
     const auto& piece = this->get_PIEC_entry(0x22);
-    this->draw_background(layers, tile_x, tile_y, background);
-    this->draw_SHAP_at_anchor(layers.bg(), 3500 + ((foreground & 0x2000) ? 0x37 : 0x36), tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-    auto [above_tile_type, _1, _2] = level.tile_info(room_id, tile_x, tile_y - 1);
+    this->draw_background(env, background);
+    auto [above_tile_type, _1, _2] = this->tile_info(env, env.tile_x, env.tile_y - 1);
     foreground = (above_tile_type == TileType::LOOSE_FLOOR) ? ((foreground & 0xC000) | 0x0A00) : (foreground & 0xCF00);
-    this->draw_floor(layers, tile_x, tile_y, foreground, background);
+    this->draw_floor(env, foreground, background, false);
+    this->draw_SHAP_at_anchor(env, Env::BG, 3500 + ((foreground & 0x2000) ? 0x37 : 0x36), piece.layer5_x, piece.layer5_y);
   }
 
-  void draw_wall(DrawLayers& layers, int8_t tile_x, int8_t tile_y, uint16_t foreground, bool draw_background = true) {
+  void draw_wall(Env& env, uint16_t foreground, bool draw_background = true) {
     const auto& piece = this->get_PIEC_entry(0x14);
     if (draw_background) {
-      this->draw_SHAP_at_anchor(layers.bg(), 3500 + ((foreground & 0x0030) >> 4) + 0x32, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + ((foreground & 0x0030) >> 4) + 0x32, piece.layer0_x, piece.layer0_y);
     }
-    this->draw_SHAP_at_anchor(layers.fg(), 3500 + (foreground & 0x000F) + 0x25, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-    this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 0x000F) + 0x25, piece.layer1_x, piece.layer1_y);
+    this->draw_extra_foreground(env, foreground);
   }
 
-  virtual void draw_tile(
-      DrawLayers& layers, const PrinceOfPersia2Level& level, uint8_t room_id, int8_t tile_x, int8_t tile_y) {
-    auto [tile_type, foreground, background] = level.tile_info(room_id, tile_x, tile_y);
+  virtual void draw_tile(Env& env) {
+    auto [tile_type, foreground, background] = this->tile_info(env, env.tile_x, env.tile_y);
     switch (tile_type) {
       case TileType::EMPTY:
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_extra_foreground(env, foreground);
         break;
       case TileType::FLOOR:
-        this->draw_floor(layers, tile_x, tile_y, foreground, background);
+        this->draw_floor(env, foreground, background);
         break;
       case TileType::SPIKES: {
         const auto& piece = this->get_PIEC_entry(0x14);
-        this->draw_background(layers, tile_x, tile_y, background);
-        if (tile_x != 9) {
-          this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x44, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+        this->draw_background(env, background);
+        if (env.tile_x != 9) {
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x44, piece.layer0_x, piece.layer0_y);
         }
-        this->draw_wall(layers, tile_x, tile_y, (foreground & 0xFFF0) | 0x0004, false);
+        this->draw_wall(env, (foreground & 0xFFF0) | 0x0004, false);
         break;
       }
       case TileType::SMALL_PILLAR: {
         const auto& piece = this->get_PIEC_entry(0x03);
-        this->draw_floor(layers, tile_x, tile_y, (foreground | ((tile_x & 1) + 1)) & 0xF0FF, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x20, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x1F, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_floor(env, (foreground | ((env.tile_x & 1) + 1)) & 0xF0FF, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x20, piece.layer5_x, piece.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x1F, piece.layer1_x, piece.layer1_y);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
       case TileType::GATE: {
         const auto& piece_24 = this->get_PIEC_entry(0x24);
         const auto& piece_37 = this->get_PIEC_entry(0x37);
-        this->draw_SHAP_at_anchor(layers.sky(), 3500 + 0x3D, tile_x, tile_y, piece_24.layer0_x, piece_24.layer0_y);
-        this->draw_floor(layers, tile_x, tile_y, (foreground & 0xF0FC) | 0x0002, background, false);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + 0x3D, piece_24.layer0_x, piece_24.layer0_y);
+        this->draw_floor(env, (foreground & 0xF0FC) | 0x0002, background, false);
         uint8_t progress = std::min<uint8_t>((foreground & 0x00FC) >> 2, 0x2E);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x3F, tile_x, tile_y, piece_37.layer5_x, (progress * -2) - 8);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x3E, tile_x, tile_y, piece_37.layer1_x, (progress * -2) - 7);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x3F, piece_37.layer5_x, (progress * -2) - 8);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x3E, piece_37.layer1_x, (progress * -2) - 7);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
       case TileType::LARGE_PILLAR_BOTTOM: {
         const auto& piece = this->get_PIEC_entry(0x08);
-        this->draw_floor(layers, tile_x, tile_y, foreground | (tile_x & 1), background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x22, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x21, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+        this->draw_floor(env, foreground | (env.tile_x & 1), background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x22, piece.layer5_x, piece.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x21, piece.layer1_x, piece.layer1_y);
         break;
       }
       case TileType::LARGE_PILLAR_TOP: {
         const auto& piece = this->get_PIEC_entry(0x09);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x24, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x23, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x24, piece.layer5_x, piece.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x23, piece.layer1_x, piece.layer1_y);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
       case TileType::POTION: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
+        throw std::invalid_argument("Unimplemented tile type");
       case TileType::LOOSE_FLOOR: {
         const auto& piece = this->get_PIEC_entry(0x0B);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x38, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x39, tile_x, tile_y, piece.layer5_x, 0);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x38, piece.layer0_x, piece.layer0_y);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x39, piece.layer5_x, 0);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
       case TileType::DEBRIS: {
         if (foreground & 0x2000) {
-          this->draw_pressure_plate(layers, level, room_id, tile_x, tile_y, foreground, background);
+          this->draw_pressure_plate(env, foreground, background);
         } else {
-          this->draw_floor(layers, tile_x, tile_y, foreground, background);
+          this->draw_floor(env, foreground, background);
         }
         const auto& piece = this->get_PIEC_entry(0x0E);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x1D, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x1E, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x1D, piece.layer5_x, piece.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x1E, piece.layer1_x, piece.layer1_y);
         break;
       }
       case TileType::LEVEL_DOOR_LEFT: {
         const auto& piece = this->get_PIEC_entry(0x10);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.sky(), 3500 + 0x40, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
-        this->draw_floor(layers, tile_x, tile_y, foreground & 0xFFFC, background);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + 0x40, piece.layer0_x, piece.layer0_y);
+        this->draw_floor(env, foreground & 0xFFFC, background);
         break;
       }
       case TileType::LEVEL_DOOR_RIGHT: {
         // TODO(DX): This is apparently wrong for the starting door; it renders the door over the frame
         const auto& piece_11 = this->get_PIEC_entry(0x11);
         const auto& piece_39 = this->get_PIEC_entry(0x39);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.sky(), 3500 + 0x40, tile_x, tile_y, piece_11.layer0_x, piece_11.layer0_y);
-        if (room_id == level.start_room_id) {
-          this->draw_SHAP_at_anchor(layers.sky(), 3500 + 0x43, tile_x, tile_y, piece_11.layer5_x, piece_11.layer5_y);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + 0x40, piece_11.layer0_x, piece_11.layer0_y);
+        if (env.room_id == env.level->start_room_id) {
+          this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + 0x43, piece_11.layer5_x, piece_11.layer5_y);
         }
         size_t progress = std::min<size_t>(foreground & 0xFF, 0x4F);
-        this->draw_SHAP_at_anchor(layers.sky(), 3500 + 0x42, tile_x, tile_y, piece_39.layer0_x, -29 - (progress + 1));
-        this->draw_SHAP_at_anchor(layers.sky(), 3500 + 0x41, tile_x, tile_y, piece_39.layer5_x, piece_39.layer5_y);
-        this->draw_floor(layers, tile_x, tile_y, (foreground & 0xFFFC) | 0x0002, background, false);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + 0x42, piece_39.layer0_x, -29 - (progress + 1));
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + 0x41, piece_39.layer5_x, piece_39.layer5_y);
+        this->draw_floor(env, (foreground & 0xFFFC) | 0x0002, background, false);
         break;
       }
       case TileType::CARPET: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
+        throw std::invalid_argument("Unimplemented tile type");
       case TileType::TORCH: {
         const auto& piece = this->get_PIEC_entry(0x13);
-        this->draw_floor(layers, tile_x, tile_y, (foreground & 0x0F00) | ((foreground & 0xE0) >> 5), background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + ((foreground & 0x10) ? 0x09 : (foreground & 0x0F)) + 0x51, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+        this->draw_floor(env, (foreground & 0x0F00) | ((foreground & 0xE0) >> 5), background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + ((foreground & 0x10) ? 0x09 : (foreground & 0x0F)) + 0x51, piece.layer0_x, piece.layer0_y);
         break;
       }
       case TileType::WALL:
-        this->draw_wall(layers, tile_x, tile_y, foreground);
+        this->draw_wall(env, foreground);
         break;
       case TileType::LAVA_LEFT:
       case TileType::LAVA_RIGHT: {
         const auto& piece = this->get_PIEC_entry(0x17 + (tile_type == TileType::LAVA_RIGHT));
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x72, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_floor(layers, tile_x, tile_y, foreground & 0x0F00, background);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x72, piece.layer5_x, piece.layer5_y);
+        this->draw_floor(env, foreground & 0x0F00, background);
         break;
       }
       case TileType::CARPET_GATE: // TODO(DX): Position is wrong
-        this->draw_SHAP_at_anchor(layers.cust(), 4050 + (foreground & 7) + 1, tile_x, tile_y, -0xA5, -0x32);
+        this->draw_SHAP_at_anchor(env, Env::FG, 4050 + (foreground & 7) + 1, -0xA5, -0x32);
         break;
       case TileType::TORCH_WITH_DEBRIS: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
+        throw std::invalid_argument("Unimplemented tile type");
       case TileType::DART_GUN: {
         const auto& piece = this->get_PIEC_entry(0x21);
-        this->draw_floor(layers, tile_x, tile_y, (foreground & 0xFFFC) | 0x0001, background);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x5B, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+        this->draw_floor(env, (foreground & 0xFFFC) | 0x0001, background);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x5B, piece.layer1_x, piece.layer1_y);
         break;
       }
       case TileType::PRESSURE_PLATE:
-        this->draw_pressure_plate(layers, level, room_id, tile_x, tile_y, foreground, background);
+        this->draw_pressure_plate(env, foreground, background);
         break;
       case TileType::BRIDGE: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
+        throw std::invalid_argument("Unimplemented tile type");
       default:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+        throw std::invalid_argument("Invalid tile type");
     }
   }
 };
 
-class RuinsLevelKind : public LevelKind {
+class RuinsOrTempleLevelKind : public LevelKind {
+public:
+  using LevelKind::LevelKind;
+
+  virtual void draw_floor(
+      Env& env, uint16_t foreground, uint16_t background, bool draw_sky, bool draw_background, bool draw_extra) = 0;
+  virtual void draw_broken_tile(Env& env) = 0;
+
+  void draw_scythe(Env& env, TileType tile_type, uint16_t foreground, uint16_t background) {
+    bool is_right = (tile_type == TileType::SCYTHE_RIGHT);
+    const auto& piece_0C = this->get_PIEC_entry(0x0C + is_right);
+    this->draw_floor(env, foreground & 0xFF00, background, true, true, false);
+    this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + ((foreground & 0x80) ? 0x39 : 0x38), piece_0C.layer0_x, (foreground & 0x80) ? -0x42 : -0x45);
+
+    static const std::array<uint8_t, 20> frames{
+        0x00, 0x3D, 0x3A, 0x3B, 0x3A, 0x3B, 0x3A, 0x3B, 0x3A, 0x3A,
+        0x3A, 0x3A, 0x3A, 0x3A, 0x3A, 0x3A, 0x3C, 0x3D, 0x3E, 0x00};
+    uint8_t frame = ((foreground & 0x001F) < frames.size()) ? frames[foreground & 0x1F] : 0x00;
+    if (is_right ? ((frame == 0x3D) || (frame == 0x3E)) : ((frame >= 0x3A) && (frame < 0x3D))) {
+      static const std::array<ExtraDef, 12> defs{
+          ExtraDef{0x3A, 0x2F, -0x3B, false},
+          ExtraDef{0x3B, 0x36, -0x3B, false},
+          ExtraDef{0x3C, 0x4E, -0x3B, false},
+          ExtraDef{0x3D, 0x23, -0x33, false},
+          ExtraDef{0x3E, 0x40, -0x41, false},
+          ExtraDef{0x3F, 0x19, -0x29, false},
+          ExtraDef{0x40, 0x23, -0x28, false},
+          ExtraDef{0x41, 0x59, -0x28, false},
+          ExtraDef{0x42, 0x42, -0x33, false},
+
+      };
+      const auto& bg_def = defs[frame - 0x3A];
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + bg_def.shap_id_delta + ((foreground & 0x0040) ? 9 : 0), bg_def.x_delta, bg_def.y_delta);
+      if (frame != 0x3E) {
+        const auto& fg_def = defs[frame - 0x3A + 5];
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + fg_def.shap_id_delta + ((foreground & 0x0040) ? 9 : 0), fg_def.x_delta, fg_def.y_delta);
+      }
+    }
+    if (foreground & 0x0020) {
+      this->draw_broken_tile(env);
+    }
+  }
+};
+
+class RuinsLevelKind : public RuinsOrTempleLevelKind {
 public:
   RuinsLevelKind(std::string&& resource_filename)
-      : LevelKind(std::move(resource_filename), {{3501, 3500}, {3502, 3500}, {3503, 3500}, {3504, 3500}, {3505, 3500}, {3506, 3500}, {3507, 3500}, {3508, 3500}, {3509, 3500}, {3510, 3500}, {3511, 3500}, {3512, 3500}, {3513, 3500}, {3514, 3500}, {3515, 3500}, {3516, 3500}, {3517, 3500}, {3518, 3500}, {3519, 3500}, {3520, 3500}, {3521, 3500}, {3522, 3500}, {3523, 3500}, {3524, 3500}, {3525, 3500}, {3526, 3500}, {3527, 3500}, {3528, 3500}, {3529, 3500}, {3530, 3500}, {3531, 3500}, {3532, 3500}, {3533, 3500}, {3534, 3500}, {3535, 3500}, {3536, 3500}, {3537, 3500}, {3538, 3500}, {3539, 3500}, {3540, 3500}, {3541, 3500}, {3542, 3500}, {3543, 3500}, {3544, 3500}, {3545, 3500}, {3546, 3500}, {3547, 3500}, {3548, 3500}, {3549, 3500}, {3550, 3500}, {3551, 3500}, {3552, 3500}, {3553, 3500}, {3554, 3500}, {3555, 3500}, {3556, 3500}, {3557, 3500}, {3558, 3500}, {3559, 3500}, {3560, 3500}, {3561, 3500}, {3562, 3500}, {3563, 3500}, {3564, 3500}, {3565, 3500}, {3566, 3500}, {3567, 3500}, {3568, 3500}, {3569, 3500}, {3570, 3500}, {3571, 3500}, {3572, 3500}, {3573, 3500}, {3574, 3500}, {3575, 3500}, {3576, 3500}, {3577, 3500}, {3578, 3500}, {3579, 3500}, {3580, 3500}, {3581, 3500}, {3582, 3500}, {3583, 3500}, {3584, 3500}, {3585, 3500}, {3586, 3500}, {3587, 3500}, {3588, 3500}, {3589, 3500}, {3590, 3500}, {3591, 3500}, {3592, 3500}, {3593, 3500}, {3594, 3500}, {3595, 3500}, {3596, 3500}, {3597, 3500}, {3598, 3500}, {3599, 3500}, {3600, 3500}, {3601, 3500}, {3602, 3500}, {3603, 3500}, {4200, 3501}, {4201, 3501}, {4202, 3501}, {4203, 3501}, {4204, 3501}, {4205, 3501}, {4206, 3501}, {4207, 3501}, {4250, 3500}, {4251, 3500}, {4252, 3500}, {4253, 3500}, {4254, 3500}, {4255, 3500}, {4256, 3500}, {4257, 3500}, {4258, 3500}, {4259, 3500}, {4260, 3500}, {4261, 3500}, {4262, 3500}, {4263, 3500}, {4264, 3500}, {4265, 3500}, {4266, 3500}, {4650, 3502}, {4651, 3502}, {25374, 3500}}) {}
+      : RuinsOrTempleLevelKind(std::move(resource_filename), {{3501, 3500}, {3502, 3500}, {3503, 3500}, {3504, 3500}, {3505, 3500}, {3506, 3500}, {3507, 3500}, {3508, 3500}, {3509, 3500}, {3510, 3500}, {3511, 3500}, {3512, 3500}, {3513, 3500}, {3514, 3500}, {3515, 3500}, {3516, 3500}, {3517, 3500}, {3518, 3500}, {3519, 3500}, {3520, 3500}, {3521, 3500}, {3522, 3500}, {3523, 3500}, {3524, 3500}, {3525, 3500}, {3526, 3500}, {3527, 3500}, {3528, 3500}, {3529, 3500}, {3530, 3500}, {3531, 3500}, {3532, 3500}, {3533, 3500}, {3534, 3500}, {3535, 3500}, {3536, 3500}, {3537, 3500}, {3538, 3500}, {3539, 3500}, {3540, 3500}, {3541, 3500}, {3542, 3500}, {3543, 3500}, {3544, 3500}, {3545, 3500}, {3546, 3500}, {3547, 3500}, {3548, 3500}, {3549, 3500}, {3550, 3500}, {3551, 3500}, {3552, 3500}, {3553, 3500}, {3554, 3500}, {3555, 3500}, {3556, 3500}, {3557, 3500}, {3558, 3500}, {3559, 3500}, {3560, 3500}, {3561, 3500}, {3562, 3500}, {3563, 3500}, {3564, 3500}, {3565, 3500}, {3566, 3500}, {3567, 3500}, {3568, 3500}, {3569, 3500}, {3570, 3500}, {3571, 3500}, {3572, 3500}, {3573, 3500}, {3574, 3500}, {3575, 3500}, {3576, 3500}, {3577, 3500}, {3578, 3500}, {3579, 3500}, {3580, 3500}, {3581, 3500}, {3582, 3500}, {3583, 3500}, {3584, 3500}, {3585, 3500}, {3586, 3500}, {3587, 3500}, {3588, 3500}, {3589, 3500}, {3590, 3500}, {3591, 3500}, {3592, 3500}, {3593, 3500}, {3594, 3500}, {3595, 3500}, {3596, 3500}, {3597, 3500}, {3598, 3500}, {3599, 3500}, {3600, 3500}, {3601, 3500}, {3602, 3500}, {3603, 3500}, {4200, 3501}, {4201, 3501}, {4202, 3501}, {4203, 3501}, {4204, 3501}, {4205, 3501}, {4206, 3501}, {4207, 3501}, {4250, 3500}, {4251, 3500}, {4252, 3500}, {4253, 3500}, {4254, 3500}, {4255, 3500}, {4256, 3500}, {4257, 3500}, {4258, 3500}, {4259, 3500}, {4260, 3500}, {4261, 3500}, {4262, 3500}, {4263, 3500}, {4264, 3500}, {4265, 3500}, {4266, 3500}, {4650, 3502}, {4651, 3502}, {25374, 3500}}) {}
 
-  void draw_background(DrawLayers& layers, int8_t tile_x, int8_t tile_y, uint16_t background) {
+  void draw_background(Env& env, uint16_t background) {
     uint8_t which = background & 0x001F;
     if (which == 0) {
       return;
@@ -1732,16 +1767,19 @@ public:
         piece_index = 0x24 + piece_type;
       }
       const auto& piece = this->get_PIEC_entry(piece_index);
-      this->draw_SHAP_at_anchor(layers.sky(), 3507, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+      this->draw_SHAP_at_anchor(env, Env::SKY, 3507, piece.layer0_x, piece.layer0_y);
       if (which == 5) {
-        this->draw_SHAP_at_anchor(layers.sky(), 3507, tile_x + 2, tile_y, piece.layer0_x, piece.layer0_y);
+        // TODO(DX): This seems wrong; verify it
+        env.tile_x += 2;
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3507, piece.layer0_x, piece.layer0_y);
+        env.tile_x -= 2;
       }
     }
     const auto& piece = this->get_PIEC_entry(0x24 + piece_type);
-    this->draw_SHAP_at_anchor(layers.sky(), 3500 + which, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+    this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + which, piece.layer0_x, piece.layer0_y);
   }
 
-  void draw_extra_foreground(DrawLayers& layers, int8_t tile_x, int8_t tile_y, uint16_t foreground) {
+  void draw_extra_foreground(Env& env, uint16_t foreground) {
     uint8_t which = (foreground & 0x0F00) >> 8;
     if (which < 0x0D) {
       uint8_t sub = (foreground & 0x3000) >> 12;
@@ -1753,7 +1791,7 @@ public:
             ExtraDef{0x67, 0x0a, -0x33, false},
         };
         const auto& def = defs[sub];
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + def.shap_id_delta, tile_x, tile_y, def.x_delta, def.y_delta);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + def.shap_id_delta, def.x_delta, def.y_delta);
       }
     } else {
       static const std::array<ExtraDef, 3> defs{
@@ -1762,7 +1800,7 @@ public:
           ExtraDef{0x64, 0x20, -0x10, false},
       };
       const auto& def = defs[which - 0x0D];
-      this->draw_SHAP_at_anchor(layers.bg(), 3500 + def.shap_id_delta, tile_x, tile_y, def.x_delta, def.y_delta);
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + def.shap_id_delta, def.x_delta, def.y_delta);
     }
     if ((which != 0) && (which < 0x0D)) {
       static const std::array<ExtraDef, 12> defs{
@@ -1780,255 +1818,436 @@ public:
           ExtraDef{0x60, -0x13, 0x0E, true},
       };
       const auto& def = defs[which - 1];
-      this->draw_SHAP_at_anchor(layers.fg(), 3500 + def.shap_id_delta, tile_x, tile_y, def.x_delta, def.y_delta);
+      this->draw_SHAP_at_anchor(env, Env::FG, 3500 + def.shap_id_delta, def.x_delta, def.y_delta);
     }
   }
 
-  void draw_floor(DrawLayers& layers, int8_t tile_x, int8_t tile_y, uint16_t foreground, uint16_t background, bool draw_extra = true) {
+  virtual void draw_floor(
+      Env& env, uint16_t foreground, uint16_t background, bool draw_sky, bool draw_background, bool draw_extra) {
     const auto& piece = this->get_PIEC_entry(1);
-    this->draw_background(layers, tile_x, tile_y, background);
-    this->draw_SHAP_at_anchor(layers.bg(), 3500 + (foreground & 3) + 0x0E, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-    this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x12, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+    if (draw_sky) {
+      this->draw_background(env, background);
+    }
+    if (draw_background) {
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + (foreground & 3) + 0x0E, piece.layer5_x, piece.layer5_y);
+    }
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x12, piece.layer1_x, piece.layer1_y);
     if (draw_extra) {
-      this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+      this->draw_extra_foreground(env, foreground);
     }
   }
 
-  virtual void draw_tile(
-      DrawLayers& layers, const PrinceOfPersia2Level& level, uint8_t room_id, int8_t tile_x, int8_t tile_y) {
-    auto [tile_type, foreground, background] = level.tile_info(room_id, tile_x, tile_y);
+  virtual void draw_broken_tile(Env& env) {
+    const auto& piece_0E = this->get_PIEC_entry(0x0E);
+    this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x13, piece_0E.layer5_x, piece_0E.layer5_y);
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x16, piece_0E.layer1_x, piece_0E.layer1_y);
+    this->draw_extra_foreground(env, 0);
+  }
+
+  void draw_raise_or_drop_tile(Env& env, bool is_drop_tile, uint16_t foreground, uint16_t background) {
+    const auto& piece = this->get_PIEC_entry((foreground & 0x2000) ? 0x06 : 0x05);
+    this->draw_background(env, background);
+    this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x34 + is_drop_tile, piece.layer5_x, piece.layer5_y);
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x36 + is_drop_tile, piece.layer1_x, piece.layer1_y);
+  }
+
+  void draw_wall_side(Env& env, uint16_t foreground) {
+    const auto& piece = this->get_PIEC_entry(0x14);
+    uint8_t side_pattern = (foreground & 0x000C) >> 2;
+    if (side_pattern != 2) {
+      int16_t shap_delta;
+      if (side_pattern != 3) {
+        shap_delta = side_pattern + 0x19;
+      } else if (foreground & 0x80) {
+        shap_delta = 0x4D;
+      } else {
+        shap_delta = 0x4C;
+      }
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + shap_delta, piece.layer0_x, piece.layer0_y);
+    }
+  }
+
+  void draw_wall(Env& env, uint16_t foreground, uint16_t background) {
+    const auto& piece = this->get_PIEC_entry(0x14);
+    this->draw_background(env, background);
+    this->draw_wall_side(env, foreground);
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 3) + 0x1B, piece.layer1_x, piece.layer1_y);
+    this->draw_extra_foreground(env, foreground);
+  }
+
+  virtual void draw_tile(Env& env) {
+    auto [tile_type, foreground, background] = this->tile_info(env, env.tile_x, env.tile_y);
     switch (tile_type) {
       case TileType::EMPTY:
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_extra_foreground(env, foreground);
         break;
       case TileType::SUPER_LOOSE_FLOOR:
       case TileType::FLOOR:
-        this->draw_floor(layers, tile_x, tile_y, foreground, background);
+        this->draw_floor(env, foreground, background, true, true, true);
         break;
       case TileType::SMALL_PILLAR: {
         const auto& piece = this->get_PIEC_entry(0x03);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_floor(layers, tile_x, tile_y, foreground, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + (foreground & 3) + 0x23, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + (foreground & 3) + 0x26, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_floor(env, foreground, background, true, true, true);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + (foreground & 3) + 0x23, piece.layer5_x, piece.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 3) + 0x26, piece.layer1_x, piece.layer1_y);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
-      case TileType::GATE: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+      case TileType::GATE: {
+        const auto& piece_04 = this->get_PIEC_entry(0x04);
+        const auto& piece_37 = this->get_PIEC_entry(0x37);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_04.layer5_shap_id, piece_04.layer5_x, piece_04.layer5_y);
+        // TODO(DX): There's some logic here if the room has a CUST; implement that
+        uint8_t progress = std::min<uint8_t>((foreground & 0xFF) >> 1, 0x5C);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_37.layer5_shap_id, piece_37.layer5_x, -10 - progress);
+        this->draw_floor(env, foreground & 1, background, false, false, true);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + piece_04.layer1_shap_id, piece_04.layer1_x, piece_04.layer1_y);
+        this->draw_extra_foreground(env, foreground);
         break;
+      }
       case TileType::RAISE_TILE:
-      case TileType::DROP_TILE: {
-        bool is_drop_tile = (tile_type == TileType::DROP_TILE);
-        const auto& piece = this->get_PIEC_entry((foreground & 0x2000) ? 0x06 : 0x05);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x34 + is_drop_tile, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x36 + is_drop_tile, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+      case TileType::DROP_TILE:
+        this->draw_raise_or_drop_tile(env, (tile_type == TileType::DROP_TILE), foreground, background);
+        break;
+      case TileType::TUNNEL: {
+        const auto& piece = this->get_PIEC_entry(0x07);
+        this->draw_background(env, background);
+        uint8_t which = foreground & 3;
+        // Technically is_visible should be set to foreground & 0x80; for the purpose of drawing maps we make tunnels
+        // always visible though
+        constexpr bool is_visible = true;
+        if (is_visible) {
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + which + 0x4E, piece.layer5_x, piece.layer5_y);
+        }
+        this->draw_wall_side(env, foreground | ((which == 0) ? 0x000C : 0x0008));
+        if (!is_visible) {
+          this->draw_wall(env, foreground, background);
+        } else {
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + which + 0x52, piece.layer1_x, piece.layer1_y);
+          this->draw_extra_foreground(env, foreground);
+        }
+        if (is_visible) {
+          // Technically this should be on foreground layer 2; we just draw it on foreground 1 after the above instead
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + which + 0x4E, piece.layer5_x, piece.layer5_y);
+        }
         break;
       }
-      case TileType::TUNNEL: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
       case TileType::LARGE_PILLAR_BOTTOM: {
         const auto& piece = this->get_PIEC_entry(0x08);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece.layer5_shap_id, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_floor(layers, tile_x, tile_y, foreground, background, false);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + piece.layer1_shap_id, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer5_shap_id, piece.layer5_x, piece.layer5_y);
+        this->draw_floor(env, foreground, background, true, true, false);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + piece.layer1_shap_id, piece.layer1_x, piece.layer1_y);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
       case TileType::LARGE_PILLAR_TOP: {
         const auto& piece = this->get_PIEC_entry(0x09);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece.layer0_shap_id, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + piece.layer1_shap_id, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer0_shap_id, piece.layer0_x, piece.layer0_y);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + piece.layer1_shap_id, piece.layer1_x, piece.layer1_y);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
       case TileType::POTION: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::LOOSE_FLOOR: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::SCYTHE_RIGHT:
-      case TileType::SCYTHE_LEFT: { // TODO(DX): These can get overwritten by large bg tiles to their right :( do we need to clip writes on the left somehow...?
-        bool is_right = (tile_type == TileType::SCYTHE_RIGHT);
-        const auto& piece_0C = this->get_PIEC_entry(0x0C + is_right);
-        this->draw_floor(layers, tile_x, tile_y, foreground & 0xFF00, background, false);
-        this->draw_SHAP_at_anchor(layers.sky(), 3500 + ((foreground & 0x80) ? 0x39 : 0x38), tile_x, tile_y, piece_0C.layer0_x, (foreground & 0x80) ? -0x42 : -0x45);
-
-        static const std::array<uint8_t, 20> frames{
-            0x00, 0x3D, 0x3A, 0x3B, 0x3A, 0x3B, 0x3A, 0x3B, 0x3A, 0x3A,
-            0x3A, 0x3A, 0x3A, 0x3A, 0x3A, 0x3A, 0x3C, 0x3D, 0x3E, 0x00};
-        uint8_t frame = ((foreground & 0x001F) < frames.size()) ? frames[foreground & 0x1F] : 0x00;
-        if (is_right ? ((frame == 0x3D) || (frame == 0x3E)) : ((frame >= 0x3A) && (frame < 0x3D))) {
-          static const std::array<ExtraDef, 12> defs{
-              ExtraDef{0x3A, 0x2F, -0x3B, false},
-              ExtraDef{0x3B, 0x36, -0x3B, false},
-              ExtraDef{0x3C, 0x4E, -0x3B, false},
-              ExtraDef{0x3D, 0x23, -0x33, false},
-              ExtraDef{0x3E, 0x40, -0x41, false},
-              ExtraDef{0x3F, 0x19, -0x29, false},
-              ExtraDef{0x40, 0x23, -0x28, false},
-              ExtraDef{0x41, 0x59, -0x28, false},
-              ExtraDef{0x42, 0x42, -0x33, false},
-
-          };
-          const auto& bg_def = defs[frame - 0x3A];
-          this->draw_SHAP_at_anchor(layers.bg(), 3500 + bg_def.shap_id_delta + ((foreground & 0x0040) ? 9 : 0), tile_x, tile_y, bg_def.x_delta, bg_def.y_delta);
-          if (frame != 0x3E) {
-            const auto& fg_def = defs[frame - 0x3A + 5];
-            this->draw_SHAP_at_anchor(layers.fg(), 3500 + fg_def.shap_id_delta + ((foreground & 0x0040) ? 9 : 0), tile_x, tile_y, fg_def.x_delta, fg_def.y_delta);
-          }
-        }
-        // TODO: The above is identical in Temple; the below is different (see A00210A4)
-        if (foreground & 0x0020) {
-          const auto& piece_0E = this->get_PIEC_entry(0x0E);
-          this->draw_SHAP_at_anchor(layers.bg(), 3500 + 0x13, tile_x, tile_y, piece_0E.layer5_x, piece_0E.layer5_y);
-          this->draw_SHAP_at_anchor(layers.fg(), 3500 + 0x16, tile_x, tile_y, piece_0E.layer1_x, piece_0E.layer1_y);
-          this->draw_extra_foreground(layers, tile_x, tile_y, 0);
+        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::LOOSE_FLOOR: {
+        this->draw_background(env, background);
+        uint8_t which = foreground & 0x000F;
+        if (which == 0x0D) {
+          this->draw_extra_foreground(env, foreground);
+        } else if (which == 0x00) {
+          this->draw_floor(env, foreground & 0xFFFC, background, false, true, true);
+        } else if (which > 0x0C) {
+          throw std::invalid_argument("Invalid foreground value");
+        } else {
+          const auto& piece = this->get_PIEC_entry(0x0B);
+          static const std::array<uint8_t, 12> odd_deltas{0, 1, 0, 2, 2, 0, 0, 0, 1, 1, 1, 0};
+          static const std::array<uint8_t, 12> even_deltas{0, 2, 0, 1, 1, 0, 0, 2, 2, 2, 0, 2};
+          uint8_t delta = (env.tile_x & 1) ? odd_deltas[which] : even_deltas[which];
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + delta + 0x2F, piece.layer5_x, piece.layer5_y);
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + delta + 0x31, piece.layer1_x, piece.layer1_y);
+          this->draw_extra_foreground(env, foreground);
         }
         break;
       }
-      case TileType::DEBRIS: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+      case TileType::SCYTHE_RIGHT:
+      case TileType::SCYTHE_LEFT: // TODO(DX): These can get overwritten by large bg tiles to their right :( do we need to clip writes on the left somehow...?
+        this->draw_scythe(env, tile_type, foreground, background);
+        break;
+      case TileType::DEBRIS:
+        if (!(foreground & 0x40)) {
+          this->draw_floor(env, foreground & 0xFFBF, background, true, true, true);
+        } else if (foreground & 4) {
+          this->draw_raise_or_drop_tile(env, false, foreground & 0xFFBF, background);
+        } else if (foreground & 8) {
+          this->draw_raise_or_drop_tile(env, true, foreground & 0xFFBF, background);
+        } else {
+          this->draw_floor(env, foreground & 0xFFBF, background, true, true, true);
+        }
+        this->draw_broken_tile(env);
+        this->draw_extra_foreground(env, foreground & 0xDFFF);
         break;
       case TileType::LEVEL_DOOR_LEFT: {
         const auto& piece_10 = this->get_PIEC_entry(0x10);
         // const auto& piece_11 = this->get_PIEC_entry(0x11);
-        this->draw_floor(layers, tile_x, tile_y, foreground & 0xFFFC, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece_10.layer0_shap_id, tile_x, tile_y, 0x34, piece_10.layer0_y);
-        // this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece_11.layer0_shap_id, tile_x, tile_y, 0x34, piece_11.layer0_y);
+        this->draw_floor(env, foreground & 0xFFFC, background, true, true, true);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_10.layer0_shap_id, 0x34, piece_10.layer0_y);
+        // this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_11.layer0_shap_id, 0x34, piece_11.layer0_y);
         break;
       }
       case TileType::LEVEL_DOOR_RIGHT: {
         const auto& piece_10 = this->get_PIEC_entry(0x10);
         const auto& piece_39 = this->get_PIEC_entry(0x39);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece_10.layer0_shap_id, tile_x, tile_y, 1, piece_10.layer0_y);
-        this->draw_floor(layers, tile_x, tile_y, (foreground & 0xFFFC) | 0x0002, background);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece_39.layer5_shap_id, tile_x, tile_y, piece_39.layer5_x, piece_39.layer5_y);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_10.layer0_shap_id, 1, piece_10.layer0_y);
+        this->draw_floor(env, (foreground & 0xFFFC) | 0x0002, background, true, true, true);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_39.layer5_shap_id, piece_39.layer5_x, piece_39.layer5_y);
         uint8_t progress = std::min<uint8_t>(foreground & 0x00FF, 0x4F);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece_39.layer0_shap_id, tile_x, tile_y, piece_39.layer0_x, -0x22 - (progress + 1));
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece_39.layer5_shap_id, tile_x, tile_y, piece_39.layer5_x, piece_39.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_39.layer0_shap_id, piece_39.layer0_x, -0x22 - (progress + 1));
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_39.layer5_shap_id, piece_39.layer5_x, piece_39.layer5_y);
         break;
       }
-      case TileType::WALL: {
-        const auto& piece = this->get_PIEC_entry(0x14);
-        this->draw_background(layers, tile_x, tile_y, background);
-        uint8_t side_pattern = (foreground & 0x000C) >> 2;
-        if (side_pattern != 2) {
-          int16_t shap_delta;
-          if (side_pattern != 3) {
-            shap_delta = side_pattern + 0x19;
-          } else if (foreground & 0x80) {
-            shap_delta = 0x4D;
-          } else {
-            shap_delta = 0x4C;
-          }
-          this->draw_SHAP_at_anchor(layers.bg(), 3500 + shap_delta, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
-        }
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + (foreground & 3) + 0x1B, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+      case TileType::WALL:
+        this->draw_wall(env, foreground, background);
         break;
-      }
       case TileType::SKELETON: {
         const auto& piece = this->get_PIEC_entry(0x15);
-        this->draw_background(layers, tile_x, tile_y, background);
-        this->draw_floor(layers, tile_x, tile_y, foreground, background, false);
-        this->draw_SHAP_at_anchor(layers.bg(), 3500 + piece.layer5_shap_id, tile_x, tile_y, piece.layer5_x, piece.layer5_y);
-        this->draw_SHAP_at_anchor(layers.fg(), 3500 + piece.layer1_shap_id, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_floor(env, foreground, background, true, true, false);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer5_shap_id, piece.layer5_x, piece.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + piece.layer1_shap_id, piece.layer1_x, piece.layer1_y);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
       case TileType::SWORD: // TODO(DX)
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
+        throw std::invalid_argument("Unimplemented tile type");
       default:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+        throw std::invalid_argument("Invalid tile type");
     }
   }
 };
 
-class TempleLevelKind : public LevelKind {
+class TempleLevelKind : public RuinsOrTempleLevelKind {
 public:
   TempleLevelKind(std::string&& resource_filename)
-      : LevelKind(std::move(resource_filename), {{3501, 3500}, {3502, 3500}, {3503, 3500}, {3504, 3500}, {3505, 3500}, {3506, 3500}, {3507, 3500}, {3508, 3500}, {3509, 3500}, {3510, 3500}, {3511, 3500}, {3512, 3500}, {3513, 3500}, {3514, 3500}, {3515, 3500}, {3516, 3500}, {3517, 3500}, {3518, 3500}, {3519, 3500}, {3520, 3500}, {3521, 3500}, {3522, 3500}, {3523, 3500}, {3524, 3500}, {3525, 3500}, {3526, 3500}, {3527, 3500}, {3528, 3500}, {3529, 3500}, {3530, 3500}, {3531, 3500}, {3532, 3500}, {3533, 3500}, {3534, 3500}, {3535, 3500}, {3536, 3500}, {3537, 3500}, {3538, 3500}, {3539, 3500}, {3540, 3500}, {3541, 3500}, {3542, 3500}, {3543, 3500}, {3544, 3500}, {3545, 3500}, {3546, 3500}, {3547, 3500}, {3548, 3500}, {3549, 3500}, {3550, 3500}, {3551, 3500}, {3552, 3500}, {3553, 3500}, {3554, 3500}, {3555, 3500}, {3556, 3500}, {3557, 3500}, {3558, 3500}, {3559, 3500}, {3560, 3500}, {3561, 3500}, {3562, 3500}, {3563, 3500}, {3564, 3500}, {3565, 3500}, {3566, 3500}, {3567, 3500}, {3568, 3500}, {3569, 3500}, {3570, 3500}, {3571, 3500}, {3572, 3500}, {3573, 3500}, {3574, 3500}, {3575, 3500}, {3576, 3500}, {3577, 3500}, {3578, 3500}, {3579, 3500}, {3580, 3500}, {3581, 3500}, {3582, 3500}, {3583, 3500}, {3584, 3500}, {3585, 3500}, {3586, 3500}, {3587, 3500}, {3588, 3500}, {3589, 3500}, {3590, 3500}, {3591, 3500}, {3592, 3500}, {3593, 3500}, {3594, 3500}, {3595, 3500}, {3596, 3500}, {3597, 3500}, {3598, 3500}, {3599, 3500}, {3600, 3500}, {3601, 3500}, {3602, 3500}, {3603, 3500}, {3604, 3500}, {3605, 3500}, {3606, 3500}, {3607, 3500}, {3608, 3500}, {3609, 3500}, {3610, 3500}, {3611, 3500}, {3612, 3500}, {3613, 3500}, {3614, 3500}, {3615, 3500}, {3616, 3500}, {3617, 3500}, {3618, 3500}, {3619, 3500}, {4025, 3500}, {4026, 3500}, {4075, 3500}, {4076, 3500}}) {}
+      : RuinsOrTempleLevelKind(std::move(resource_filename), {{3501, 3500}, {3502, 3500}, {3503, 3500}, {3504, 3500}, {3505, 3500}, {3506, 3500}, {3507, 3500}, {3508, 3500}, {3509, 3500}, {3510, 3500}, {3511, 3500}, {3512, 3500}, {3513, 3500}, {3514, 3500}, {3515, 3500}, {3516, 3500}, {3517, 3500}, {3518, 3500}, {3519, 3500}, {3520, 3500}, {3521, 3500}, {3522, 3500}, {3523, 3500}, {3524, 3500}, {3525, 3500}, {3526, 3500}, {3527, 3500}, {3528, 3500}, {3529, 3500}, {3530, 3500}, {3531, 3500}, {3532, 3500}, {3533, 3500}, {3534, 3500}, {3535, 3500}, {3536, 3500}, {3537, 3500}, {3538, 3500}, {3539, 3500}, {3540, 3500}, {3541, 3500}, {3542, 3500}, {3543, 3500}, {3544, 3500}, {3545, 3500}, {3546, 3500}, {3547, 3500}, {3548, 3500}, {3549, 3500}, {3550, 3500}, {3551, 3500}, {3552, 3500}, {3553, 3500}, {3554, 3500}, {3555, 3500}, {3556, 3500}, {3557, 3500}, {3558, 3500}, {3559, 3500}, {3560, 3500}, {3561, 3500}, {3562, 3500}, {3563, 3500}, {3564, 3500}, {3565, 3500}, {3566, 3500}, {3567, 3500}, {3568, 3500}, {3569, 3500}, {3570, 3500}, {3571, 3500}, {3572, 3500}, {3573, 3500}, {3574, 3500}, {3575, 3500}, {3576, 3500}, {3577, 3500}, {3578, 3500}, {3579, 3500}, {3580, 3500}, {3581, 3500}, {3582, 3500}, {3583, 3500}, {3584, 3500}, {3585, 3500}, {3586, 3500}, {3587, 3500}, {3588, 3500}, {3589, 3500}, {3590, 3500}, {3591, 3500}, {3592, 3500}, {3593, 3500}, {3594, 3500}, {3595, 3500}, {3596, 3500}, {3597, 3500}, {3598, 3500}, {3599, 3500}, {3600, 3500}, {3601, 3500}, {3602, 3500}, {3603, 3500}, {3604, 3500}, {3605, 3500}, {3606, 3500}, {3607, 3500}, {3608, 3500}, {3609, 3500}, {3610, 3500}, {3611, 3500}, {3612, 3500}, {3613, 3500}, {3614, 3500}, {3615, 3500}, {3616, 3500}, {3617, 3500}, {3618, 3500}, {3619, 3500}, {4025, 3500}, {4026, 3500}, {4075, 3500}, {4076, 3500}}) {}
 
-  virtual void draw_tile(
-      DrawLayers& layers, const PrinceOfPersia2Level& level, uint8_t room_id, int8_t tile_x, int8_t tile_y) {
-    auto [tile_type, foreground, background] = level.tile_info(room_id, tile_x, tile_y);
+  virtual const std::tuple<TileType, uint16_t, uint16_t>& default_tile(int8_t) {
+    static const std::tuple<TileType, uint16_t, uint16_t> ret = std::make_tuple(TileType::WALL, 0, 0x0009);
+    return ret;
+  }
+
+  void draw_background(Env& env, uint16_t foreground, uint16_t background) {
+    uint8_t which = background & 0x001F;
+    if (which == 0) {
+      return;
+    }
+    uint8_t sub = (foreground & 0x3000) >> 12;
+    uint8_t piece_type = ((background & 0x0F00) >> 8) + 0x24;
+    bool has_bg_statue = (which == 0x14);
+    if (has_bg_statue) {
+      which = 0x13;
+    }
+    const auto& piece = this->get_PIEC_entry(piece_type);
+    this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + which, piece.layer0_x, piece.layer0_y);
+    if (has_bg_statue) {
+      // TODO(DX): X/Y deltas had to be adjusted manually here. How does it work in the original code?
+      this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + 0x14, piece.layer0_x + 0x17, 0x53);
+    } else if (sub) {
+      static const std::array<ExtraDef, 3> defs{
+          ExtraDef{0x75, 0x41, -0x56, false},
+          ExtraDef{0x74, 0x28, -0x56, false},
+          ExtraDef{0x76, 0x50, -0x19, false},
+      };
+      const auto& def = defs[sub - 1];
+      this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + def.shap_id_delta, def.x_delta, def.y_delta);
+    }
+  }
+
+  void draw_floor_extra(Env& env, uint16_t foreground) {
+    if (env.cust && (env.cust->palette_type == 0x001F)) {
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x77, 0x04, -0x14);
+    } else {
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x1F, 0x26, -0x17);
+    }
+    if (foreground & 1) {
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x5E, 0x22, -0x19);
+    }
+  }
+
+  virtual void draw_floor(Env& env, uint16_t foreground, uint16_t background, bool draw_sky, bool draw_background, bool) {
+    const auto& piece = this->get_PIEC_entry(0x01);
+    if (draw_sky) {
+      this->draw_background(env, foreground, background);
+    }
+    if (draw_background) {
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x1C, piece.layer5_x, piece.layer5_y);
+      if (foreground & 2) {
+        this->draw_floor_extra(env, foreground);
+      }
+    }
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 1) + 0x1D, piece.layer1_x, piece.layer1_y);
+  }
+
+  virtual void draw_broken_tile(Env& env) {
+    const auto& piece = this->get_PIEC_entry(0x0E);
+    this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer5_shap_id, piece.layer5_x, piece.layer5_y);
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + piece.layer1_shap_id, piece.layer1_x, piece.layer1_y);
+  }
+
+  void draw_wall(Env& env, uint16_t foreground, uint16_t background) {
+    const auto& piece = this->get_PIEC_entry(0x14);
+    this->draw_background(env, foreground, background);
+    if ((foreground & 3) != 1) {
+      auto [right_tile_type, _1, _2] = this->tile_info(env, env.tile_x + 1, env.tile_y);
+      if (!is_wall_tile(right_tile_type)) {
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x15, piece.layer5_x, piece.layer5_y);
+        if (foreground & 4) {
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x1B, piece.layer5_x, piece.layer5_y);
+        }
+      }
+    }
+    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 1) + 0x16, (foreground & 2) ? -0x33 : 0x00, piece.layer1_y);
+    auto [left_tile_type, _1, _2] = this->tile_info(env, env.tile_x - 1, env.tile_y);
+    if (((foreground & 3) < 2) &&
+        !is_space_tile(left_tile_type) &&
+        (left_tile_type != TileType::TRAP_DOOR) &&
+        (left_tile_type != TileType::LOOSE_FLOOR)) {
+      this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x18, piece.layer1_x, piece.layer1_y);
+    }
+    auto [below_tile_type, _3, _4] = this->tile_info(env, env.tile_x, env.tile_y + 1);
+    if (is_wall_tile(below_tile_type)) {
+      this->draw_SHAP_at_anchor(env, Env::FG, 3500 + is_wall_tile(left_tile_type) + 0x19, piece.layer1_x, piece.layer1_y);
+    }
+  }
+
+  virtual void draw_tile(Env& env) {
+    auto [tile_type, foreground, background] = this->tile_info(env, env.tile_x, env.tile_y);
     switch (tile_type) {
       case TileType::EMPTY:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+        this->draw_background(env, foreground, background);
         break;
       case TileType::FLOOR:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+      case TileType::TRAP_DOOR:
+        this->draw_floor(env, foreground, background, true, true, true);
         break;
-      case TileType::SPIKES:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::SMALL_PILLAR:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::GATE:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::RAISE_TILE:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::DROP_TILE:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::LARGE_PILLAR_BOTTOM:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::LARGE_PILLAR_TOP:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::POTION:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::LOOSE_FLOOR:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::SCYTHE_LEFT:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::SCYTHE_RIGHT:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::DEBRIS:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::LEVEL_DOOR_LEFT:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::LEVEL_DOOR_RIGHT:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::TORCH:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
-        break;
-      case TileType::WALL:
-      case TileType::HORIZONTAL_CRUSHER: {
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+      case TileType::SPIKES: {
+        const auto& piece = this->get_PIEC_entry(0x02);
+        this->draw_wall(env, foreground & 0xFFFC, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer5_shap_id, piece.layer5_x, piece.layer5_y);
         break;
       }
-      case TileType::TRAP_DOOR:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+      case TileType::SMALL_PILLAR:
+      case TileType::LARGE_PILLAR_BOTTOM: {
+        const auto& piece = this->get_PIEC_entry(static_cast<size_t>(tile_type));
+        this->draw_background(env, foreground, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer5_shap_id, piece.layer5_x, piece.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer1_shap_id, piece.layer1_x, piece.layer1_y);
+        this->draw_floor(env, foreground, background, false, false, true);
         break;
-      case TileType::TORCH_WITH_DEBRIS:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+      }
+      case TileType::GATE: {
+        const auto& piece_04 = this->get_PIEC_entry(0x04);
+        const auto& piece_37 = this->get_PIEC_entry(0x37);
+        this->draw_background(env, foreground, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_04.layer5_shap_id, piece_04.layer5_x, piece_04.layer5_y);
+        uint8_t progress = std::min<uint8_t>((foreground & 0xFF) >> 1, 0x5C);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_37.layer5_shap_id, piece_37.layer5_x, -10 - progress);
+        this->draw_SHAP_at_anchor(env, Env::FG, 3500 + piece_04.layer1_shap_id, piece_04.layer1_x, piece_04.layer1_y);
+        this->draw_floor(env, foreground & 1, background, false, false, true);
         break;
-      case TileType::FLAME:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+      }
+      case TileType::RAISE_TILE:
+      case TileType::DROP_TILE: {
+        bool is_drop_tile = (tile_type == TileType::DROP_TILE);
+        const auto& piece = this->get_PIEC_entry((foreground & 0x2000) ? 0x06 : 0x05);
+        this->draw_background(env, foreground & 0xDFFF, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x29 + is_drop_tile, piece.layer5_x, piece.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x2B + is_drop_tile, piece.layer1_x, piece.layer1_y);
         break;
+      }
+      case TileType::LARGE_PILLAR_TOP: {
+        const auto& piece = this->get_PIEC_entry(0x09);
+        this->draw_background(env, foreground, background);
+        if (!(foreground & 3)) {
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer5_shap_id, piece.layer5_x, piece.layer5_y);
+        }
+        if (foreground & 3) {
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 3) + 0x23, 0, ((foreground & 3) == 2) ? 0x00 : -0x0B);
+        } else {
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + piece.layer1_shap_id, piece.layer1_x, piece.layer1_y);
+        }
+        break;
+      }
+      case TileType::POTION: // TODO(DX)
+        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::LOOSE_FLOOR: {
+        this->draw_background(env, foreground, background);
+        uint8_t which = foreground & 0x000F;
+        if (which == 0x0D) {
+          // Nothing to do
+        } else if (which == 0x00) {
+          this->draw_floor(env, foreground & 0xFFF0, background, false, true, true);
+        } else if (which > 0x0C) {
+          throw std::invalid_argument("Invalid foreground value");
+        } else {
+          const auto& piece = this->get_PIEC_entry(0x0B);
+          static const std::array<uint8_t, 12> odd_deltas{0, 1, 0, 2, 2, 0, 0, 0, 1, 1, 1, 0};
+          static const std::array<uint8_t, 12> even_deltas{0, 2, 2, 0, 1, 1, 0, 2, 2, 2, 0, 1};
+          uint8_t delta = (env.tile_x & 1) ? odd_deltas[which] : even_deltas[which];
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + delta + 0x2C, piece.layer5_x, piece.layer5_y);
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + delta + 0x2E, piece.layer1_x, piece.layer1_y);
+        }
+        break;
+      }
+      case TileType::SCYTHE_RIGHT:
+      case TileType::SCYTHE_LEFT: // TODO(DX): These can get overwritten by large bg tiles to their right :( do we need to clip writes on the left somehow...?
+        this->draw_scythe(env, tile_type, foreground, background);
+        break;
+      case TileType::DEBRIS: // TODO(DX): Is the commented-out implementation correct? It should call draw_floor, right...?
+        // this->draw_background(env, foreground, background);
+        // if (foreground & 2) {
+        //   this->draw_floor_extra(env, foreground);
+        // }
+        // this->draw_broken_tile(env);
+        // break;
+        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::LEVEL_DOOR_LEFT: // TODO(DX)
+        this->draw_floor(env, foreground & 0xFFFC, background, true, true, true);
+        break;
+      case TileType::LEVEL_DOOR_RIGHT: { // TODO(DX)
+        const auto& piece_11 = this->get_PIEC_entry(0x11);
+        const auto& piece_39 = this->get_PIEC_entry(0x39);
+        this->draw_background(env, foreground, background);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + piece_11.layer0_shap_id, piece_11.layer0_x, piece_11.layer0_y);
+        this->draw_floor(env, (foreground & 0xFFFC) | 1, background, false, true, true);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece_39.layer5_shap_id, piece_39.layer5_x, piece_39.layer5_y);
+        uint8_t progress = std::min<uint8_t>(foreground & 0xFF, 0x4D);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + piece_39.layer0_shap_id, piece_39.layer0_x, -0x22 - (progress + 1));
+        break;
+      }
+      case TileType::TORCH: {
+        const auto& piece = this->get_PIEC_entry(0x13);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + piece.layer0_shap_id, piece.layer0_x, piece.layer0_y);
+        this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + (foreground & 0x000F) + 0x60, piece.layer5_x, piece.layer5_y);
+        this->draw_floor(env, foreground & 0xFFFC, background, false, true, true);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer1_shap_id, piece.layer1_x, piece.layer1_y);
+        break;
+      }
+      case TileType::WALL:
+      case TileType::HORIZONTAL_CRUSHER:
+        this->draw_wall(env, foreground, background);
+        break;
+      case TileType::TORCH_WITH_DEBRIS: // TODO(DX)
+        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::FLAME: // TODO(DX)
+        throw std::invalid_argument("Unimplemented tile type");
       default:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+        throw std::invalid_argument("Invalid tile type");
     }
   }
 };
@@ -2038,12 +2257,11 @@ public:
   RooftopsLevelKind(std::string&& resource_filename)
       : LevelKind(std::move(resource_filename), {{3501, 3500}, {3502, 3500}, {3503, 3500}, {3504, 3500}, {3505, 3500}, {3506, 3500}, {3507, 3500}, {3508, 3500}, {3509, 3500}, {3510, 3500}, {3511, 3500}, {3512, 3500}, {3513, 3500}, {3514, 3500}, {3515, 3500}, {3516, 3500}, {3517, 3500}, {3518, 3500}, {3519, 3500}, {3520, 3500}, {3521, 3500}, {3522, 3500}, {3523, 3500}, {3524, 3500}, {3525, 3500}, {3526, 3500}, {3527, 3500}, {3528, 3500}, {3529, 3500}, {3530, 3500}, {3531, 3500}, {3532, 3500}, {3533, 3500}, {3534, 3500}, {3535, 3500}, {3536, 3500}, {3537, 3500}, {3538, 3500}, {3539, 3500}, {3540, 3500}, {3541, 3500}, {3542, 3500}, {3543, 3500}, {3544, 3500}, {3545, 3500}, {3546, 3500}, {3547, 3500}, {3548, 3500}, {3549, 3500}, {3550, 3500}, {3551, 3500}, {3552, 3500}, {3553, 3500}, {3554, 3500}, {3555, 3500}, {3556, 3500}, {3557, 3500}, {3558, 3500}, {3559, 3500}, {3560, 3500}, {3561, 3500}, {3562, 3500}, {3563, 3500}, {3564, 3500}, {3565, 3500}, {3566, 3500}, {3567, 3500}, {3568, 3500}, {3569, 3500}, {3570, 3500}, {3571, 3500}, {3572, 3500}, {3573, 3500}, {3574, 3500}, {3575, 3500}, {3576, 3500}, {3577, 3500}, {3578, 3500}, {3579, 3500}, {3580, 3500}, {3581, 3500}, {3582, 3500}, {3583, 3500}, {3584, 3500}, {3585, 3500}, {3586, 3500}, {3587, 3500}, {3588, 3500}, {3589, 3500}, {3590, 3500}, {3591, 3500}, {3592, 3500}, {3593, 3500}, {3594, 3500}, {3595, 3500}, {3596, 3500}, {3597, 3500}, {3598, 3500}, {3599, 3500}, {3600, 3500}, {3601, 3500}, {3602, 3500}, {3603, 3500}, {3604, 3500}, {3605, 3500}, {3606, 3500}, {3607, 3500}, {3608, 3500}, {3609, 3501}, {3610, 3501}, {3611, 3501}, {3612, 3501}, {3613, 3501}, {3614, 3501}, {3615, 3501}, {3616, 3501}, {3617, 3501}, {3618, 3501}, {3619, 3501}, {3620, 3501}, {3621, 3501}, {3622, 3501}, {3623, 3501}, {3624, 3501}, {3625, 3501}, {3626, 3501}, {3627, 3501}, {3628, 3501}, {3629, 3501}, {3630, 3501}, {3631, 3501}, {3632, 3501}, {3633, 3501}, {3634, 3501}, {4351, 3501}, {4352, 3501}}) {}
 
-  void draw_background(DrawLayers& layers, uint16_t room_id, int8_t tile_x, int8_t tile_y, uint16_t background) {
+  void draw_background(Env& env, uint16_t background) {
     uint8_t bg_type = background & 0x003F;
     if (bg_type) {
-      auto& layer = layers.sky();
       const auto& piece = this->get_PIEC_entry(0x24);
-      bool is_lower_level = ((room_id == 0x0E) || (room_id == 0x0F) || (room_id == 0x12));
+      bool is_lower_level = ((env.room_id == 0x0E) || (env.room_id == 0x0F) || (env.room_id == 0x12));
       if (is_lower_level) {
         bg_type += 0x006C;
       } else {
@@ -2051,17 +2269,14 @@ public:
             0, 0, 0, 0, 0, 3, 2, 0, 0, 1, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 1, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 3, 2, 0, 3, 2, 0};
         if (deltas[bg_type]) {
-          this->draw_SHAP_at_anchor(layer, 3500 + deltas[bg_type], tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+          this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + deltas[bg_type], piece.layer0_x, piece.layer0_y);
         }
       }
-      this->draw_SHAP_at_anchor(layer, 3500 + bg_type, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+      this->draw_SHAP_at_anchor(env, Env::SKY, 3500 + bg_type, piece.layer0_x, piece.layer0_y);
     }
   }
 
-  void draw_extra_foreground(DrawLayers& layers, int8_t tile_x, int8_t tile_y, uint16_t foreground) {
-    auto& bg_layer = layers.bg();
-    auto& fg_layer = layers.fg();
-
+  void draw_extra_foreground(Env& env, uint16_t foreground) {
     static const std::array<ExtraDef, 11> defs{
         ExtraDef{0x3B, 0x2F, -0x38, true},
         ExtraDef{0x3C, 0x00, 0x00, false},
@@ -2078,88 +2293,79 @@ public:
 
     int8_t extra_index = ((foreground & 0x0F00) >> 8) - 1;
     if (extra_index >= static_cast<ssize_t>(defs.size())) {
-      this->draw_error_tile(bg_layer, tile_x, tile_y, 0xFF);
+      throw std::invalid_argument("Invalid foreground extra");
     } else if (extra_index >= 0) {
       const auto& def = defs[extra_index];
-      this->draw_SHAP_at_anchor(bg_layer, 3500 + def.shap_id_delta, tile_x, tile_y, def.x_delta, def.y_delta);
+      this->draw_SHAP_at_anchor(env, Env::BG, 3500 + def.shap_id_delta, def.x_delta, def.y_delta);
     }
 
     if (extra_index == 1) {
       const auto& def = defs[0];
-      this->draw_SHAP_at_anchor(fg_layer, 3500 + def.shap_id_delta, tile_x, tile_y, def.x_delta, def.y_delta);
+      this->draw_SHAP_at_anchor(env, Env::FG, 3500 + def.shap_id_delta, def.x_delta, def.y_delta);
     }
   }
 
-  virtual void draw_tile(
-      DrawLayers& layers, const PrinceOfPersia2Level& level, uint8_t room_id, int8_t tile_x, int8_t tile_y) {
-    auto [tile_type, foreground, background] = level.tile_info(room_id, tile_x, tile_y);
+  virtual void draw_tile(Env& env) {
+    auto [tile_type, foreground, background] = this->tile_info(env, env.tile_x, env.tile_y);
     switch (tile_type) {
       case TileType::EMPTY:
-        this->draw_background(layers, room_id, tile_x, tile_y, background);
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_background(env, background);
+        this->draw_extra_foreground(env, foreground);
         break;
       case TileType::FLOOR: {
-        // auto& sky = layers.sky();
-        auto& bg = layers.bg();
-        auto& fg = layers.fg();
+        // auto& sky = env.sky();
         const auto& piece = this->get_PIEC_entry(0x01);
-        bool is_lower_level = ((room_id == 0x0E) || (room_id == 0x0F) || (room_id == 0x12));
-        this->draw_background(layers, room_id, tile_x, tile_y, background);
+        bool is_lower_level = ((env.room_id == 0x0E) || (env.room_id == 0x0F) || (env.room_id == 0x12));
+        this->draw_background(env, background);
         if (is_lower_level && (foreground & 0x000F)) {
-          this->draw_SHAP_at_anchor(bg, 3500 + 0x72, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x72, piece.layer0_x, piece.layer0_y);
         }
         if (!is_lower_level) {
-          this->draw_SHAP_at_anchor(fg, 3500 + (foreground & 0x000F) + 0x33, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 0x000F) + 0x33, piece.layer1_x, piece.layer1_y);
         } else if (foreground & 0x000F) {
-          this->draw_SHAP_at_anchor(fg, 3500 + 0x71, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x71, piece.layer1_x, piece.layer1_y);
         }
-        if (is_lower_level && (room_id != 0x0E)) {
-          this->draw_SHAP_at_anchor(bg, 3500 + 0x70, tile_x, tile_y, 0, 0);
-        } else if ((tile_x < 9) && is_space_tile(std::get<0>(level.tile_info(room_id, tile_x + 1, tile_y)))) {
-          this->draw_SHAP_at_anchor(fg, 3500 + std::min<size_t>((foreground & 0x000F) + 0x2F, 0x32), tile_x + 1, tile_y, 0, piece.layer5_y);
+        if (is_lower_level && (env.room_id != 0x0E)) {
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x70, 0, 0);
+        } else if ((env.tile_x < 9) && is_space_tile(std::get<0>(this->tile_info(env, env.tile_x + 1, env.tile_y)))) {
+          env.tile_x++;
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + std::min<size_t>((foreground & 0x000F) + 0x2F, 0x32), 0, piece.layer5_y);
+          env.tile_x--;
         }
-        this->draw_extra_foreground(layers, tile_x, tile_y, foreground);
+        this->draw_extra_foreground(env, foreground);
         break;
       }
       case TileType::WALL:
-        if (room_id != 0x0E) {
-          auto& fg = layers.fg();
+        if (env.room_id != 0x0E) {
           const auto& piece = this->get_PIEC_entry(0x24);
-          this->draw_SHAP_at_anchor(fg, 3500 + (foreground & 0x001F) + 0x45, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 0x001F) + 0x45, piece.layer1_x, piece.layer1_y);
         }
         break;
       case TileType::DOCK_PILLAR: {
         const auto& piece_2E = this->get_PIEC_entry(0x2E);
         const auto& piece_2F = this->get_PIEC_entry(0x2F);
-        this->draw_background(layers, room_id, tile_x, tile_y, background);
-        this->draw_SHAP_at_anchor(
-            layers.bg(), 3500 + 0x74, tile_x, tile_y, piece_2F.layer0_x, piece_2F.layer0_y);
-        this->draw_SHAP_at_anchor(
-            layers.bg(), 3500 + 0x77, tile_x, tile_y, piece_2E.layer0_x, piece_2E.layer0_y);
-        this->draw_SHAP_at_anchor(
-            layers.bg(), 3500 + 0x75, tile_x, tile_y, piece_2E.layer5_x, piece_2E.layer5_y);
-        this->draw_SHAP_at_anchor(
-            layers.fg(), 3500 + 0x73, tile_x, tile_y, piece_2F.layer1_x, piece_2F.layer1_y);
+        this->draw_background(env, background);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x74, piece_2F.layer0_x, piece_2F.layer0_y);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x77, piece_2E.layer0_x, piece_2E.layer0_y);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x75, piece_2E.layer5_x, piece_2E.layer5_y);
+        this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x73, piece_2F.layer1_x, piece_2F.layer1_y);
         break;
       }
       case TileType::SHIP:
-        this->draw_background(layers, room_id, tile_x, tile_y, background);
+        this->draw_background(env, background);
         // It only renders if it's in the upper-left tile, apparently. Foreground is presumably progress to the left
-        if (tile_x == 0 && tile_y == 0 && foreground < 99) {
+        if (env.tile_x == 0 && env.tile_y == 0 && foreground < 99) {
           const auto& piece = this->get_PIEC_entry(0x30);
-          this->draw_SHAP_at_anchor(
-              layers.bg(), 3500 + 0x7A, tile_x, tile_y, piece.layer0_x, piece.layer0_y);
-          this->draw_SHAP_at_anchor(
-              layers.fg(), 3500 + 0x7B, tile_x, tile_y, 0x48, piece.layer5_y);
-          this->draw_SHAP_at_anchor(
-              layers.fg(), 3500 + 0x7C, tile_x, tile_y, piece.layer1_x, piece.layer1_y);
+          this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x7A, piece.layer0_x, piece.layer0_y);
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x7B, 0x48, piece.layer5_y);
+          this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x7C, piece.layer1_x, piece.layer1_y);
         }
         break;
       case TileType::WINDOW:
-        this->draw_background(layers, room_id, tile_x, tile_y, background);
+        this->draw_background(env, background);
         break;
       default:
-        this->draw_error_tile(layers.ovl(), tile_x, tile_y, 0xFF);
+        throw std::invalid_argument("Invalid tile type");
     }
   }
 };
@@ -2168,6 +2374,36 @@ class FinalLevelKind : public LevelKind {
 public:
   FinalLevelKind(std::string&& resource_filename)
       : LevelKind(std::move(resource_filename), {{4000, 3500}, {4001, 3500}, {4025, 3500}, {4026, 3500}, {4050, 3501}, {4051, 3501}, {4052, 3501}, {4053, 3501}, {4054, 3501}, {4055, 3501}, {4056, 3501}, {4057, 3501}, {4058, 3501}, {4059, 3501}, {4060, 3501}, {4125, 3502}, {4126, 3502}, {4127, 3502}, {4128, 3502}, {4129, 3502}, {4130, 3502}, {4131, 3502}, {4132, 3502}, {4133, 3502}, {4134, 3502}, {4135, 3502}, {4136, 3502}, {4150, 3502}, {4151, 3502}, {4152, 3502}, {4153, 3502}, {4154, 3502}, {4155, 3502}, {4156, 3502}, {4157, 3502}, {4158, 3502}, {4159, 3502}, {4160, 3502}, {4161, 3502}, {4175, 3502}, {4176, 3502}, {4177, 3502}, {4178, 3502}, {4179, 3502}, {4180, 3502}, {4181, 3502}, {4182, 3502}, {4183, 3502}, {4184, 3502}, {4185, 3502}, {4186, 3502}, {4187, 3502}, {4188, 3502}, {4189, 3502}, {4275, 3501}, {4276, 3501}, {4277, 3501}, {4278, 3501}, {4279, 3501}, {4280, 3501}, {4300, 3501}, {4301, 3501}, {4302, 3501}, {4303, 3501}, {4304, 3501}, {4350, 3503}}) {}
+
+  virtual const std::tuple<TileType, uint16_t, uint16_t>& default_tile(int8_t tile_x) {
+    static const std::tuple<TileType, uint16_t, uint16_t> even = std::make_tuple(TileType::WALL, 0, 0x0009);
+    static const std::tuple<TileType, uint16_t, uint16_t> odd = std::make_tuple(TileType::WALL, 0, 0x0109);
+    return (tile_x & 1) ? odd : even;
+  }
+
+  virtual void draw_tile(Env& env) {
+    auto [tile_type, foreground, background] = this->tile_info(env, env.tile_x, env.tile_y);
+    switch (tile_type) {
+      case TileType::EMPTY:
+      case TileType::FLOOR:
+      case TileType::WALL: // TODO(DX)
+        // The original code draws animated crystals or gargoyles if foreground & 0x1000 is set; we generate static
+        // maps so we omit that logic
+        break;
+      case TileType::POTION: // TODO(DX)
+        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::JAFFAR_CHESS_PIECE: // TODO(DX)
+        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::FINAL_SPIDER: // TODO(DX)
+        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::FINAL_CRYSTAL: // TODO(DX)
+        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::FINAL_GARGOYLE: // TODO(DX)
+        throw std::invalid_argument("Unimplemented tile type");
+      default:
+        throw std::invalid_argument("Invalid tile type");
+    }
+  }
 };
 
 std::unordered_map<uint16_t, std::unique_ptr<LevelKind>> load_level_kinds(const std::string& data_dir) {
@@ -2284,10 +2520,8 @@ int main(int argc, char** argv) {
   if (output_dir.empty()) {
     output_dir = ".";
   }
-  uint8_t overlay_alpha = args.get<uint8_t>("overlay-alpha", 0x80);
+  uint8_t overlay_alpha = args.get<uint8_t>("overlay-alpha", 0x40);
   uint8_t annotation_alpha = args.get<uint8_t>("annotation-alpha", 0xFF);
-  bool render_basic_graphics = !args.get<bool>("skip-basic-graphics");
-  bool render_custom_graphics = !args.get<bool>("skip-custom-graphics");
   bool render_all_components = !args.get<bool>("first-component-only");
   bool save_layers = args.get<bool>("save-layers");
   auto level_nums = args.get_multi<size_t>("level");
@@ -2323,21 +2557,15 @@ int main(int argc, char** argv) {
         h_rooms = std::max<size_t>(placement.second + 1, h_rooms);
       }
 
-      LevelKind::DrawLayers layers(w_rooms * TILE_W_PIXELS * 10, h_rooms * TILE_H_PIXELS * 3);
+      LevelKind::Env layers(level, w_rooms * TILE_W_PIXELS * 10, h_rooms * TILE_H_PIXELS * 3);
       for (const auto& [room_id, placement] : component.placement_map) {
         size_t room_x = placement.first * (TILE_W_PIXELS * 10);
         size_t room_y = placement.second * (TILE_H_PIXELS * 3);
-        auto room_layers = layers.view(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3);
-        room_layers.sky().clear((room_id < level->num_used_rooms) ? 0xFFFFFFFF : 0xE0E0E0FF);
+        auto room_env = layers.view(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3);
+        room_env.room_id = room_id;
+        room_env.get_layer(LevelKind::Env::SKY).clear((room_id < level->num_used_rooms) ? 0xFFFFFFFF : 0xE0E0E0FF);
         if (level_kind) {
-          level_kind->draw_room(
-              room_layers,
-              *level,
-              room_id,
-              render_basic_graphics,
-              render_custom_graphics,
-              overlay_alpha,
-              annotation_alpha);
+          level_kind->draw_room(room_env, overlay_alpha, annotation_alpha);
         }
       }
 
