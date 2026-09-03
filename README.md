@@ -43,13 +43,15 @@ The tools in this project are:
 
 ## Building
 
+*The releases on the GitHub repository only include the executables. If you need the library, you'll have to build from source.*
+
 * Install required dependencies:
   * Install zlib, if you somehow don't have it already. (macOS and most Linuxes come with it preinstalled, but some Linuxes like Raspbian may not. If your Linux doesn't have it, you can `apt-get install zlib1g-dev`.)
   * Install CMake.
   * Build and install phosg (https://github.com/fuzziqersoftware/phosg).
 * Install optional dependencies:
   * Install Netpbm (http://netpbm.sourceforge.net/). This is only needed for converting PICT resources that resource_dasm can't decode by itself - if you don't care about PICTs, you can skip this step. Also, this is a runtime dependency only; you can install it later if you find that you need it, and you won't have to rebuild resource_dasm.
-  * Install SDL3. This is only needed for modsynth and smssynth to be able to play songs live; without SDL, they will still build and can still generate WAV files.
+  * Install SDL3. This is only needed for modsynth and smssynth to be able to play songs; without SDL, they will still build and can still generate WAV files.
 * Run `cmake .`, then `make`.
 * If you're building another project that depends on resource_dasm, run `sudo make install`.
 
