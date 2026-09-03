@@ -73,7 +73,7 @@ static std::string disassembly_for_dcmp(const ResourceDASM::ResourceFile::Decode
 class ResourceExporter {
 private:
   void ensure_directories_exist(const std::string& filename) {
-    std::string parent_path = std::filesystem::path(filename).parent_path();
+    std::string parent_path = std::filesystem::path(filename).parent_path().string();
     if (!parent_path.empty()) {
       std::filesystem::create_directories(parent_path);
     }
