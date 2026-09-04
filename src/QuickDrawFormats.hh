@@ -16,6 +16,9 @@
 
 namespace ResourceDASM {
 
+extern const std::vector<Color8> DEFAULT_ICON_COLOR_TABLE_4BIT;
+extern const std::vector<Color8> DEFAULT_ICON_COLOR_TABLE_8BIT;
+
 enum TransferMode {
   SRC_COPY = 0,
   SRC_OR = 1,
@@ -88,9 +91,6 @@ struct Region {
   Iterator iterate(const Rect& rect) const;
 };
 
-extern const std::vector<Color8> default_icon_color_table_4bit;
-extern const std::vector<Color8> default_icon_color_table_8bit;
-
 // Decodes a monochrome image
 phosg::ImageG1 decode_monochrome_image(const void* vdata, size_t size, size_t w, size_t h, size_t row_bytes = 0);
 
@@ -107,7 +107,7 @@ phosg::ImageRGB888 decode_4bit_image(
     size_t size,
     size_t w,
     size_t h,
-    const std::vector<Color8>* color_table = &default_icon_color_table_4bit);
+    const std::vector<Color8>* color_table = &DEFAULT_ICON_COLOR_TABLE_4BIT);
 
 // Decodes an 8-bit color image, and applies the given color table to produce a full-color RGB image. If null is given
 // for color_table, returns a full-color RGB image in which all channels of each pixel contain the corresponding value
@@ -117,7 +117,7 @@ phosg::ImageRGB888 decode_8bit_image(
     size_t size,
     size_t w,
     size_t h,
-    const std::vector<Color8>* color_table = &default_icon_color_table_8bit);
+    const std::vector<Color8>* color_table = &DEFAULT_ICON_COLOR_TABLE_8BIT);
 
 // Decodes a color pixel map, optionally with a mask bitmap.
 phosg::ImageRGB888 decode_color_image(

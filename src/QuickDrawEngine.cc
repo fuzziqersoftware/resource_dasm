@@ -986,8 +986,8 @@ phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(
 
   auto decode_four_color_blocks = [&](uint16_t color_a, uint16_t color_b, uint8_t num_blocks) {
     Color8 c[4];
-    c[3] = phosg::rgba8888_for_xrgb1555(color_a);
-    c[0] = phosg::rgba8888_for_xrgb1555(color_b);
+    c[3] = Color8::from_rgbx8888(phosg::rgba8888_for_xrgb1555(color_a));
+    c[0] = Color8::from_rgbx8888(phosg::rgba8888_for_xrgb1555(color_b));
     c[1] = {static_cast<uint8_t>((11 * c[3].r + 21 * c[0].r) / 32),
         static_cast<uint8_t>((11 * c[3].g + 21 * c[0].g) / 32),
         static_cast<uint8_t>((11 * c[3].b + 21 * c[0].b) / 32)};

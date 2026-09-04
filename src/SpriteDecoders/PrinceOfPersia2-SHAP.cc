@@ -13,13 +13,19 @@ namespace ResourceDASM {
 
 struct SHAPHeader {
   enum Flags {
-    ROW_RLE_COMPRESSED = 0x100,
-    RLE_COMPRESSED = 0x200,
-    LZ_COMPRESSED = 0x400,
+    FLIP_HORIZONTAL = 0x0010, // Only one of these may be set, apparently
+    FLIP_VERTICAL = 0x0020, // Only one of these may be set, apparently
+    ROW_RLE_COMPRESSED = 0x0100,
+    RLE_COMPRESSED = 0x0200,
+    LZ_COMPRESSED = 0x0400,
+    MONOCHROME = 0x9000,
+    COLOR_4BIT = 0xA000,
+    COLOR_8BIT = 0xB000,
+    FORMAT_MASK = 0xF000,
   };
   phosg::be_uint16_t flags;
-  phosg::be_int16_t width;
   phosg::be_int16_t row_bytes;
+  phosg::be_int16_t width;
   phosg::be_int16_t height;
   phosg::be_uint32_t unknown2;
   uint8_t data[0];
@@ -126,27 +132,19 @@ phosg::ImageRGBA8888N decode_SHAP(const std::string& data_with_header, const std
   const auto& header = r.get<SHAPHeader>();
   std::string data = r.read(r.remaining());
 
+  uint16_t effective_row_bytes = header.row_bytes;
   uint8_t compression_type = (header.flags & 0x0F00) >> 8;
-  size_t row_bytes = header.width;
-
   if (compression_type & 4) {
     data = decompress_SHAP_lz(data);
   }
-
   if (compression_type & 2) {
     data = decompress_SHAP_standard_rle(data);
   }
-
   if (compression_type & 1) {
-    data = decompress_SHAP_rows_rle(data, header.height, header.row_bytes);
-    // For this compression type, the actual image width is the row_bytes field, not the width field. (Why did they do
-    // this...?)
-    row_bytes = header.row_bytes;
-  }
-
-  size_t area_bytes = row_bytes * header.height;
-  if (data.size() != area_bytes) {
-    throw std::runtime_error("incorrect data size after decompression");
+    // There appears to be a bug (?) where the game uses row_bytes instead of width if it's RLE-compressed. It's likely
+    // this only occurs for 8-bit SHAPs, but (TODO) we should check the code for the others - there are no examples
+    data = decompress_SHAP_rows_rle(data, header.height, header.width);
+    effective_row_bytes = header.width;
   }
 
   // Convert the ctbl array into a map, since they are often discontinuous and the color IDs matter
@@ -155,20 +153,78 @@ phosg::ImageRGBA8888N decode_SHAP(const std::string& data_with_header, const std
     ctbl_map.emplace(c.color_num, c.c.as8());
   }
 
-  phosg::ImageRGBA8888N result(row_bytes, header.height, true);
-  for (size_t y = 0; y < static_cast<size_t>(header.height); y++) {
-    for (size_t x = 0; x < row_bytes; x++) {
-      uint8_t v = data.at(y * row_bytes + x);
-      if (v == 0) {
-        result.write(x, y, 0x00000000);
-      } else {
-        try {
-          result.write(x, y, ctbl_map.at(v).rgba8888());
-        } catch (const std::out_of_range&) {
-          result.write(x, y, 0xFFFFFFFF);
+  phosg::ImageRGBA8888N result;
+
+  uint16_t format = header.flags & SHAPHeader::Flags::FORMAT_MASK;
+  if (format == SHAPHeader::Flags::MONOCHROME) {
+    size_t area_bytes = header.row_bytes * header.height;
+    if (data.size() != area_bytes) {
+      throw std::runtime_error(std::format(
+          "insufficient data after decompression (received 0x{:X} bytes, expected 0x{:X} bytes)",
+          data.size(), area_bytes));
+    }
+    result.resize(header.width, header.height);
+    uint32_t color = ctbl.at(0).c.as8().rgba8888();
+    for (size_t y = 0; y < static_cast<size_t>(header.height); y++) {
+      for (size_t x = 0; x < static_cast<size_t>(header.width); x++) {
+        if (data.at(y * header.row_bytes + (x >> 3)) & (0x80 >> (x & 7))) {
+          result.write(x, y, color);
+        } else {
+          result.write(x, y, 0x00000000);
         }
       }
     }
+
+  } else if (format == SHAPHeader::Flags::COLOR_4BIT) {
+    // TODO: This is a guess; there are no examples of this format in the final game and I'm too lazy to fully reverse-
+    // engineer the blitting function for this format
+    size_t area_bytes = header.row_bytes * header.height;
+    if (data.size() != area_bytes) {
+      throw std::runtime_error(std::format(
+          "insufficient data after decompression (received 0x{:X} bytes, expected 0x{:X} bytes)",
+          data.size(), area_bytes));
+    }
+    result.resize(header.width, header.height);
+    for (size_t y = 0; y < static_cast<size_t>(header.height); y++) {
+      for (size_t x = 0; x < static_cast<size_t>(header.width); x++) {
+        uint8_t v = data.at(y * header.row_bytes + (x >> 1));
+        v = ((x & 1) ? v : (v >> 4)) & 0x0F;
+        if (v == 0) {
+          result.write(x, y, 0x00000000);
+        } else {
+          try {
+            result.write(x, y, ctbl_map.at(v).rgba8888());
+          } catch (const std::out_of_range&) {
+            result.write(x, y, 0xFFFFFFFF);
+          }
+        }
+      }
+    }
+
+  } else if (format == SHAPHeader::Flags::COLOR_8BIT) {
+    size_t area_bytes = effective_row_bytes * header.height;
+    if (data.size() < area_bytes) {
+      throw std::runtime_error(std::format(
+          "insufficient data after decompression (received 0x{:X} bytes, expected 0x{:X} bytes)",
+          data.size(), area_bytes));
+    }
+    result.resize(header.width, header.height);
+    for (size_t y = 0; y < static_cast<size_t>(header.height); y++) {
+      for (size_t x = 0; x < static_cast<size_t>(header.width); x++) {
+        uint8_t v = data.at(y * effective_row_bytes + x);
+        if (v == 0) {
+          result.write(x, y, 0x00000000);
+        } else {
+          try {
+            result.write(x, y, ctbl_map.at(v).rgba8888());
+          } catch (const std::out_of_range&) {
+            result.write(x, y, 0xFFFFFFFF);
+          }
+        }
+      }
+    }
+  } else {
+    throw std::runtime_error("unknown color format");
   }
 
   return result;

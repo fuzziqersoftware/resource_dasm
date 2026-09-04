@@ -11,13 +11,12 @@ struct Point {
   phosg::be_int16_t y;
   phosg::be_int16_t x;
 
-  Point() = default;
-  Point(int16_t y, int16_t x);
+  constexpr bool operator==(const Point& other) const = default;
+  constexpr bool operator!=(const Point& other) const = default;
 
-  bool operator==(const Point& other) const;
-  bool operator!=(const Point& other) const;
-
-  std::string str() const;
+  inline std::string str() const {
+    return std::format("Point(x={}, y={})", this->x, this->y);
+  }
 } __attribute__((packed));
 
 struct Rect {
@@ -26,22 +25,38 @@ struct Rect {
   phosg::be_int16_t y2;
   phosg::be_int16_t x2;
 
-  Rect() = default;
-  Rect(int16_t y1, int16_t x1, int16_t y2, int16_t x2);
+  constexpr bool operator==(const Rect& other) const = default;
+  constexpr bool operator!=(const Rect& other) const = default;
 
-  bool operator==(const Rect& other) const;
-  bool operator!=(const Rect& other) const;
+  constexpr bool contains(ssize_t x, ssize_t y) const {
+    return ((x >= this->x1) && (x < this->x2) && (y >= this->y1) && (y < this->y2));
+  }
+  constexpr bool contains(const Rect& other) const {
+    return ((other.x1 >= this->x1) && (other.x1 < this->x2) &&
+        (other.y1 >= this->y1) && (other.y1 < this->y2) &&
+        (other.x2 >= this->x1) && (other.x2 <= this->x2) &&
+        (other.y2 >= this->y1) && (other.y2 <= this->y2));
+  }
+  constexpr ssize_t width() const {
+    return this->x2 - this->x1;
+  }
+  constexpr ssize_t height() const {
+    return this->y2 - this->y1;
+  }
 
-  bool contains(ssize_t x, ssize_t y) const;
-  bool contains(const Rect& other) const;
-  ssize_t width() const;
-  ssize_t height() const;
+  constexpr bool is_empty() const {
+    return (this->x1 == this->x2) || (this->y1 == this->y2);
+  }
 
-  bool is_empty() const;
+  constexpr Rect anchor(int16_t x = 0, int16_t y = 0) const {
+    int16_t x_delta = x - this->x1;
+    int16_t y_delta = y - this->y1;
+    return Rect{this->y1 + y_delta, this->x1 + x_delta, this->y2 + y_delta, this->x2 + x_delta};
+  }
 
-  Rect anchor(int16_t x = 0, int16_t y = 0) const;
-
-  std::string str() const;
+  inline std::string str() const {
+    return std::format("Rect(x1={}, y1={}, x2={}, y2={})", this->x1, this->y1, this->x2, this->y2);
+  }
 } __attribute__((packed));
 
 union Fixed {
@@ -108,9 +123,15 @@ struct Color8 {
   uint8_t g;
   uint8_t b;
 
-  Color8() = default;
-  Color8(uint32_t c);
-  Color8(uint8_t r, uint8_t g, uint8_t b);
+  constexpr Color8() = default;
+  constexpr Color8(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) {}
+
+  constexpr static Color8 from_rgb888(uint32_t c) {
+    return Color8{static_cast<uint8_t>(c >> 16), static_cast<uint8_t>(c >> 8), static_cast<uint8_t>(c)};
+  }
+  constexpr static Color8 from_rgbx8888(uint32_t c) {
+    return Color8{static_cast<uint8_t>(c >> 24), static_cast<uint8_t>(c >> 16), static_cast<uint8_t>(c >> 8)};
+  }
 
   constexpr uint32_t rgba8888(uint8_t alpha = 0xFF) const {
     return phosg::rgba8888(this->r, this->g, this->b, alpha);
@@ -123,10 +144,34 @@ struct Color {
   phosg::be_uint16_t b;
 
   Color() = default;
-  Color(uint16_t r, uint16_t g, uint16_t b);
+  constexpr Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) {}
 
-  Color8 as8() const;
-  uint64_t to_u64() const;
+  static constexpr Color from_rgb888(uint32_t c) {
+    return Color{
+        static_cast<uint16_t>(((c >> 16) & 0xFF) * 0x0101),
+        static_cast<uint16_t>(((c >> 8) & 0xFF) * 0x0101),
+        static_cast<uint16_t>((c & 0xFF) * 0x0101)};
+  }
+  static constexpr Color from_rgbx8888(uint32_t c) {
+    return Color{
+        static_cast<uint16_t>(((c >> 24) & 0xFF) * 0x0101),
+        static_cast<uint16_t>(((c >> 16) & 0xFF) * 0x0101),
+        static_cast<uint16_t>(((c >> 8) & 0xFF) * 0x0101)};
+  }
+
+  constexpr Color8 as8() const {
+    return Color8{
+        static_cast<uint8_t>(this->r / 0x101),
+        static_cast<uint8_t>(this->g / 0x101),
+        static_cast<uint8_t>(this->b / 0x101)};
+  }
+
+  constexpr uint64_t to_u64() const {
+    return (static_cast<uint64_t>(this->r) << 32) |
+        (static_cast<uint64_t>(this->g) << 16) |
+        (static_cast<uint64_t>(this->b));
+  }
+
   constexpr uint32_t rgba8888(uint8_t a = 0xFF) const {
     return phosg::rgba8888(this->r / 0x0101, this->g / 0x0101, this->b / 0x0101, a);
   }
@@ -143,8 +188,7 @@ struct ColorTable {
   phosg::be_int16_t num_entries; // actually num_entries - 1
   ColorTableEntry entries[0];
 
-  static std::shared_ptr<ColorTable> from_entries(
-      const std::vector<ColorTableEntry>& entries);
+  static std::shared_ptr<ColorTable> from_entries(const std::vector<ColorTableEntry>& entries);
 
   size_t size() const;
   uint32_t get_num_entries() const;

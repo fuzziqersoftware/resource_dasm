@@ -174,9 +174,11 @@ Input parsing options:\n\
 Color table options:\n\
   --default-clut: use the default 256-color table\n\
   --grayscale-clut: use a table of 256 grays increasing from black to white\n\
+  --colors=RRGGBBAA[,RRGGBBAA[...]]: use a color table containing these colors\n\
   --clut=FILE: use a clut resource (.bin file) as the color table\n\
   --pltt=FILE: use a pltt resource (.bin file) as the color table\n\
   --CTBL=FILE: use a CTBL resource (.bin file) as the color table\n\
+  --color-id-offset=N: add N to all color IDs in the table before rendering\n\
 The = sign is required for these options, unlike the format options above.\n\
 \n" IMAGE_SAVER_HELP);
 }
@@ -185,6 +187,7 @@ enum class ColorTableType {
   NONE,
   DEFAULT,
   GRAYSCALE,
+  IMMEDIATE,
   CLUT,
   PLTT,
   CTBL,
@@ -197,6 +200,8 @@ int main(int argc, char** argv) {
   }
 
   ColorTableType color_table_type = ColorTableType::NONE;
+  std::vector<ResourceDASM::ColorTableEntry> immediate_clut;
+  ssize_t color_id_offset = 0;
   const char* input_filename = nullptr;
   const char* color_table_filename = nullptr;
   const char* output_filename = nullptr;
@@ -211,6 +216,14 @@ int main(int argc, char** argv) {
         color_table_type = ColorTableType::DEFAULT;
       } else if (!strcmp(argv[x], "--grayscale-clut")) {
         color_table_type = ColorTableType::GRAYSCALE;
+      } else if (!strncmp(argv[x], "--colors=", 9)) {
+        color_table_type = ColorTableType::IMMEDIATE;
+        for (const auto& token : phosg::split(&argv[x][9], ',')) {
+          immediate_clut.emplace_back(ResourceDASM::ColorTableEntry{
+              immediate_clut.size(), ResourceDASM::Color::from_rgbx8888(std::stoul(token, nullptr, 16))});
+        }
+      } else if (!strncmp(argv[x], "--color-id-offset=", 18)) {
+        color_id_offset = std::stoll(&argv[x][18], nullptr, 0);
       } else if (!strncmp(&argv[x][2], "clut=", 5)) {
         color_table_filename = &argv[x][7];
         color_table_type = ColorTableType::CLUT;
@@ -269,6 +282,9 @@ int main(int argc, char** argv) {
           color_table.emplace_back(ResourceDASM::ColorTableEntry{.color_num = static_cast<uint16_t>(z), .c{v, v, v}});
         }
         break;
+      case ColorTableType::IMMEDIATE:
+        color_table = std::move(immediate_clut);
+        break;
       case ColorTableType::CLUT: {
         auto data = phosg::load_file(color_table_filename);
         color_table = ResourceDASM::ResourceFile::decode_clut(data.data(), data.size());
@@ -291,6 +307,12 @@ int main(int argc, char** argv) {
       }
       default:
         throw std::logic_error("invalid color table type");
+    }
+  }
+
+  if (color_id_offset) {
+    for (auto& color : color_table) {
+      color.color_num += color_id_offset;
     }
   }
 

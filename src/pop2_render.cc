@@ -1121,6 +1121,15 @@ public:
     int8_t tile_x = 0;
     int8_t tile_y = 0;
 
+    std::shared_ptr<const phosg::ImageRGBA8888N> small_potion_image;
+    std::shared_ptr<const phosg::ImageRGBA8888N> large_potion_image;
+    std::shared_ptr<const phosg::ImageRGBA8888N> blue_potion_bubbles_image1;
+    std::shared_ptr<const phosg::ImageRGBA8888N> blue_potion_bubbles_image2;
+    std::shared_ptr<const phosg::ImageRGBA8888N> green_potion_bubbles_image1;
+    std::shared_ptr<const phosg::ImageRGBA8888N> green_potion_bubbles_image2;
+    std::shared_ptr<const phosg::ImageRGBA8888N> purple_potion_bubbles_image1;
+    std::shared_ptr<const phosg::ImageRGBA8888N> purple_potion_bubbles_image2;
+
     enum Layer {
       SKY = 0,
       BG = 5,
@@ -1144,6 +1153,14 @@ public:
       ret.cust = this->cust;
       ret.tile_x = this->tile_x;
       ret.tile_y = this->tile_y;
+      ret.small_potion_image = this->small_potion_image;
+      ret.large_potion_image = this->large_potion_image;
+      ret.blue_potion_bubbles_image1 = this->blue_potion_bubbles_image1;
+      ret.blue_potion_bubbles_image2 = this->blue_potion_bubbles_image2;
+      ret.green_potion_bubbles_image1 = this->green_potion_bubbles_image1;
+      ret.green_potion_bubbles_image2 = this->green_potion_bubbles_image2;
+      ret.purple_potion_bubbles_image1 = this->purple_potion_bubbles_image1;
+      ret.purple_potion_bubbles_image2 = this->purple_potion_bubbles_image2;
       return ret;
     }
 
@@ -1192,7 +1209,49 @@ public:
     return ret;
   }
 
+  virtual void clear_sky_layer(Env& env) {
+    env.get_layer(LevelKind::Env::SKY).clear((env.room_id < env.level->num_used_rooms) ? 0xFFFFFFFF : 0xE0E0E0FF);
+  }
+
   virtual void draw_tile(Env& env) = 0;
+
+  void draw_potion_flask(Env& env, uint16_t foreground) {
+    const phosg::ImageRGBA8888N* bubbles_image1;
+    const phosg::ImageRGBA8888N* bubbles_image2;
+    uint8_t potion_type = (foreground & 0x00E0) >> 5;
+    if (potion_type == 1 || potion_type == 2) {
+      bubbles_image1 = env.blue_potion_bubbles_image1.get();
+      bubbles_image2 = env.blue_potion_bubbles_image2.get();
+    } else if (potion_type == 5) {
+      bubbles_image1 = env.purple_potion_bubbles_image1.get();
+      bubbles_image2 = env.purple_potion_bubbles_image2.get();
+    } else {
+      bubbles_image1 = env.green_potion_bubbles_image1.get();
+      bubbles_image2 = env.green_potion_bubbles_image2.get();
+    }
+
+    // Potion types:
+    //   0 = empty (short, no bubbles)
+    //   1 = restore HP (short, blue)
+    //   2 = extend HP (tall, blue)
+    //   3 = slow fall (tall, green)
+    //   4 = invert (tall, green)
+    //   5 = deplete HP or cancel invert (short, purple)
+    //   6 = Jinnee (short, green)
+    //   7 = invalid (short, green); behaves the same as empty but has bubbles
+    // TODO: Add an annotation on the overlay layer saying what kind of potion it is
+
+    const auto& piece = this->get_PIEC_entry(0x0A);
+    bool is_large = (potion_type >= 2) && (potion_type <= 4);
+    this->draw_image_at_anchor(env, Env::FG, is_large ? *env.large_potion_image : *env.small_potion_image, piece.layer1_x, piece.layer1_y);
+    if (potion_type != 0) {
+      // The game uses (foreground & 0x001F) here; we use 5 so the bubbles always appear (this is hardcoded at the
+      // place where we look up the relevant SHAPs in main(); the SHAP IDs are 3500 + 3 + bubble_frame and 3500 + 13 +
+      // bubble_frame)
+      this->draw_image_at_anchor(env, Env::FG, *bubbles_image1, piece.layer1_x, is_large ? -0x25 : -0x21);
+      this->draw_image_at_anchor(env, Env::FG, *bubbles_image2, piece.layer1_x, is_large ? -0x25 : -0x21);
+    }
+  }
 
   inline std::tuple<TileType, uint16_t, uint16_t> tile_info(Env& env, int8_t tile_x, int8_t tile_y) {
     return env.level->tile_info(env.room_id, tile_x, tile_y, this->default_tile(tile_x));
@@ -1377,19 +1436,17 @@ public:
       }
     }
 
+    this->clear_sky_layer(env);
+
     // Tiles are drawn left to right, bottom to top; we draw the bottom/left edge tiles first
     std::array<std::array<bool, 10>, 3> tile_errors{};
     for (env.tile_y = 3; env.tile_y >= 0; env.tile_y--) {
       for (env.tile_x = -1; env.tile_x < 10; env.tile_x++) {
-        auto [_1, foreground, _2] = env.level->tile_info(
-            env.room_id, env.tile_x, env.tile_y, this->default_tile(env.tile_x));
-        if ((env.tile_x < 0) || (env.tile_y == 3) || (foreground & 0xC000) != 0xC000) {
-          try {
-            this->draw_tile(env);
-          } catch (const std::invalid_argument&) {
-            if (env.tile_x >= 0 && env.tile_x < 10 && env.tile_y >= 0 && env.tile_y < 3) {
-              tile_errors[env.tile_y][env.tile_x] = true;
-            }
+        try {
+          this->draw_tile(env);
+        } catch (const std::invalid_argument&) {
+          if (env.tile_x >= 0 && env.tile_x < 10 && env.tile_y >= 0 && env.tile_y < 3) {
+            tile_errors[env.tile_y][env.tile_x] = true;
           }
         }
       }
@@ -1414,7 +1471,7 @@ public:
 
       for (env.tile_y = 3; env.tile_y >= 0; env.tile_y--) {
         for (env.tile_x = -1; env.tile_x < 10; env.tile_x++) {
-          auto [_1, foreground, _2] = this->tile_info(env, env.tile_x, env.tile_y);
+          auto [tile_type, foreground, _] = this->tile_info(env, env.tile_x, env.tile_y);
           if ((foreground & 0xC000) == 0x8000) {
             try {
               this->draw_tile(env);
@@ -1423,6 +1480,10 @@ public:
                 tile_errors[env.tile_y][env.tile_x] = true;
               }
             }
+          } else if (tile_type == TileType::POTION) {
+            // If it's a potion, draw just the flask (so it will render above the CUST even if the potion is entirely
+            // hidden by the CUST in-game)
+            this->draw_potion_flask(env, foreground);
           }
         }
       }
@@ -1620,8 +1681,10 @@ public:
         this->draw_extra_foreground(env, foreground);
         break;
       }
-      case TileType::POTION: // TODO(DX)
-        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::POTION:
+        this->draw_floor(env, foreground, background);
+        this->draw_potion_flask(env, foreground);
+        break;
       case TileType::LOOSE_FLOOR: {
         const auto& piece = this->get_PIEC_entry(0x0B);
         this->draw_background(env, background);
@@ -1952,8 +2015,10 @@ public:
         this->draw_extra_foreground(env, foreground);
         break;
       }
-      case TileType::POTION: // TODO(DX)
-        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::POTION:
+        this->draw_floor(env, foreground, background, true, true, true);
+        this->draw_potion_flask(env, foreground);
+        break;
       case TileType::LOOSE_FLOOR: {
         this->draw_background(env, background);
         uint8_t which = foreground & 0x000F;
@@ -2183,8 +2248,10 @@ public:
         }
         break;
       }
-      case TileType::POTION: // TODO(DX)
-        throw std::invalid_argument("Unimplemented tile type");
+      case TileType::POTION:
+        this->draw_floor(env, foreground, background, true, true, true);
+        this->draw_potion_flask(env, foreground);
+        break;
       case TileType::LOOSE_FLOOR: {
         this->draw_background(env, foreground, background);
         uint8_t which = foreground & 0x000F;
@@ -2375,6 +2442,17 @@ public:
   FinalLevelKind(std::string&& resource_filename)
       : LevelKind(std::move(resource_filename), {{4000, 3500}, {4001, 3500}, {4025, 3500}, {4026, 3500}, {4050, 3501}, {4051, 3501}, {4052, 3501}, {4053, 3501}, {4054, 3501}, {4055, 3501}, {4056, 3501}, {4057, 3501}, {4058, 3501}, {4059, 3501}, {4060, 3501}, {4125, 3502}, {4126, 3502}, {4127, 3502}, {4128, 3502}, {4129, 3502}, {4130, 3502}, {4131, 3502}, {4132, 3502}, {4133, 3502}, {4134, 3502}, {4135, 3502}, {4136, 3502}, {4150, 3502}, {4151, 3502}, {4152, 3502}, {4153, 3502}, {4154, 3502}, {4155, 3502}, {4156, 3502}, {4157, 3502}, {4158, 3502}, {4159, 3502}, {4160, 3502}, {4161, 3502}, {4175, 3502}, {4176, 3502}, {4177, 3502}, {4178, 3502}, {4179, 3502}, {4180, 3502}, {4181, 3502}, {4182, 3502}, {4183, 3502}, {4184, 3502}, {4185, 3502}, {4186, 3502}, {4187, 3502}, {4188, 3502}, {4189, 3502}, {4275, 3501}, {4276, 3501}, {4277, 3501}, {4278, 3501}, {4279, 3501}, {4280, 3501}, {4300, 3501}, {4301, 3501}, {4302, 3501}, {4303, 3501}, {4304, 3501}, {4350, 3503}}) {}
 
+  virtual void clear_sky_layer(Env& env) {
+    // There is a PaintRect call before any other drawing happens which clears the screen; this appears to be the only
+    // accessible room where they don't render anything at all in some areas so the result of that PaintRect is
+    // partially visible
+    if (env.room_id == 0x00) {
+      env.get_layer(LevelKind::Env::SKY).clear(0x086BEFFF);
+    } else {
+      this->LevelKind::clear_sky_layer(env);
+    }
+  }
+
   virtual const std::tuple<TileType, uint16_t, uint16_t>& default_tile(int8_t tile_x) {
     static const std::tuple<TileType, uint16_t, uint16_t> even = std::make_tuple(TileType::WALL, 0, 0x0009);
     static const std::tuple<TileType, uint16_t, uint16_t> odd = std::make_tuple(TileType::WALL, 0, 0x0109);
@@ -2384,22 +2462,21 @@ public:
   virtual void draw_tile(Env& env) {
     auto [tile_type, foreground, background] = this->tile_info(env, env.tile_x, env.tile_y);
     switch (tile_type) {
+      case TileType::POTION:
+        this->draw_potion_flask(env, foreground);
+        break;
       case TileType::EMPTY:
       case TileType::FLOOR:
       case TileType::WALL: // TODO(DX)
         // The original code draws animated crystals or gargoyles if foreground & 0x1000 is set; we generate static
         // maps so we omit that logic
         break;
-      case TileType::POTION: // TODO(DX)
-        throw std::invalid_argument("Unimplemented tile type");
       case TileType::JAFFAR_CHESS_PIECE: // TODO(DX)
-        throw std::invalid_argument("Unimplemented tile type");
       case TileType::FINAL_SPIDER: // TODO(DX)
-        throw std::invalid_argument("Unimplemented tile type");
       case TileType::FINAL_CRYSTAL: // TODO(DX)
-        throw std::invalid_argument("Unimplemented tile type");
       case TileType::FINAL_GARGOYLE: // TODO(DX)
-        throw std::invalid_argument("Unimplemented tile type");
+        // These also draw things, but the CUSTs also include all the necessary graphics already, so we skip the tiles
+        break;
       default:
         throw std::invalid_argument("Invalid tile type");
     }
@@ -2532,6 +2609,31 @@ int main(int argc, char** argv) {
   auto prince_rsrc = ResourceDASM::parse_resource_fork(phosg::load_file(data_dir + "/Prince.rsrc/..namedfork/rsrc"));
   auto level_kind_defs = load_level_kinds(data_dir);
 
+  auto small_potion_SHAP = prince_rsrc.get_resource(RESOURCE_TYPE_SHAP, 3001);
+  auto large_potion_SHAP = prince_rsrc.get_resource(RESOURCE_TYPE_SHAP, 3002);
+  auto potion_bubbles_SHAP_1 = prince_rsrc.get_resource(RESOURCE_TYPE_SHAP, 3008);
+  auto potion_bubbles_SHAP_2 = prince_rsrc.get_resource(RESOURCE_TYPE_SHAP, 3018);
+  auto potion_clut = prince_rsrc.decode_CTBL(3000);
+  for (auto& color : potion_clut) {
+    color.color_num += 0xDF;
+  }
+  std::shared_ptr<phosg::ImageRGBA8888N> small_potion_image = std::make_shared<phosg::ImageRGBA8888N>(
+      ResourceDASM::decode_SHAP(small_potion_SHAP->data, potion_clut));
+  std::shared_ptr<phosg::ImageRGBA8888N> large_potion_image = std::make_shared<phosg::ImageRGBA8888N>(
+      ResourceDASM::decode_SHAP(large_potion_SHAP->data, potion_clut));
+  std::shared_ptr<phosg::ImageRGBA8888N> blue_potion_bubbles_image1 = std::make_shared<phosg::ImageRGBA8888N>(
+      ResourceDASM::decode_SHAP(potion_bubbles_SHAP_1->data, {potion_clut.at(9)}));
+  std::shared_ptr<phosg::ImageRGBA8888N> blue_potion_bubbles_image2 = std::make_shared<phosg::ImageRGBA8888N>(
+      ResourceDASM::decode_SHAP(potion_bubbles_SHAP_2->data, {potion_clut.at(10)}));
+  std::shared_ptr<phosg::ImageRGBA8888N> green_potion_bubbles_image1 = std::make_shared<phosg::ImageRGBA8888N>(
+      ResourceDASM::decode_SHAP(potion_bubbles_SHAP_1->data, {potion_clut.at(11)}));
+  std::shared_ptr<phosg::ImageRGBA8888N> green_potion_bubbles_image2 = std::make_shared<phosg::ImageRGBA8888N>(
+      ResourceDASM::decode_SHAP(potion_bubbles_SHAP_2->data, {potion_clut.at(12)}));
+  std::shared_ptr<phosg::ImageRGBA8888N> purple_potion_bubbles_image1 = std::make_shared<phosg::ImageRGBA8888N>(
+      ResourceDASM::decode_SHAP(potion_bubbles_SHAP_1->data, {potion_clut.at(13)}));
+  std::shared_ptr<phosg::ImageRGBA8888N> purple_potion_bubbles_image2 = std::make_shared<phosg::ImageRGBA8888N>(
+      ResourceDASM::decode_SHAP(potion_bubbles_SHAP_2->data, {potion_clut.at(14)}));
+
   for (const auto& res_id : prince_rsrc.all_resources_of_type(RESOURCE_TYPE_LEVL)) {
     auto res = prince_rsrc.get_resource(RESOURCE_TYPE_LEVL, res_id);
     if (res->data.size() != sizeof(PrinceOfPersia2Level)) {
@@ -2557,13 +2659,21 @@ int main(int argc, char** argv) {
         h_rooms = std::max<size_t>(placement.second + 1, h_rooms);
       }
 
-      LevelKind::Env layers(level, w_rooms * TILE_W_PIXELS * 10, h_rooms * TILE_H_PIXELS * 3);
+      LevelKind::Env env(level, w_rooms * TILE_W_PIXELS * 10, h_rooms * TILE_H_PIXELS * 3);
+      env.small_potion_image = small_potion_image;
+      env.large_potion_image = large_potion_image;
+      env.blue_potion_bubbles_image1 = blue_potion_bubbles_image1;
+      env.blue_potion_bubbles_image2 = blue_potion_bubbles_image2;
+      env.green_potion_bubbles_image1 = green_potion_bubbles_image1;
+      env.green_potion_bubbles_image2 = green_potion_bubbles_image2;
+      env.purple_potion_bubbles_image1 = purple_potion_bubbles_image1;
+      env.purple_potion_bubbles_image2 = purple_potion_bubbles_image2;
+
       for (const auto& [room_id, placement] : component.placement_map) {
         size_t room_x = placement.first * (TILE_W_PIXELS * 10);
         size_t room_y = placement.second * (TILE_H_PIXELS * 3);
-        auto room_env = layers.view(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3);
+        auto room_env = env.view(room_x, room_y, TILE_W_PIXELS * 10, TILE_H_PIXELS * 3);
         room_env.room_id = room_id;
-        room_env.get_layer(LevelKind::Env::SKY).clear((room_id < level->num_used_rooms) ? 0xFFFFFFFF : 0xE0E0E0FF);
         if (level_kind) {
           level_kind->draw_room(room_env, overlay_alpha, annotation_alpha);
         }
@@ -2571,11 +2681,11 @@ int main(int argc, char** argv) {
 
       phosg::ImageRGBA8888N map(w_rooms * TILE_W_PIXELS * 10, h_rooms * TILE_H_PIXELS * 3);
       map.clear(0x202020FF);
-      layers.compose_into(map);
+      env.compose_into(map);
 
       if (save_layers) {
-        for (size_t layer_num = 0; layer_num < layers.layers.size(); layer_num++) {
-          const auto& layer = layers.layers[layer_num];
+        for (size_t layer_num = 0; layer_num < env.layers.size(); layer_num++) {
+          const auto& layer = env.layers[layer_num];
           std::string filename = std::format("{}/pop2_level{}_part{}_layer{}.png", output_dir, res_id, component.component_id, layer_num);
           phosg::save_file(filename, layer.serialize(phosg::ImageFormat::PNG));
           phosg::log_info_f("... {}", filename);

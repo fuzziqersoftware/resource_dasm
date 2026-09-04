@@ -67,6 +67,7 @@ add_library(resource_file
   src/IndexFormats/ResourceFork.cc
   src/Lookups.cc
   src/LowMemoryGlobals.cc
+  src/QuickDrawDefaultColorTables.cc
   src/QuickDrawEngine.cc
   src/QuickDrawFormats.cc
   src/ResourceCompression.cc
