@@ -1773,7 +1773,7 @@ public:
 
   virtual void draw_floor(
       Env& env, uint16_t foreground, uint16_t background, bool draw_sky, bool draw_background, bool draw_extra) = 0;
-  virtual void draw_broken_tile(Env& env) = 0;
+  virtual void draw_broken_tile(Env& env, uint16_t foreground) = 0;
 
   void draw_scythe(Env& env, TileType tile_type, uint16_t foreground, uint16_t background) {
     bool is_right = (tile_type == TileType::SCYTHE_RIGHT);
@@ -1806,7 +1806,7 @@ public:
       }
     }
     if (foreground & 0x0020) {
-      this->draw_broken_tile(env);
+      this->draw_broken_tile(env, foreground);
     }
   }
 };
@@ -1900,10 +1900,12 @@ public:
     }
   }
 
-  virtual void draw_broken_tile(Env& env) {
+  virtual void draw_broken_tile(Env& env, uint16_t foreground) {
     const auto& piece_0E = this->get_PIEC_entry(0x0E);
-    this->draw_SHAP_at_anchor(env, Env::BG, 3500 + 0x13, piece_0E.layer5_x, piece_0E.layer5_y);
-    this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x16, piece_0E.layer1_x, piece_0E.layer1_y);
+    this->draw_SHAP_at_anchor(env, Env::BG, 3500 + ((foreground & 0x30) >> 4) + 0x13, piece_0E.layer5_x, piece_0E.layer5_y);
+    if (!(foreground & 0x0030)) {
+      this->draw_SHAP_at_anchor(env, Env::FG, 3500 + 0x16, piece_0E.layer1_x, piece_0E.layer1_y);
+    }
     this->draw_extra_foreground(env, 0);
   }
 
@@ -2053,7 +2055,7 @@ public:
         } else {
           this->draw_floor(env, foreground & 0xFFBF, background, true, true, true);
         }
-        this->draw_broken_tile(env);
+        this->draw_broken_tile(env, foreground);
         this->draw_extra_foreground(env, foreground & 0xDFFF);
         break;
       case TileType::LEVEL_DOOR_LEFT: {
@@ -2158,7 +2160,7 @@ public:
     this->draw_SHAP_at_anchor(env, Env::FG, 3500 + (foreground & 1) + 0x1D, piece.layer1_x, piece.layer1_y);
   }
 
-  virtual void draw_broken_tile(Env& env) {
+  virtual void draw_broken_tile(Env& env, uint16_t) {
     const auto& piece = this->get_PIEC_entry(0x0E);
     this->draw_SHAP_at_anchor(env, Env::BG, 3500 + piece.layer5_shap_id, piece.layer5_x, piece.layer5_y);
     this->draw_SHAP_at_anchor(env, Env::FG, 3500 + piece.layer1_shap_id, piece.layer1_x, piece.layer1_y);
@@ -2275,13 +2277,13 @@ public:
       case TileType::SCYTHE_LEFT: // TODO(DX): These can get overwritten by large bg tiles to their right :( do we need to clip writes on the left somehow...?
         this->draw_scythe(env, tile_type, foreground, background);
         break;
-      case TileType::DEBRIS: // TODO(DX): Is the commented-out implementation correct? It should call draw_floor, right...?
-        // this->draw_background(env, foreground, background);
-        // if (foreground & 2) {
-        //   this->draw_floor_extra(env, foreground);
-        // }
-        // this->draw_broken_tile(env);
-        // break;
+      case TileType::DEBRIS:
+        this->draw_floor(env, foreground, background, true, true, true);
+        if (foreground & 2) {
+          this->draw_floor_extra(env, foreground);
+        }
+        this->draw_broken_tile(env, foreground);
+        break;
         throw std::invalid_argument("Unimplemented tile type");
       case TileType::LEVEL_DOOR_LEFT: // TODO(DX)
         this->draw_floor(env, foreground & 0xFFFC, background, true, true, true);
