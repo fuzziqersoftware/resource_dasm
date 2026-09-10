@@ -254,18 +254,19 @@ int main(int argc, char** argv) {
 
   auto graphics_rf = ResourceDASM::parse_resource_fork(phosg::load_file(graphics_filename + "/..namedfork/rsrc"));
   std::string graphics_df_contents = phosg::load_file(graphics_filename);
-  // TODO: Support LEMMINGS_V2 here too. Does Oh No have the same level format?
-  auto shapes = ResourceDASM::decode_SHPD_collection(
-      graphics_rf, graphics_df_contents, clut,
-      use_shpd_v2 ? ResourceDASM::SHPDVersion::LEMMINGS_V2 : ResourceDASM::SHPDVersion::LEMMINGS_V1);
+  auto shpd_version = use_shpd_v2 ? ResourceDASM::SHPDVersion::LEMMINGS_V2 : ResourceDASM::SHPDVersion::LEMMINGS_V1;
+  std::unordered_map<int16_t, std::unordered_map<size_t, ResourceDASM::DecodedSHPDImage>> shapes;
+  for (int16_t res_id : graphics_rf.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_SHPD)) {
+    shapes.emplace(res_id, ResourceDASM::decode_SHPD(graphics_rf, graphics_df_contents, res_id, clut, shpd_version));
+  }
 
   constexpr uint32_t level_resource_type = 0x4C45564C; // LEVL
   auto level_resources = levels.all_resources_of_type(level_resource_type);
   sort(level_resources.begin(), level_resources.end());
 
   std::vector<std::vector<LemmingsObjectDefinition>> object_defs_cache;
-  std::unordered_set<std::string> used_erase_image_names;
-  std::unordered_set<std::string> used_image_names;
+  std::set<std::pair<int16_t, size_t>> used_erase_images;
+  std::set<std::pair<int16_t, size_t>> used_images;
 
   for (int16_t level_id : level_resources) {
     if (!target_levels.empty() && !target_levels.count(level_id)) {
@@ -312,11 +313,11 @@ int main(int argc, char** argv) {
 
     // Render special image, if one is given
     if (level->iff_number != 0) {
-      std::string img_name = std::format("{}_Special{}_0", 1699 + level->iff_number, level->iff_number - 1);
+      int16_t res_id = 1699 + level->iff_number;
       if (show_unused_images) {
-        used_image_names.emplace(img_name);
+        used_images.emplace(std::make_pair(res_id, 0));
       }
-      const auto& img = shapes.at(img_name);
+      const auto& img = shapes.at(res_id).at(0);
       result.copy_from(img.image, (result.get_width() - img.image.get_width()) / 2 - 16, 0, img.image.get_width(),
           img.image.get_height(), 0, 0);
     }
@@ -329,20 +330,20 @@ int main(int argc, char** argv) {
       }
 
       try {
-        std::string tile_name = std::format(
-            "{}_Grounds{}_{}", level->ground_type + 1500, level->ground_type + 1, tile.type());
+        int16_t shpd_res_id = level->ground_type + 1500;
+        size_t shpd_image_index = tile.type();
 
         ssize_t orig_tile_x = tile.x();
         ssize_t orig_tile_y = tile.y();
 
         if (show_unused_images) {
           if (tile.erase()) {
-            used_erase_image_names.emplace(tile_name);
+            used_erase_images.emplace(std::make_pair(shpd_res_id, shpd_image_index));
           } else {
-            used_image_names.emplace(tile_name);
+            used_images.emplace(std::make_pair(shpd_res_id, shpd_image_index));
           }
         }
-        const auto& tile_img = shapes.at(tile_name);
+        const auto& tile_img = shapes.at(shpd_res_id).at(shpd_image_index);
         phosg::ImageRGBA8888N reverse_tile_img;
         const phosg::ImageRGBA8888N* img_to_render = &tile_img.image;
         if (tile.vertical_reverse()) {
@@ -407,14 +408,14 @@ int main(int argc, char** argv) {
       ssize_t img_x = obj.x() * 2;
       ssize_t img_y = obj.y() * 2;
 
-      std::string img_name = std::format(
-          "{}_Objects{}_{}", level->ground_type + 1600, level->ground_type + 1, def.seq_base);
+      int16_t shpd_res_id = level->ground_type + 1600;
+      size_t shpd_image_index = def.seq_base;
       bool image_valid = true;
       try {
         if (show_unused_images) {
-          used_image_names.emplace(img_name);
+          used_images.emplace(std::make_pair(shpd_res_id, shpd_image_index));
         }
-        const auto& img = shapes.at(img_name);
+        const auto& img = shapes.at(shpd_res_id).at(shpd_image_index);
         img_x += img.origin_x;
         img_y += img.origin_y;
 
@@ -446,25 +447,23 @@ int main(int argc, char** argv) {
 
         // It looks like this flag causes the deep-water image to render immediately below the image
         if (def.flags & 0x0020) {
-          std::string subimg_name = std::format(
-              "{}_Objects{}_{}", level->ground_type + 1600, level->ground_type + 1, def.seq_base + def.seq_length);
-
+          size_t sub_image_index = def.seq_base + def.seq_length;
           try {
             if (show_unused_images) {
-              used_image_names.emplace(subimg_name);
+              used_images.emplace(std::make_pair(shpd_res_id, sub_image_index));
             }
-            const auto& subimg = shapes.at(subimg_name);
+            const auto& subimg = shapes.at(shpd_res_id).at(sub_image_index);
             ssize_t subimg_x = img_x;
             ssize_t subimg_y = img_y + img.image.get_height();
             draw_img_with_flags(subimg.image, subimg_x, subimg_y);
           } catch (const std::out_of_range&) {
-            phosg::fwrite_fmt(stderr, "warning: missing object subimage {}\n", subimg_name);
+            phosg::fwrite_fmt(stderr, "warning: missing object subimage SHPD:{}#{}\n", shpd_res_id, sub_image_index);
             image_valid = false;
           }
         }
 
       } catch (const std::out_of_range&) {
-        phosg::fwrite_fmt(stderr, "warning: missing object image {}\n", img_name);
+        phosg::fwrite_fmt(stderr, "warning: missing object image SHPD:{}#{}\n", shpd_res_id, shpd_image_index);
         image_valid = false;
       }
 
@@ -537,12 +536,15 @@ int main(int argc, char** argv) {
   }
 
   if (show_unused_images) {
-    for (const auto& it : shapes) {
-      if (!used_image_names.count(it.first)) {
-        if (used_erase_image_names.count(it.first)) {
-          phosg::fwrite_fmt(stderr, "image used only as eraser: {}\n", it.first);
-        } else {
-          phosg::fwrite_fmt(stderr, "unused image: {}\n", it.first);
+    for (const auto& [shpd_res_id, shpd] : shapes) {
+      for (const auto& [shpd_image_index, _] : shpd) {
+        std::pair<int16_t, size_t> key = std::make_pair(shpd_res_id, shpd_image_index);
+        if (!used_images.count(key)) {
+          if (used_erase_images.count(key)) {
+            phosg::fwrite_fmt(stderr, "image used only as eraser: SHPD:{}#{}\n", shpd_res_id, shpd_image_index);
+          } else {
+            phosg::fwrite_fmt(stderr, "unused image: SHPD:{}#{}\n", shpd_res_id, shpd_image_index);
+          }
         }
       }
     }

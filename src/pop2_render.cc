@@ -1503,7 +1503,8 @@ public:
               annotation_alpha);
         }
       }
-      env.get_layer(Env::OVL).draw_text(26, 1, 0xFF00FF00 | annotation_alpha, overlay_alpha, "RM{:02X}", env.room_id);
+      env.get_layer(Env::OVL).draw_text(
+          26, 1, 0xFF00FF00 | annotation_alpha, overlay_alpha, "RM{:02X}", env.room_id + 1);
     }
   }
 

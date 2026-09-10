@@ -70,6 +70,23 @@ void write_output(const std::string& output_prefix, const ResourceDASM::DecodedS
   phosg::fwrite_fmt(stderr, "... {}\n", filename);
 }
 
+std::unordered_map<std::string, phosg::ImageRGBA8888N> decode_SHPD_collection_images_only(
+    ResourceDASM::ResourceFile& rf,
+    const std::string& data_fork_contents,
+    const std::vector<ResourceDASM::ColorTableEntry>& clut,
+    ResourceDASM::SHPDVersion version) {
+  std::unordered_map<std::string, phosg::ImageRGBA8888N> ret;
+  for (int16_t res_id : rf.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_SHPD)) {
+    auto res = rf.get_resource(ResourceDASM::RESOURCE_TYPE_SHPD, res_id);
+    for (auto& [image_index, entry] : ResourceDASM::decode_SHPD(rf, data_fork_contents, res_id, clut, version)) {
+      ret.emplace(
+          std::format("{}_{}_{}_{}_{}", res_id, res->name, image_index, entry.origin_x, entry.origin_y),
+          std::move(entry.image));
+    }
+  }
+  return ret;
+}
+
 struct Format {
   using DecoderG1 = std::function<phosg::ImageG1(const std::string&)>;
   using DecoderG1Multi = std::function<std::vector<phosg::ImageG1>(const std::string&)>;
@@ -139,9 +156,9 @@ const std::vector<Format> formats{
     Format("PSCR-v2", "render a PSCR image from Beyond Dark Castle", false, std::bind(ResourceDASM::decode_PSCR, ph::_1, true)),
     Format("SHAP", "render a SHAP image from Prince of Persia 2", true, ResourceDASM::decode_SHAP),
     Format("shap", "render a shap model from Spectre", false, ResourceDASM::decode_shap),
-    Format("SHPD-p", "render a SHPD image set from Prince of Persia", false, bind(ResourceDASM::decode_SHPD_collection_images_only, ph::_1, ph::_2, ph::_3, ResourceDASM::SHPDVersion::PRINCE_OF_PERSIA)),
-    Format("SHPD-v1", "render a SHPD image set from Lemmings", false, bind(ResourceDASM::decode_SHPD_collection_images_only, ph::_1, ph::_2, ph::_3, ResourceDASM::SHPDVersion::LEMMINGS_V1)),
-    Format("SHPD-v2", "render a SHPD image set from Oh No! More Lemmings", false, bind(ResourceDASM::decode_SHPD_collection_images_only, ph::_1, ph::_2, ph::_3, ResourceDASM::SHPDVersion::LEMMINGS_V2)),
+    Format("SHPD-p", "render a SHPD image set from Prince of Persia", false, bind(decode_SHPD_collection_images_only, ph::_1, ph::_2, ph::_3, ResourceDASM::SHPDVersion::PRINCE_OF_PERSIA)),
+    Format("SHPD-v1", "render a SHPD image set from Lemmings", false, bind(decode_SHPD_collection_images_only, ph::_1, ph::_2, ph::_3, ResourceDASM::SHPDVersion::LEMMINGS_V1)),
+    Format("SHPD-v2", "render a SHPD image set from Oh No! More Lemmings", false, bind(decode_SHPD_collection_images_only, ph::_1, ph::_2, ph::_3, ResourceDASM::SHPDVersion::LEMMINGS_V2)),
     Format("SHPS", "render a SHPS image set from Odyssey: The Legend of Nemesis", false, ResourceDASM::decode_SHPS),
     Format("SprD", "render an SprD image set from Slithereens", true, ResourceDASM::decode_SprD),
     Format("Spri", "render a Spri image from TheZone", true, ResourceDASM::decode_Spri),

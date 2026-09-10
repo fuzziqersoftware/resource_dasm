@@ -75,14 +75,10 @@ struct DecodedSHPDImage {
   phosg::ImageRGBA8888N image;
 };
 std::string decompress_SHPD_data(phosg::StringReader& r);
-std::unordered_map<std::string, DecodedSHPDImage> decode_SHPD_collection(
+std::unordered_map<size_t, DecodedSHPDImage> decode_SHPD(
     ResourceFile& rf,
     const std::string& data_fork_contents,
-    const std::vector<ColorTableEntry>& clut,
-    SHPDVersion version);
-std::unordered_map<std::string, phosg::ImageRGBA8888N> decode_SHPD_collection_images_only(
-    ResourceFile& rf,
-    const std::string& data_fork_contents,
+    int16_t res_id,
     const std::vector<ColorTableEntry>& clut,
     SHPDVersion version);
 

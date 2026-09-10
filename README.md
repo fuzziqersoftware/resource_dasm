@@ -39,7 +39,8 @@ The tools in this project are:
   * **infotron_render**: Generates maps from Infotron levels files.
   * **lemmings_render**: Generates maps from Lemmings and Oh No! More Lemmings levels and graphics files.
   * **mshines_render**: Generates maps from Monkey Shines world files.
-  * **pop2_render**: Generates maps from Prince of Persia 2.
+  * **pop1_render**: Generates maps from the Mac version of Prince of Persia.
+  * **pop2_render**: Generates maps from the Mac version of Prince of Persia 2.
   * **realmz_dasm**: Generates maps from Realmz scenarios and disassembles the scenario scripts into readable assembly-like syntax.
 
 ## Building
