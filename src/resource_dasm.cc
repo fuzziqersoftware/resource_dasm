@@ -1540,6 +1540,7 @@ private:
   void write_decoded_MDRV(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     std::string code = ResourceDASM::ResourceFile::decode_MDRV(res);
+    this->write_decoded_data(base_filename, res, ".decompressed.bin", code);
     std::multimap<uint32_t, std::string> labels;
     labels.emplace(0, "start");
     std::string result = ResourceDASM::M68KEmulator::disassemble(code.data(), code.size(), 0, &labels);
