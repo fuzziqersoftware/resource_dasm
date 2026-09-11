@@ -56,6 +56,19 @@ static constexpr char FILENAME_FORMAT_STANDARD_TYPE_XDIRS[] = "%f/%t/%i%N";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST[] = "%t/%f_%i%n";
 static constexpr char FILENAME_FORMAT_TYPE_FIRST_DIRS[] = "%t/%f/%i%n";
 
+template <typename TryFnT, typename ExceptFnT>
+void catch_exceptions_conditionally(bool should_catch, TryFnT&& try_fn, ExceptFnT&& except_fn) {
+  if (should_catch) {
+    try {
+      try_fn();
+    } catch (const std::exception& e) {
+      except_fn(e);
+    }
+  } else {
+    try_fn();
+  }
+}
+
 static std::string disassembly_for_dcmp(const ResourceDASM::ResourceFile::DecodedDecompressorResource& dcmp) {
   std::multimap<uint32_t, std::string> labels;
   if (dcmp.init_label >= 0) {
@@ -1524,6 +1537,15 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
+  void write_decoded_MDRV(
+      const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
+    std::string code = ResourceDASM::ResourceFile::decode_MDRV(res);
+    std::multimap<uint32_t, std::string> labels;
+    labels.emplace(0, "start");
+    std::string result = ResourceDASM::M68KEmulator::disassemble(code.data(), code.size(), 0, &labels);
+    this->write_decoded_data(base_filename, res, ".txt", result);
+  }
+
   void write_decoded_inline_68k(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     std::multimap<uint32_t, std::string> labels;
@@ -2079,7 +2101,7 @@ private:
     std::string base_filename = (last_slash_pos == std::string::npos) ? filename : filename.substr(last_slash_pos + 1);
 
     // Get the resources from the file
-    try {
+    auto open_current_file = [&]() -> void {
       switch (this->index_format) {
         case ResourceDASM::IndexFormat::RESOURCE_FORK:
           this->open_resource_file(ResourceDASM::parse_resource_fork(phosg::load_file(resource_fork_filename)));
@@ -2113,72 +2135,81 @@ private:
         default:
           throw std::logic_error("invalid index format");
       }
-    } catch (const phosg::cannot_open_file&) {
-      phosg::fwrite_fmt(stderr, "failed on {}: cannot open file\n", filename);
-      return false;
-    } catch (const phosg::io_error& e) {
-      phosg::fwrite_fmt(stderr, "failed on {}: cannot read data\n", filename);
-      return false;
-    } catch (const std::runtime_error& e) {
-      phosg::fwrite_fmt(stderr, "failed on {}: corrupt resource index ({})\n", filename, e.what());
-      return false;
-    } catch (const std::out_of_range& e) {
-      phosg::fwrite_fmt(stderr, "failed on {}: corrupt resource index\n", filename);
-      return false;
+    };
+    if (this->catch_exceptions) {
+      try {
+        open_current_file();
+      } catch (const phosg::cannot_open_file&) {
+        phosg::fwrite_fmt(stderr, "failed on {}: cannot open file\n", filename);
+        return false;
+      } catch (const phosg::io_error& e) {
+        phosg::fwrite_fmt(stderr, "failed on {}: cannot read data\n", filename);
+        return false;
+      } catch (const std::runtime_error& e) {
+        phosg::fwrite_fmt(stderr, "failed on {}: corrupt resource index ({})\n", filename, e.what());
+        return false;
+      } catch (const std::out_of_range& e) {
+        phosg::fwrite_fmt(stderr, "failed on {}: corrupt resource index\n", filename);
+        return false;
+      }
+    } else {
+      open_current_file();
     }
 
     bool ret = false;
-    try {
-      auto resources = this->current_rf->all_resources();
+    catch_exceptions_conditionally(
+        this->catch_exceptions,
+        [&]() -> void {
+          auto resources = this->current_rf->all_resources();
 
-      bool has_INST = false;
-      bool has_CODE = false;
-      for (const auto& it : resources) {
-        if (!is_included(it.first, it.second) || is_excluded(it.first, it.second)) {
-          continue;
-        }
+          bool has_INST = false;
+          bool has_CODE = false;
+          for (const auto& it : resources) {
+            if (!is_included(it.first, it.second) || is_excluded(it.first, it.second)) {
+              continue;
+            }
 
-        const auto& res = this->current_rf->get_resource(it.first, it.second, this->decompress_flags);
-        if (it.first == ResourceDASM::RESOURCE_TYPE_INST) {
-          has_INST = true;
-        }
-        if (it.first == ResourceDASM::RESOURCE_TYPE_CODE) {
-          has_CODE = true;
-        }
-        ret |= this->export_resource(base_filename, res);
-      }
+            const auto& res = this->current_rf->get_resource(it.first, it.second, this->decompress_flags);
+            if (it.first == ResourceDASM::RESOURCE_TYPE_INST) {
+              has_INST = true;
+            }
+            if (it.first == ResourceDASM::RESOURCE_TYPE_CODE) {
+              has_CODE = true;
+            }
+            ret |= this->export_resource(base_filename, res);
+          }
 
-      // Special case: if we disassembled any INSTs and there are any decoders (that is, --skip-decode wasn't
-      // specified), generate an smssynth template file from all the INSTs
-      if (has_INST && !this->type_to_decode_fn.empty()) {
-        std::string json_filename = output_filename(
-            base_filename, nullptr, nullptr, "generated", "", 0, "smssynth_env_template.json");
-        try {
-          auto json = this->generate_json_for_SONG(base_filename, nullptr);
-          phosg::save_file(json_filename, json.serialize(phosg::JSON::SerializeOption::FORMAT));
-          phosg::fwrite_fmt(stderr, "... {}\n", json_filename);
-        } catch (const std::exception& e) {
-          phosg::fwrite_fmt(stderr, "failed to write smssynth env template {}: {}\n", json_filename, e.what());
-        }
-      }
+          // Special case: if we disassembled any INSTs and there are any decoders (that is, --skip-decode wasn't
+          // specified), generate an smssynth template file from all the INSTs
+          if (has_INST && !this->type_to_decode_fn.empty()) {
+            std::string json_filename = output_filename(
+                base_filename, nullptr, nullptr, "generated", "", 0, "smssynth_env_template.json");
+            try {
+              auto json = this->generate_json_for_SONG(base_filename, nullptr);
+              phosg::save_file(json_filename, json.serialize(phosg::JSON::SerializeOption::FORMAT));
+              phosg::fwrite_fmt(stderr, "... {}\n", json_filename);
+            } catch (const std::exception& e) {
+              phosg::fwrite_fmt(stderr, "failed to write smssynth env template {}: {}\n", json_filename, e.what());
+            }
+          }
 
-      // Second special case: if --generate-decomp-archive was given and there are any CODE resources, generate the
-      // disassembly archive
-      if (has_CODE && this->should_generate_decomp_archive) {
-        std::string filename = output_filename(
-            base_filename, nullptr, nullptr, "generated", "", 0, "decomp_archive.bin");
-        try {
-          auto archive = this->generate_decomp_archive();
-          phosg::save_file(filename, archive.data);
-          phosg::fwrite_fmt(stderr, "... {} (base = 0x{:08X}, a5 = 0x{:08X})\n", filename, archive.base, archive.a5);
-        } catch (const std::exception& e) {
-          phosg::fwrite_fmt(stderr, "failed to write decomp archive {}: {}\n", filename, e.what());
-        }
-      }
-
-    } catch (const std::exception& e) {
-      phosg::fwrite_fmt(stderr, "failed on {}: {}\n", filename, e.what());
-    }
+          // Second special case: if --generate-decomp-archive was given and there are any CODE resources, generate the
+          // disassembly archive
+          if (has_CODE && this->should_generate_decomp_archive) {
+            std::string filename = output_filename(
+                base_filename, nullptr, nullptr, "generated", "", 0, "decomp_archive.bin");
+            try {
+              auto archive = this->generate_decomp_archive();
+              phosg::save_file(filename, archive.data);
+              phosg::fwrite_fmt(stderr, "... {} (base = 0x{:08X}, a5 = 0x{:08X})\n", filename, archive.base, archive.a5);
+            } catch (const std::exception& e) {
+              phosg::fwrite_fmt(stderr, "failed to write decomp archive {}: {}\n", filename, e.what());
+            }
+          }
+        },
+        [&](const std::exception& e) -> void {
+          phosg::fwrite_fmt(stderr, "failed on {}: {}\n", filename, e.what());
+        });
 
     this->current_rf.reset();
     return ret;
@@ -2251,6 +2282,7 @@ public:
   bool export_icon_family_as_image = true;
   bool export_icon_family_as_icns = true;
   bool should_generate_decomp_archive = false;
+  bool catch_exceptions = true;
   ResourceDASM::ImageSaver image_saver;
 
 private:
@@ -2352,18 +2384,21 @@ stderr ({} bytes):\n\
 
     bool decoded = false;
     if (!is_compressed && decode_fn) {
-      try {
-        (this->*decode_fn)(base_filename, res_to_decode);
-        decoded = true;
-      } catch (const std::exception& e) {
-        auto type_str = ResourceDASM::string_for_resource_type(res->type);
-        if (remapped_type != res->type) {
-          auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
-          phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}): {}\n", type_str, res->id, remapped_type_str, e.what());
-        } else {
-          phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{}: {}\n", type_str, res->id, e.what());
-        }
-      }
+      catch_exceptions_conditionally(
+          this->catch_exceptions,
+          [&]() -> void {
+            (this->*decode_fn)(base_filename, res_to_decode);
+            decoded = true;
+          },
+          [&](const std::exception& e) -> void {
+            auto type_str = ResourceDASM::string_for_resource_type(res->type);
+            if (remapped_type != res->type) {
+              auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
+              phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}): {}\n", type_str, res->id, remapped_type_str, e.what());
+            } else {
+              phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{}: {}\n", type_str, res->id, e.what());
+            }
+          });
     }
     // If there's no built-in decoder and there's a context ResourceFile, try to use a TMPL resource to decode it
     if (!is_compressed && !decoded && !this->skip_templates && this->current_rf.get()) {
@@ -2379,41 +2414,47 @@ stderr ({} bytes):\n\
       }
 
       if (tmpl_res.get()) {
-        try {
-          std::string result = std::format("# (decoded with TMPL {})\n", tmpl_res->id);
-          result += this->current_rf->disassemble_from_template(
-              res->data.data(), res->data.size(), this->current_rf->decode_TMPL(tmpl_res));
-          this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
-          decoded = true;
-        } catch (const std::exception& e) {
-          auto type_str = ResourceDASM::string_for_resource_type(res->type);
-          if (remapped_type != res->type) {
-            auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
-            phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with template {}: {}\n", type_str, res->id, remapped_type_str, tmpl_res->id, e.what());
-          } else {
-            phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with template {}: {}\n", type_str, res->id, tmpl_res->id, e.what());
-          }
-        }
+        catch_exceptions_conditionally(
+            this->catch_exceptions,
+            [&]() -> void {
+              std::string result = std::format("# (decoded with TMPL {})\n", tmpl_res->id);
+              result += this->current_rf->disassemble_from_template(
+                  res->data.data(), res->data.size(), this->current_rf->decode_TMPL(tmpl_res));
+              this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
+              decoded = true;
+            },
+            [&](const std::exception& e) -> void {
+              auto type_str = ResourceDASM::string_for_resource_type(res->type);
+              if (remapped_type != res->type) {
+                auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
+                phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with template {}: {}\n", type_str, res->id, remapped_type_str, tmpl_res->id, e.what());
+              } else {
+                phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with template {}: {}\n", type_str, res->id, tmpl_res->id, e.what());
+              }
+            });
       }
     }
     // If there's no built-in decoder and no TMPL in the file, try using a system template
     if (!is_compressed && !decoded && !this->skip_templates) {
       const auto& tmpl = ResourceDASM::get_system_template(remapped_type);
       if (!tmpl.empty()) {
-        try {
-          std::string result = ResourceDASM::ResourceFile::disassemble_from_template(
-              res->data.data(), res->data.size(), tmpl);
-          this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
-          decoded = true;
-        } catch (const std::exception& e) {
-          auto type_str = ResourceDASM::string_for_resource_type(res->type);
-          if (remapped_type != res->type) {
-            auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
-            phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with system template: {}\n", type_str, res->id, remapped_type_str, e.what());
-          } else {
-            phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with system template: {}\n", type_str, res->id, e.what());
-          }
-        }
+        catch_exceptions_conditionally(
+            this->catch_exceptions,
+            [&]() -> void {
+              std::string result = ResourceDASM::ResourceFile::disassemble_from_template(
+                  res->data.data(), res->data.size(), tmpl);
+              this->write_decoded_data(base_filename, res_to_decode, ".txt", result);
+              decoded = true;
+            },
+            [&](const std::exception& e) -> void {
+              auto type_str = ResourceDASM::string_for_resource_type(res->type);
+              if (remapped_type != res->type) {
+                auto remapped_type_str = ResourceDASM::string_for_resource_type(remapped_type);
+                phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} (remapped to {}) with system template: {}\n", type_str, res->id, remapped_type_str, e.what());
+              } else {
+                phosg::fwrite_fmt(stderr, "warning: failed to decode resource {}:{} with system template: {}\n", type_str, res->id, e.what());
+              }
+            });
       }
     }
 
@@ -2458,7 +2499,7 @@ stderr ({} bytes):\n\
 };
 
 // Annoyingly, these have to be initialized out of line
-const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExporter::default_type_to_decode_fn({
+const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> ResourceExporter::default_type_to_decode_fn{
     {ResourceDASM::RESOURCE_TYPE_actb, &ResourceExporter::write_decoded_clut_actb_cctb_dctb_fctb_wctb},
     {ResourceDASM::RESOURCE_TYPE_ADBS, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_card, &ResourceExporter::write_decoded_card},
@@ -2512,6 +2553,7 @@ const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> Resourc
     {ResourceDASM::RESOURCE_TYPE_MACS, &ResourceExporter::write_decoded_STR},
     {ResourceDASM::RESOURCE_TYPE_MBDF, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_MDEF, &ResourceExporter::write_decoded_inline_68k},
+    {ResourceDASM::RESOURCE_TYPE_MDRV, &ResourceExporter::write_decoded_MDRV},
     {ResourceDASM::RESOURCE_TYPE_minf, &ResourceExporter::write_decoded_TEXT},
     {ResourceDASM::RESOURCE_TYPE_ncmp, &ResourceExporter::write_decoded_pef},
     {ResourceDASM::RESOURCE_TYPE_ndmc, &ResourceExporter::write_decoded_pef},
@@ -2608,7 +2650,7 @@ const std::unordered_map<uint32_t, ResourceExporter::resource_decode_fn> Resourc
     {ResourceDASM::RESOURCE_TYPE_wart, &ResourceExporter::write_decoded_inline_68k},
     {ResourceDASM::RESOURCE_TYPE_vdig, &ResourceExporter::write_decoded_inline_68k_or_pef},
     {ResourceDASM::RESOURCE_TYPE_pthg, &ResourceExporter::write_decoded_inline_68k_or_pef},
-});
+};
 
 const std::map<std::pair<uint32_t, int16_t>, uint32_t> ResourceExporter::remap_resource_type_id = {
     {{ResourceDASM::RESOURCE_TYPE_PREC, 0}, ResourceDASM::RESOURCE_TYPE_PRC0},
@@ -2887,7 +2929,9 @@ int main(int argc, char** argv) {
   uint32_t describe_system_template_type = 0;
   for (int x = 1; x < argc; x++) {
     if (argv[x][0] == '-') {
-      if (!strncmp(argv[x], "--disassemble-system-dcmp=", 26)) {
+      if (!strcmp(argv[x], "--exceptions")) {
+        exporter.catch_exceptions = false;
+      } else if (!strncmp(argv[x], "--disassemble-system-dcmp=", 26)) {
         disassemble_system_dcmp_id = strtol(&argv[x][26], nullptr, 0);
       } else if (!strncmp(argv[x], "--disassemble-system-ncmp=", 26)) {
         disassemble_system_ncmp_id = strtol(&argv[x][26], nullptr, 0);

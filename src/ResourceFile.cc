@@ -1402,6 +1402,74 @@ ResourceFile::DecodedRSSCResource ResourceFile::decode_RSSC(const void* data, si
   return ret;
 }
 
+static std::string decrypt_soundmusicsys_data(const void* vsrc, size_t size) {
+  phosg::StringReader r(vsrc, size);
+
+  std::string ret;
+  ret.reserve(size);
+  uint32_t v = 56549L;
+  while (!r.eof()) {
+    uint8_t ch = r.get_u8();
+    ret.push_back(ch ^ (v >> 8L));
+    v = (static_cast<uint32_t>(ch) + v) * 52845L + 22719L;
+  }
+  return ret;
+}
+
+static std::string decrypt_soundmusicsys_cstr(phosg::StringReader& r) {
+  uint32_t v = 56549L;
+  std::string ret;
+  for (;;) {
+    uint8_t ch = r.get_u8();
+    uint8_t ch_out = ch ^ (v >> 8L);
+    if (ch_out == 0) {
+      return ret;
+    }
+    ret.push_back(ch_out);
+    v = (static_cast<uint32_t>(ch) + v) * 52845L + 22719L;
+  }
+}
+
+static std::string decompress_soundmusicsys_data(const void* data, size_t size) {
+  phosg::StringReader r(data, size);
+
+  // It looks like encrypted resources sometimes have 0xFF in the type field (high byte of decompressed_size), even if
+  // delta-encoding wouldn't make sense, like for MIDI resources. We assume we'll never decode a 4GB resource, so mask
+  // out the high byte if it's 0xFF. TODO: Do we need to support the other delta-encoding types here? Should we factor
+  // the delta decoding logic into here?
+  uint32_t decompressed_size = r.get_u32b();
+  if (decompressed_size & 0xFF000000) {
+    decompressed_size &= 0x00FFFFFF;
+  }
+
+  size_t compressed_size = r.remaining();
+  std::string decompressed = decompress_soundmusicsys_lzss(r.getv(compressed_size), compressed_size);
+  if (decompressed.size() != decompressed_size) {
+    throw std::runtime_error(std::format(
+        "decompression produced incorrect amount of data (0x{:X} bytes expected, 0x{:X} bytes received)",
+        decompressed.size(), decompressed_size));
+  }
+  return decompressed;
+}
+
+std::string ResourceFile::decode_MDRV(int16_t id, uint32_t type) const {
+  return this->decode_MDRV(this->get_resource(type, id));
+}
+
+std::string ResourceFile::decode_MDRV(std::shared_ptr<const Resource> res) {
+  return ResourceFile::decode_MDRV(res->data.data(), res->data.size());
+}
+
+std::string ResourceFile::decode_MDRV(const void* data, size_t size) {
+  // Apparently the first 7 bytes are not encrypted. Why did they do this?
+  if (size < 7) {
+    throw std::runtime_error("MDRV resource is too small");
+  }
+  std::string decrypted(reinterpret_cast<const char*>(data), 7);
+  decrypted += decrypt_soundmusicsys_data(reinterpret_cast<const uint8_t*>(data) + 7, size - 7);
+  return decompress_soundmusicsys_data(decrypted.data(), decrypted.size());
+}
+
 ResourceFile::DecodedComponentDefinition ResourceFile::decode_thng(int16_t id, uint32_t type) const {
   return this->decode_thng(this->get_resource(type, id));
 }
@@ -3201,56 +3269,6 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd(std::shared_ptr<cons
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_snd(const void* data, size_t size, bool metadata_only) const {
   return decode_snd_data(data, size, metadata_only, this->index_format() == IndexFormat::HIRF);
-}
-
-static std::string decompress_soundmusicsys_data(const void* data, size_t size) {
-  phosg::StringReader r(data, size);
-
-  // It looks like encrypted resources sometimes have 0xFF in the type field (high byte of decompressed_size), even if
-  // delta-encoding wouldn't make sense, like for MIDI resources. We assume we'll never decode a 4GB resource, so mask
-  // out the high byte if it's 0xFF. TODO: Do we need to support the other delta-encoding types here? Should we factor
-  // the delta decoding logic into here?
-  uint32_t decompressed_size = r.get_u32b();
-  if (decompressed_size & 0xFF000000) {
-    decompressed_size &= 0x00FFFFFF;
-  }
-
-  size_t compressed_size = r.remaining();
-  std::string decompressed = decompress_soundmusicsys_lzss(r.getv(compressed_size), compressed_size);
-  if (decompressed.size() != decompressed_size) {
-    throw std::runtime_error(std::format(
-        "decompression produced incorrect amount of data (0x{:X} bytes expected, 0x{:X} bytes received)",
-        decompressed.size(), decompressed_size));
-  }
-  return decompressed;
-}
-
-static std::string decrypt_soundmusicsys_data(const void* vsrc, size_t size) {
-  phosg::StringReader r(vsrc, size);
-
-  std::string ret;
-  ret.reserve(size);
-  uint32_t v = 56549L;
-  while (!r.eof()) {
-    uint8_t ch = r.get_u8();
-    ret.push_back(ch ^ (v >> 8L));
-    v = (static_cast<uint32_t>(ch) + v) * 52845L + 22719L;
-  }
-  return ret;
-}
-
-static std::string decrypt_soundmusicsys_cstr(phosg::StringReader& r) {
-  uint32_t v = 56549L;
-  std::string ret;
-  for (;;) {
-    uint8_t ch = r.get_u8();
-    uint8_t ch_out = ch ^ (v >> 8L);
-    if (ch_out == 0) {
-      return ret;
-    }
-    ret.push_back(ch_out);
-    v = (static_cast<uint32_t>(ch) + v) * 52845L + 22719L;
-  }
 }
 
 ResourceFile::DecodedSoundResource ResourceFile::decode_SMSD(int16_t id, uint32_t type) const {

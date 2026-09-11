@@ -10,12 +10,10 @@ constexpr uint32_t resource_type(const char (&type)[5]) {
       (uint32_t(uint8_t(type[2])) << 8) |
       uint32_t(uint8_t(type[3]));
 }
-// Just to make sure the function works as intended
-static_assert(resource_type("actb") == 0x61637462);
+static_assert(resource_type("actb") == 0x61637462); // Just to make sure the function works as intended
 
 constexpr uint32_t RESOURCE_TYPE_mod = resource_type(".mod");
-// MacApp memory config for 68k; synonym of `mem!`
-constexpr uint32_t RESOURCE_TYPE_68k1 = resource_type("68k!");
+constexpr uint32_t RESOURCE_TYPE_68k1 = resource_type("68k!"); // MacApp memory config for 68k; synonym of `mem!`
 constexpr uint32_t RESOURCE_TYPE_actb = resource_type("actb");
 constexpr uint32_t RESOURCE_TYPE_acur = resource_type("acur");
 constexpr uint32_t RESOURCE_TYPE_ADBS = resource_type("ADBS");
@@ -35,8 +33,7 @@ constexpr uint32_t RESOURCE_TYPE_cctb = resource_type("cctb");
 constexpr uint32_t RESOURCE_TYPE_CDEF = resource_type("CDEF");
 constexpr uint32_t RESOURCE_TYPE_cdek = resource_type("cdek");
 constexpr uint32_t RESOURCE_TYPE_cdev = resource_type("cdev");
-// Possibly-nonstandard alias of DRVR
-constexpr uint32_t RESOURCE_TYPE_CDRV = resource_type("CDRV");
+constexpr uint32_t RESOURCE_TYPE_CDRV = resource_type("CDRV"); // Possibly-nonstandard alias of DRVR
 constexpr uint32_t RESOURCE_TYPE_cfrg = resource_type("cfrg");
 constexpr uint32_t RESOURCE_TYPE_cicn = resource_type("cicn");
 constexpr uint32_t RESOURCE_TYPE_citt = resource_type("citt");
@@ -44,10 +41,8 @@ constexpr uint32_t RESOURCE_TYPE_clok = resource_type("clok");
 constexpr uint32_t RESOURCE_TYPE_clut = resource_type("clut");
 constexpr uint32_t RESOURCE_TYPE_CMDK = resource_type("CMDK");
 constexpr uint32_t RESOURCE_TYPE_cmid = resource_type("cmid");
-// MacApp menu definition
-constexpr uint32_t RESOURCE_TYPE_CMNU = resource_type("CMNU");
-// MacApp menu definition
-constexpr uint32_t RESOURCE_TYPE_cmnu = resource_type("cmnu");
+constexpr uint32_t RESOURCE_TYPE_CMNU = resource_type("CMNU"); // MacApp menu definition
+constexpr uint32_t RESOURCE_TYPE_cmnu = resource_type("cmnu"); // MacApp menu definition
 constexpr uint32_t RESOURCE_TYPE_cmtb = resource_type("cmtb");
 constexpr uint32_t RESOURCE_TYPE_cmuN = resource_type("cmu#");
 constexpr uint32_t RESOURCE_TYPE_CNTL = resource_type("CNTL");
@@ -74,8 +69,7 @@ constexpr uint32_t RESOURCE_TYPE_ecmi = resource_type("ecmi");
 constexpr uint32_t RESOURCE_TYPE_emid = resource_type("emid");
 constexpr uint32_t RESOURCE_TYPE_enet = resource_type("enet");
 constexpr uint32_t RESOURCE_TYPE_epch = resource_type("epch");
-// MacApp error list
-constexpr uint32_t RESOURCE_TYPE_errs = resource_type("errs");
+constexpr uint32_t RESOURCE_TYPE_errs = resource_type("errs"); // MacApp error list
 constexpr uint32_t RESOURCE_TYPE_ESnd = resource_type("ESnd");
 constexpr uint32_t RESOURCE_TYPE_esnd = resource_type("esnd");
 constexpr uint32_t RESOURCE_TYPE_expt = resource_type("expt");
@@ -175,8 +169,8 @@ constexpr uint32_t RESOURCE_TYPE_MBAR = resource_type("MBAR");
 constexpr uint32_t RESOURCE_TYPE_MBDF = resource_type("MBDF");
 constexpr uint32_t RESOURCE_TYPE_mcky = resource_type("mcky");
 constexpr uint32_t RESOURCE_TYPE_MDEF = resource_type("MDEF");
-// MacApp memory config
-constexpr uint32_t RESOURCE_TYPE_mem1 = resource_type("mem!");
+constexpr uint32_t RESOURCE_TYPE_MDRV = resource_type("MDRV");
+constexpr uint32_t RESOURCE_TYPE_mem1 = resource_type("mem!"); // MacApp memory config
 constexpr uint32_t RESOURCE_TYPE_MENU = resource_type("MENU");
 constexpr uint32_t RESOURCE_TYPE_MIDI = resource_type("MIDI");
 constexpr uint32_t RESOURCE_TYPE_Midi = resource_type("Midi");
@@ -214,8 +208,7 @@ constexpr uint32_t RESOURCE_TYPE_PICT = resource_type("PICT");
 constexpr uint32_t RESOURCE_TYPE_pltt = resource_type("pltt");
 constexpr uint32_t RESOURCE_TYPE_pnll = resource_type("pnll");
 constexpr uint32_t RESOURCE_TYPE_ppat = resource_type("ppat");
-// MacApp memory config for PowerPC; synonym of `mem!`
-constexpr uint32_t RESOURCE_TYPE_ppc1 = resource_type("ppc!");
+constexpr uint32_t RESOURCE_TYPE_ppc1 = resource_type("ppc!"); // MacApp memory config for PowerPC; synonym of `mem!`
 constexpr uint32_t RESOURCE_TYPE_ppcc = resource_type("ppcc");
 constexpr uint32_t RESOURCE_TYPE_ppci = resource_type("ppci");
 constexpr uint32_t RESOURCE_TYPE_ppct = resource_type("ppct");
@@ -233,8 +226,7 @@ constexpr uint32_t RESOURCE_TYPE_ptch = resource_type("ptch");
 constexpr uint32_t RESOURCE_TYPE_pthg = resource_type("pthg");
 constexpr uint32_t RESOURCE_TYPE_qrsc = resource_type("qrsc");
 constexpr uint32_t RESOURCE_TYPE_qtcm = resource_type("qtcm");
-// MacApp list of always resident segments; synonym of STR#
-constexpr uint32_t RESOURCE_TYPE_res1 = resource_type("res!");
+constexpr uint32_t RESOURCE_TYPE_res1 = resource_type("res!"); // MacApp list of always resident segments; synonym of STR#
 constexpr uint32_t RESOURCE_TYPE_RECT = resource_type("RECT");
 constexpr uint32_t RESOURCE_TYPE_resf = resource_type("resf");
 constexpr uint32_t RESOURCE_TYPE_RMAP = resource_type("RMAP");
@@ -251,8 +243,7 @@ constexpr uint32_t RESOURCE_TYPE_scal = resource_type("scal");
 constexpr uint32_t RESOURCE_TYPE_scod = resource_type("scod");
 constexpr uint32_t RESOURCE_TYPE_scrn = resource_type("scrn");
 constexpr uint32_t RESOURCE_TYPE_sect = resource_type("sect");
-// MacApp list of segments; synonym of STR#
-constexpr uint32_t RESOURCE_TYPE_seg1 = resource_type("seg!");
+constexpr uint32_t RESOURCE_TYPE_seg1 = resource_type("seg!"); // MacApp list of segments; synonym of STR#
 constexpr uint32_t RESOURCE_TYPE_SERD = resource_type("SERD");
 constexpr uint32_t RESOURCE_TYPE_sfnt = resource_type("sfnt");
 constexpr uint32_t RESOURCE_TYPE_sfvr = resource_type("sfvr");
@@ -288,8 +279,7 @@ constexpr uint32_t RESOURCE_TYPE_tokn = resource_type("tokn");
 constexpr uint32_t RESOURCE_TYPE_TOOL = resource_type("TOOL");
 constexpr uint32_t RESOURCE_TYPE_Tune = resource_type("Tune");
 constexpr uint32_t RESOURCE_TYPE_TwCS = resource_type("TwCS");
-// MacApp Text Style
-constexpr uint32_t RESOURCE_TYPE_TxSt = resource_type("TxSt");
+constexpr uint32_t RESOURCE_TYPE_TxSt = resource_type("TxSt"); // MacApp Text Style
 constexpr uint32_t RESOURCE_TYPE_vdig = resource_type("vdig");
 constexpr uint32_t RESOURCE_TYPE_vers = resource_type("vers");
 constexpr uint32_t RESOURCE_TYPE_wart = resource_type("wart");

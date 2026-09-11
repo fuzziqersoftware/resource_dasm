@@ -35,7 +35,7 @@ std::string decompress_soundmusicsys_lzss(const void* vsrc, size_t size) {
         }
         uint16_t params = r.get_u16b();
 
-        size_t copy_offset = ret.size() - ((1 << 12) - (params & 0x0FFF));
+        size_t copy_offset = ret.size() - 0x1000 + (params & 0x0FFF);
         uint8_t count = ((params >> 12) & 0x0F) + 3;
         size_t copy_end_offset = copy_offset + count;
 

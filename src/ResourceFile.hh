@@ -667,6 +667,9 @@ public:
   DecodedComponentDefinition decode_thng(int16_t id, uint32_t type = RESOURCE_TYPE_thng) const;
   DecodedComponentDefinition decode_thng(std::shared_ptr<const Resource> res) const;
   DecodedComponentDefinition decode_thng(const void* vdata, size_t size) const;
+  std::string decode_MDRV(int16_t id, uint32_t type = RESOURCE_TYPE_MDRV) const;
+  static std::string decode_MDRV(std::shared_ptr<const Resource> res);
+  static std::string decode_MDRV(const void* data, size_t size);
 
   // PowerPC code resources
   PEFFile decode_pef(int16_t id, uint32_t type) const;

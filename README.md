@@ -201,6 +201,7 @@ resource_dasm can convert these resource types:
       ltlk | .txt (68K assembly)                                     | *C
       MBDF | .txt (68K assembly)                                     | *C
       MDEF | .txt (68K assembly)                                     | *C
+      MDRV | .txt (68K assembly)                                     | *C
       mntr | .txt (68K assembly)                                     | *C
       ncmp | .txt (PPC32 assembly and header description)            |
       ndlc | .txt (PPC32 assembly and header description)            |
