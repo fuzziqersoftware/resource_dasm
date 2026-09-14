@@ -61,7 +61,7 @@ namespace ResourceDASM {
 
 // TODO: We probably should support "traditional" flavor disassembly too
 
-class SH4Emulator : public EmulatorBase {
+class SH4Emulator : public EmulatorBase<SH4Emulator> {
 public:
   static constexpr bool is_little_endian = false;
 
@@ -211,11 +211,10 @@ public:
       bool double_precision = false,
       std::shared_ptr<const MemoryContext> mem = nullptr);
 
-  static EmulatorBase::AssembleResult assemble(const std::string& text,
+  using EmulatorBase<SH4Emulator>::assemble;
+  static AssembleResult assemble(
+      const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
-      uint32_t start_address = 0);
-  static EmulatorBase::AssembleResult assemble(const std::string& text,
-      const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
 
   static bool test_assembler(bool stop_on_failure, bool verbose = false);

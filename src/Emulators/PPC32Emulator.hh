@@ -17,7 +17,7 @@
 
 namespace ResourceDASM {
 
-class PPC32Emulator : public EmulatorBase {
+class PPC32Emulator : public EmulatorBase<PPC32Emulator> {
 public:
   static constexpr bool is_little_endian = false;
 
@@ -172,11 +172,9 @@ public:
       const std::multimap<uint32_t, std::string>* labels = nullptr,
       const std::vector<std::string>* import_names = nullptr);
 
+  using EmulatorBase<PPC32Emulator>::assemble;
   static AssembleResult assemble(const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
-      uint32_t start_address = 0);
-  static AssembleResult assemble(const std::string& text,
-      const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
 
   static bool test_assembler(

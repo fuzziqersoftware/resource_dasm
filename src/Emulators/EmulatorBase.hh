@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <filesystem>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 #include <set>
@@ -16,9 +17,64 @@
 
 namespace ResourceDASM {
 
+struct AssembleResult {
+  std::string code;
+  std::unordered_map<std::string, uint32_t> label_offsets;
+  std::unordered_map<std::string, uint32_t> label_addresses; // Currently only used for PPC32 and x86
+  std::unordered_map<std::string, std::string> metadata_keys;
+};
+
+struct LabelRefs {
+  std::set<uint32_t> branch_addrs;
+  std::set<uint32_t> call_addrs;
+};
+
+struct DisassembleResult {
+  struct Segment {
+    bool is_valid;
+    uint32_t address;
+    size_t size;
+    std::string disassembly;
+    std::set<std::pair<uint32_t, size_t>> imm_offsets; // Only used by 68k and x86
+  };
+  struct Label {
+    uint32_t address;
+    std::string name;
+    LabelRefs refs;
+  };
+  std::vector<Segment> segments; // Ordered by address; cannot overlap
+  std::multimap<uint32_t, Label> labels;
+
+  void import_labels(
+      const std::multimap<uint32_t, std::string>& labels,
+      const std::map<uint32_t, LabelRefs>* branch_refs = nullptr) {
+    for (const auto& [addr, name] : labels) {
+      this->labels.emplace(addr, DisassembleResult::Label{.address = addr, .name = name, .refs = {}});
+    }
+    if (branch_refs) {
+      for (const auto& [addr, refs] : *branch_refs) {
+        auto [label_it, label_end_it] = this->labels.equal_range(addr);
+        if (label_it == label_end_it) {
+          std::string name = std::format("{}{:08X}", refs.call_addrs.empty() ? "label" : "fn", addr);
+          auto& label = this->labels.emplace(addr, DisassembleResult::Label{})->second;
+          label.address = addr;
+          label.name = std::move(name);
+          label.refs = refs;
+        } else {
+          for (; label_it != label_end_it; label_it++) {
+            label_it->second.refs = refs;
+          }
+        }
+      }
+    }
+  }
+};
+
+template <typename DerivedT>
 class EmulatorBase {
 public:
-  explicit EmulatorBase(std::shared_ptr<MemoryContext> mem);
+  explicit EmulatorBase(std::shared_ptr<MemoryContext> mem)
+      : mem(mem), instructions_executed(0), log_memory_access(false) {}
   virtual ~EmulatorBase() = default;
 
   virtual void import_state(FILE* stream) = 0;
@@ -35,20 +91,25 @@ public:
   virtual void print_state_header(FILE* stream) const = 0;
   virtual void print_state(FILE* stream) const = 0;
 
-  // The syscall handler or debug hook can throw this to terminate emulation
-  // cleanly (and cause .execute() to return). Throwing any other type of
-  // exception will cause emulation to terminate uncleanly and the exception
-  // will propagate out of .execute().
+  // The syscall handler or debug hook can throw this to terminate emulation cleanly (and cause .execute() to return).
+  // Throwing any other type of exception will cause emulation to terminate uncleanly and the exception will propagate
+  // out of .execute().
   class terminate_emulation : public std::runtime_error {
   public:
     terminate_emulation() : runtime_error("terminate emulation") {}
     ~terminate_emulation() = default;
   };
 
-  virtual void set_behavior_by_name(const std::string& name);
+  virtual void set_behavior_by_name(const std::string&) {
+    throw std::logic_error("this CPU engine does not implement multiple behaviors");
+  }
 
-  virtual void set_time_base(uint64_t time_base);
-  virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
+  virtual void set_time_base(uint64_t) {
+    throw std::logic_error("this CPU engine does not implement a time base");
+  }
+  virtual void set_time_base(const std::vector<uint64_t>&) {
+    throw std::logic_error("this CPU engine does not implement a time base");
+  }
 
   inline void set_log_memory_access(bool log_memory_access) {
     this->log_memory_access = log_memory_access;
@@ -66,43 +127,48 @@ public:
     bool is_write;
   };
 
-  std::vector<MemoryAccess> get_and_clear_memory_access_log();
+  std::vector<MemoryAccess> get_and_clear_memory_access_log() {
+    std::vector<EmulatorBase::MemoryAccess> ret;
+    ret.swap(this->memory_access_log);
+    return ret;
+  }
 
   virtual void execute_one() = 0;
   virtual void execute() = 0;
 
-  struct AssembleResult {
-    std::string code;
-    std::unordered_map<std::string, uint32_t> label_offsets;
-    std::unordered_map<std::string, uint32_t> label_addresses; // Currently only used for PPC32 and x86
-    std::unordered_map<std::string, std::string> metadata_keys;
-  };
+  // Derived classes implement:
+  // static AssembleResult assemble(
+  //     const std::string& text,
+  //     std::function<std::string(const std::string&)> get_include = nullptr,
+  //     uint32_t start_address = 0);
+  static AssembleResult assemble(
+      const std::string& text, const std::vector<std::string>& include_dirs, uint32_t start_address = 0) {
+    if (include_dirs.empty()) {
+      return DerivedT::assemble(text, nullptr, start_address);
 
-  struct LabelRefs {
-    std::set<uint32_t> branch_addrs;
-    std::set<uint32_t> call_addrs;
-  };
-
-  struct DisassembleResult {
-    struct Segment {
-      bool is_valid;
-      uint32_t address;
-      size_t size;
-      std::string disassembly;
-      std::set<std::pair<uint32_t, size_t>> imm_offsets; // Only used by 68k and x86
-    };
-    struct Label {
-      uint32_t address;
-      std::string name;
-      LabelRefs refs;
-    };
-    std::vector<Segment> segments; // Ordered by address; cannot overlap
-    std::multimap<uint32_t, Label> labels;
-
-    void import_labels(
-        const std::multimap<uint32_t, std::string>& labels,
-        const std::map<uint32_t, LabelRefs>* branch_refs = nullptr);
-  };
+    } else {
+      std::unordered_set<std::string> get_include_stack;
+      std::function<std::string(const std::string&)> get_include = [&](const std::string& name) -> std::string {
+        for (const auto& dir : include_dirs) {
+          std::string filename = dir + "/" + name + ".inc.s";
+          if (std::filesystem::is_regular_file(filename)) {
+            if (!get_include_stack.emplace(name).second) {
+              throw std::runtime_error("mutual recursion between includes: " + name);
+            }
+            const auto& ret = DerivedT::assemble(phosg::load_file(filename), get_include, start_address).code;
+            get_include_stack.erase(name);
+            return ret;
+          }
+          filename = dir + "/" + name + ".inc.bin";
+          if (std::filesystem::is_regular_file(filename)) {
+            return phosg::load_file(filename);
+          }
+        }
+        throw std::runtime_error("data not found for include: " + name);
+      };
+      return DerivedT::assemble(text, get_include, start_address);
+    }
+  }
 
 protected:
   std::shared_ptr<MemoryContext> mem;
@@ -111,7 +177,39 @@ protected:
   bool log_memory_access;
   std::vector<MemoryAccess> memory_access_log;
 
-  static std::string format_label(uint32_t pc, uint32_t target_addr, const LabelRefs& refs);
+  static std::string format_label(uint32_t pc, uint32_t target_addr, const LabelRefs& refs) {
+    std::string comment_str;
+    if (target_addr != pc) {
+      comment_str = "Misaligned";
+    }
+    if (!refs.branch_addrs.empty() || !refs.call_addrs.empty()) {
+      if (comment_str.empty()) {
+        comment_str = "Referenced by ";
+      } else {
+        comment_str = "; referenced by ";
+      }
+      size_t comment_start_size = comment_str.size();
+      for (uint32_t src_addr : refs.call_addrs) {
+        if (comment_str.size() > comment_start_size) {
+          comment_str += ", ";
+        }
+        comment_str += std::format("call at {:08X}", src_addr);
+      }
+      for (uint32_t src_addr : refs.branch_addrs) {
+        if (comment_str.size() > comment_start_size) {
+          comment_str += ", ";
+        }
+        comment_str += std::format("branch at {:08X}", src_addr);
+      }
+    }
+
+    const char* label_type = refs.call_addrs.empty() ? "label" : "fn";
+    if (comment_str.empty()) {
+      return std::format("{}{:08X}:\n", label_type, target_addr);
+    } else {
+      return std::format("{}{:08X}: // {}\n", label_type, target_addr, comment_str);
+    }
+  }
 };
 
 enum class DebuggerMode {

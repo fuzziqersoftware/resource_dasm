@@ -41,10 +41,10 @@ add_library(resource_file
   src/DataCodecs/PackBits.cc
   src/DataCodecs/Presage-LZSS.cc
   src/DataCodecs/SoundMusicSys-LZSS.cc
-  src/Emulators/EmulatorBase.cc
   src/Emulators/Expression.cc
   src/Emulators/InterruptManager.cc
   src/Emulators/M68KEmulator.cc
+  src/Emulators/MCS6502Emulator.cc
   src/Emulators/MemoryContext.cc
   src/Emulators/PPC32Emulator.cc
   src/Emulators/SH4Emulator.cc

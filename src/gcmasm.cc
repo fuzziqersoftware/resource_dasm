@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include <filesystem>
+#include <functional>
 #include <phosg/Encoding.hh>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>

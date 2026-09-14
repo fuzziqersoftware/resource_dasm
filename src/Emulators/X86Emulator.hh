@@ -21,7 +21,7 @@
 
 namespace ResourceDASM {
 
-class X86Emulator : public EmulatorBase {
+class X86Emulator : public EmulatorBase<X86Emulator> {
 public:
   static constexpr bool is_little_endian = true;
 
@@ -370,11 +370,11 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
+  using EmulatorBase<X86Emulator>::assemble;
   static AssembleResult assemble(
-      const std::string& text, std::function<std::string(const std::string&)> get_include = nullptr,
+      const std::string& text,
+      std::function<std::string(const std::string&)> get_include = nullptr,
       uint32_t start_address = 0);
-  static AssembleResult assemble(
-      const std::string& text, const std::vector<std::string>& include_dirs, uint32_t start_address = 0);
 
   static bool test_assembler(const std::string& start_opcode = "", bool stop_on_failure = false, bool verbose = false);
 

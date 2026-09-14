@@ -1480,12 +1480,6 @@ void M68KEmulator::Regs::write_stack_s8(std::shared_ptr<MemoryContext> mem, int8
   mem->write_s8(this->a[7], v);
 }
 
-M68KEmulator::M68KEmulator(std::shared_ptr<MemoryContext> mem) : EmulatorBase(mem) {}
-
-M68KEmulator::Regs& M68KEmulator::registers() {
-  return this->regs;
-}
-
 void M68KEmulator::print_state_header(FILE* stream) const {
   phosg::fwrite_fmt(stream, "\
 ---D0--- ---D1--- ---D2--- ---D3--- ---D4--- ---D5--- ---D6--- ---D7---  \
@@ -1495,16 +1489,20 @@ CBITS ---PC--- = INSTRUCTION\n");
 
 void M68KEmulator::print_state(FILE* stream) const {
   size_t pc_data_available = 0x10;
-  while (!this->mem->exists(this->regs.pc, pc_data_available)) {
+  while (pc_data_available && !this->mem->exists(this->regs.pc, pc_data_available)) {
     pc_data_available -= 2;
   }
-  const void* pc_data = this->mem->at<void>(this->regs.pc, pc_data_available);
 
   std::string disassembly;
-  try {
-    disassembly = this->disassemble_one(pc_data, pc_data_available, this->regs.pc);
-  } catch (const std::exception& e) {
-    disassembly = std::format(" (failed: {})", e.what());
+  if (pc_data_available) {
+    const void* pc_data = this->mem->at<void>(this->regs.pc, pc_data_available);
+    try {
+      disassembly = this->disassemble_one(pc_data, pc_data_available, this->regs.pc);
+    } catch (const std::exception& e) {
+      disassembly = std::format(" (failed: {})", e.what());
+    }
+  } else {
+    disassembly = " (address out of range)";
   }
 
   phosg::fwrite_fmt(stream, "\
@@ -4481,7 +4479,7 @@ std::string M68KEmulator::disassemble_one(DisassemblyState& s) {
   return line;
 }
 
-M68KEmulator::DisassembleResult M68KEmulator::disassemble_one_structured(DisassemblyState& s) {
+DisassembleResult M68KEmulator::disassemble_one_structured(DisassemblyState& s) {
   DisassembleResult ret;
 
   size_t opcode_offset = s.r.where();
@@ -4503,8 +4501,7 @@ M68KEmulator::DisassembleResult M68KEmulator::disassemble_one_structured(Disasse
       .address = s.opcode_start_address,
       .size = s.r.where() - opcode_offset,
       .disassembly = std::move(disassembly),
-      .imm_offsets = s.imm_offsets,
-  });
+      .imm_offsets = s.imm_offsets});
 
   return ret;
 }
@@ -4519,7 +4516,7 @@ std::string M68KEmulator::disassemble_one(
   return M68KEmulator::disassemble_one(s);
 }
 
-M68KEmulator::DisassembleResult M68KEmulator::disassemble_one_structured(
+DisassembleResult M68KEmulator::disassemble_one_structured(
     const void* vdata,
     size_t size,
     uint32_t start_address,
@@ -4744,38 +4741,8 @@ void M68KEmulator::export_state(FILE* stream) const {
   this->mem->export_state(stream);
 }
 
-M68KEmulator::AssembleResult M68KEmulator::assemble(
-    const std::string&, std::function<std::string(const std::string&)>, uint32_t) {
+AssembleResult M68KEmulator::assemble(const std::string&, std::function<std::string(const std::string&)>, uint32_t) {
   throw std::runtime_error("M68KEmulator::assemble is not implemented");
-}
-
-M68KEmulator::AssembleResult M68KEmulator::assemble(
-    const std::string& text, const std::vector<std::string>& include_dirs, uint32_t start_address) {
-  if (include_dirs.empty()) {
-    return M68KEmulator::assemble(text, nullptr, start_address);
-
-  } else {
-    std::unordered_set<std::string> get_include_stack;
-    std::function<std::string(const std::string&)> get_include = [&](const std::string& name) -> std::string {
-      for (const auto& dir : include_dirs) {
-        std::string filename = dir + "/" + name + ".inc.s";
-        if (std::filesystem::is_regular_file(filename)) {
-          if (!get_include_stack.emplace(name).second) {
-            throw std::runtime_error("mutual recursion between includes: " + name);
-          }
-          const auto& ret = M68KEmulator::assemble(phosg::load_file(filename), get_include, start_address).code;
-          get_include_stack.erase(name);
-          return ret;
-        }
-        filename = dir + "/" + name + ".inc.bin";
-        if (std::filesystem::is_regular_file(filename)) {
-          return phosg::load_file(filename);
-        }
-      }
-      throw std::runtime_error("data not found for include: " + name);
-    };
-    return M68KEmulator::assemble(text, get_include, start_address);
-  }
 }
 
 } // namespace ResourceDASM

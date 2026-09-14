@@ -6660,7 +6660,7 @@ std::string PPC32Emulator::disassemble(
   return ret;
 }
 
-PPC32Emulator::DisassembleResult PPC32Emulator::disassemble_structured(
+DisassembleResult PPC32Emulator::disassemble_structured(
     const void* data,
     size_t size,
     uint32_t start_pc,
@@ -6689,7 +6689,7 @@ PPC32Emulator::DisassembleResult PPC32Emulator::disassemble_structured(
   return res;
 }
 
-PPC32Emulator::AssembleResult PPC32Emulator::assemble(
+AssembleResult PPC32Emulator::assemble(
     const std::string& text, std::function<std::string(const std::string&)> get_include, uint32_t start_address) {
   Assembler a;
   a.start_address = start_address;
@@ -6701,35 +6701,6 @@ PPC32Emulator::AssembleResult PPC32Emulator::assemble(
   res.label_addresses = std::move(a.label_addresses);
   res.metadata_keys = std::move(a.metadata_keys);
   return res;
-}
-
-PPC32Emulator::AssembleResult PPC32Emulator::assemble(
-    const std::string& text, const std::vector<std::string>& include_dirs, uint32_t start_address) {
-  if (include_dirs.empty()) {
-    return PPC32Emulator::assemble(text, nullptr, start_address);
-
-  } else {
-    std::unordered_set<std::string> get_include_stack;
-    std::function<std::string(const std::string&)> get_include = [&](const std::string& name) -> std::string {
-      for (const auto& dir : include_dirs) {
-        std::string filename = dir + "/" + name + ".inc.s";
-        if (std::filesystem::is_regular_file(filename)) {
-          if (!get_include_stack.emplace(name).second) {
-            throw std::runtime_error("mutual recursion between includes: " + name);
-          }
-          const auto& ret = PPC32Emulator::assemble(phosg::load_file(filename), get_include, start_address).code;
-          get_include_stack.erase(name);
-          return ret;
-        }
-        filename = dir + "/" + name + ".inc.bin";
-        if (std::filesystem::is_regular_file(filename)) {
-          return phosg::load_file(filename);
-        }
-      }
-      throw std::runtime_error("data not found for include: " + name);
-    };
-    return PPC32Emulator::assemble(text, get_include, start_address);
-  }
 }
 
 void PPC32Emulator::Assembler::assemble(

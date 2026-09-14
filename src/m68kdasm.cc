@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "Emulators/M68KEmulator.hh"
+#include "Emulators/MCS6502Emulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "Emulators/SH4Emulator.hh"
 #include "Emulators/X86Emulator.hh"
@@ -51,7 +52,7 @@ If input_filename is not given or is '-', reads from stdin.\n\
 If output_filename is not given or is '-', writes to stdout.\n\
 If no input type options are given, m68kdasm will figure out the executable\n\
 type from the input data. If the input data is raw code, you must give one of\n\
-the --68k, --ppc32, --x86, or --sh4 options.\n\
+the --68k, --ppc32, --x86, --sh4, or --6502 options.\n\
 \n\
 Input type options:\n\
   --68k\n\
@@ -65,6 +66,8 @@ Input type options:\n\
       Disassemble the input as raw x86 code.\n\
   --sh4\n\
       Disassemble the input as raw SH-4 code.\n\
+  --6502\n\
+      Disassemble the input as raw 6502 code.\n\
   --pef\n\
       Disassemble the input as a PEF (Mac OS PowerPC executable).\n\
   --pe\n\
@@ -143,6 +146,7 @@ int main(int argc, char** argv) {
     DISASSEMBLE_SH4,
     ASSEMBLE_SH4,
     ASSEMBLE_AND_DISASSEMBLE_SH4,
+    DISASSEMBLE_6502,
     DISASSEMBLE_UNSPECIFIED_EXECUTABLE,
     DISASSEMBLE_PEF,
     DISASSEMBLE_DOL,
@@ -187,6 +191,8 @@ int main(int argc, char** argv) {
         } else {
           behavior = Behavior::DISASSEMBLE_X86;
         }
+      } else if (!strcmp(argv[x], "--6502")) {
+        behavior = Behavior::DISASSEMBLE_6502;
       } else if (!strcmp(argv[x], "--pef")) {
         behavior = Behavior::DISASSEMBLE_PEF;
       } else if (!strcmp(argv[x], "--dol")) {
@@ -430,6 +436,8 @@ int main(int argc, char** argv) {
       disassembly = ResourceDASM::X86Emulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else if (behavior == Behavior::DISASSEMBLE_SH4) {
       disassembly = ResourceDASM::SH4Emulator::disassemble(data.data(), data.size(), start_address, &labels);
+    } else if (behavior == Behavior::DISASSEMBLE_6502) {
+      disassembly = ResourceDASM::MCS6502Emulator::disassemble(data.data(), data.size(), start_address, &labels);
     } else {
       throw std::logic_error("invalid behavior");
     }
@@ -444,6 +452,3 @@ int main(int argc, char** argv) {
 
   return 0;
 }
-
-// TODO; // Run PPC and SH4 comparison tests on stashed and unstashed repo
-// TODO; // Write x86 comparison test maybe? (WOuld have to deal with variable width obviously)

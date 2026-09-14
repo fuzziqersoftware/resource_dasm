@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "Emulators/M68KEmulator.hh"
+#include "Emulators/MCS6502Emulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "Emulators/SH4Emulator.hh"
 #include "Emulators/X86Emulator.hh"
@@ -83,7 +84,7 @@ some rarer opcodes. No supervisor-mode or privileged opcodes are supported.\n\
 All numbers are specified in hexadecimal.\n\
 \n\
 CPU setup options:\n\
-  --m68k\n\
+  --68k\n\
       Emulates a Motorola 68000 CPU (default).\n\
   --ppc32\n\
       Emulates a 32-bit PowerPC CPU.\n\
@@ -91,6 +92,8 @@ CPU setup options:\n\
       Emulates an Intel x86 CPU.\n\
   --sh4\n\
       Emulates a SuperH-4 CPU.\n\
+  --6502\n\
+      Emulates a 6502 CPU.\n\
   --behavior=BEHAVIOR\n\
       Sets behavior flags for the CPU engine. Currently this is used only for\n\
       x86 emulation; the valid BEHAVIOR values for x86 are:\n\
@@ -666,7 +669,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (args.get<bool>("m68k")) {
+  if (args.get<bool>("68k")) {
     return main_t<ResourceDASM::M68KEmulator>(args);
   } else if (args.get<bool>("sh4")) {
     return main_t<ResourceDASM::SH4Emulator>(args);
@@ -674,6 +677,8 @@ int main(int argc, char** argv) {
     return main_t<ResourceDASM::PPC32Emulator>(args);
   } else if (args.get<bool>("x86")) {
     return main_t<ResourceDASM::X86Emulator>(args);
+  } else if (args.get<bool>("6502")) {
+    return main_t<ResourceDASM::MCS6502Emulator>(args);
   } else if (any_filename_is_ppc32 && !any_filename_is_x86) {
     return main_t<ResourceDASM::PPC32Emulator>(args);
   } else if (any_filename_is_x86 && !any_filename_is_ppc32) {

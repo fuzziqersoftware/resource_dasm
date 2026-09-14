@@ -20,7 +20,7 @@ struct JumpTableEntry {
   uint16_t offset; // Offset from end of CODE resource header
 };
 
-class M68KEmulator : public EmulatorBase {
+class M68KEmulator : public EmulatorBase<M68KEmulator> {
 public:
   static constexpr bool is_little_endian = false;
 
@@ -116,13 +116,18 @@ public:
     void write_stack_s8(std::shared_ptr<MemoryContext> mem, int8_t v);
   };
 
-  explicit M68KEmulator(std::shared_ptr<MemoryContext> mem);
+  using EmulatorBase::EmulatorBase;
   virtual ~M68KEmulator() = default;
 
   virtual void import_state(FILE* stream);
   virtual void export_state(FILE* stream) const;
 
-  Regs& registers();
+  inline Regs& registers() {
+    return this->regs;
+  }
+  inline const Regs& registers() const {
+    return this->regs;
+  }
 
   virtual void print_state_header(FILE* stream) const;
   virtual void print_state(FILE* stream) const;
@@ -417,13 +422,10 @@ public:
       bool is_mac_environment = true,
       const std::vector<JumpTableEntry>* jump_table = nullptr);
 
+  using EmulatorBase<M68KEmulator>::assemble;
   static AssembleResult assemble(
       const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
-      uint32_t start_address = 0);
-  static AssembleResult assemble(
-      const std::string& text,
-      const std::vector<std::string>& include_dirs,
       uint32_t start_address = 0);
 
   inline void set_syscall_handler(std::function<void(M68KEmulator&, uint16_t)> handler) {

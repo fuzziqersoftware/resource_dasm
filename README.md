@@ -431,7 +431,7 @@ The library contains the following useful functions and classes:
 * DataCodecs/Codecs.hh: Decompressors and compressors for some common and custom data formats
 * Emulators/M68KEmulator.hh: 68000 CPU emulator and disassembler
 * Emulators/PPC32Emulator.hh: PowerPC CPU emulator, assembler, and disassembler
-* Emulators/SH4Emulator.hh: SuperH-4 assembler and disassembler (not actually an emulator yet)
+* Emulators/SH4Emulator.hh: SuperH-4 emulator, assembler, and disassembler
 * Emulators/X86Emulator.hh: x86 CPU emulator, assembler, and disassembler
 * ExecutableFormats/...: Parsers for various executable formats
 * IndexFormats/Formats.hh: Parsers and serializers for various resource archive formats
@@ -462,7 +462,7 @@ m68kdasm can also assemble PowerPC, x86, and SH-4 assembly into raw binary. (It 
 
 ## Using m68kexec
 
-m68kexec is a CPU emulator and debugger for the Motorola 68000, 32-bit PowerPC, and x86 architectures. I often use it to help understand what some archaic code is trying to do, or to compare the behavior of code that I've transcribed to a modern language with the original code's behavior. For use cases like this, you generally will want to set up one or more input regions containing the data you're testing with, and one or more output regions for the emulated code to write to.
+m68kexec is a CPU emulator and debugger for the Motorola 68000, 32-bit PowerPC, x86, and SH-4 architectures. I often use it to help understand what some archaic code is trying to do, or to compare the behavior of code that I've transcribed to a modern language with the original code's behavior. For use cases like this, you generally will want to set up one or more input regions containing the data you're testing with, and one or more output regions for the emulated code to write to.
 
 Perhaps this is best explained by example. This command is used to execute the encryption context generation function from Phantasy Star Online Blue Burst, to compare it with [the same function as implemented in newserv](https://github.com/fuzziqersoftware/newserv/blob/342f819f50cbde25816c1cd7f72c5ec0f3369994/src/PSOEncryption.cc#L288):
 

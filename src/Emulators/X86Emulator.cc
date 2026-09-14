@@ -4304,7 +4304,7 @@ std::string X86Emulator::disassemble(
   return ret;
 }
 
-X86Emulator::DisassembleResult X86Emulator::disassemble_structured(
+DisassembleResult X86Emulator::disassemble_structured(
     const void* vdata, size_t size, uint32_t start_address, const std::multimap<uint32_t, std::string>* labels) {
   static const std::multimap<uint32_t, std::string> empty_labels_map = {};
   DisassemblyState s = {
@@ -4773,7 +4773,7 @@ bool X86Emulator::Assembler::Argument::is_reg_ref() const {
       (this->type == Type::XMM_REGISTER));
 }
 
-X86Emulator::AssembleResult X86Emulator::Assembler::assemble(
+AssembleResult X86Emulator::Assembler::assemble(
     const std::string& text, std::function<std::string(const std::string&)> get_include) {
   std::string effective_text = text;
   phosg::strip_comments_inplace(effective_text);
@@ -7372,40 +7372,11 @@ const std::unordered_map<std::string, X86Emulator::Assembler::AssembleFunction> 
     {".binary", &X86Emulator::Assembler::asm_dir_binary},
 };
 
-X86Emulator::AssembleResult X86Emulator::assemble(
+AssembleResult X86Emulator::assemble(
     const std::string& text, std::function<std::string(const std::string&)> get_include, uint32_t start_address) {
   Assembler a;
   a.start_address = start_address;
   return a.assemble(text, get_include);
-}
-
-X86Emulator::AssembleResult X86Emulator::assemble(
-    const std::string& text, const std::vector<std::string>& include_dirs, uint32_t start_address) {
-  if (include_dirs.empty()) {
-    return X86Emulator::assemble(text, nullptr, start_address);
-
-  } else {
-    std::unordered_set<std::string> get_include_stack;
-    std::function<std::string(const std::string&)> get_include = [&](const std::string& name) -> std::string {
-      for (const auto& dir : include_dirs) {
-        std::string filename = dir + "/" + name + ".inc.s";
-        if (std::filesystem::is_regular_file(filename)) {
-          if (!get_include_stack.emplace(name).second) {
-            throw std::runtime_error("mutual recursion between includes: " + name);
-          }
-          const auto& ret = X86Emulator::assemble(phosg::load_file(filename), get_include, start_address).code;
-          get_include_stack.erase(name);
-          return ret;
-        }
-        filename = dir + "/" + name + ".inc.bin";
-        if (std::filesystem::is_regular_file(filename)) {
-          return phosg::load_file(filename);
-        }
-      }
-      throw std::runtime_error("data not found for include: " + name);
-    };
-    return X86Emulator::assemble(text, get_include, start_address);
-  }
 }
 
 struct OpcodeIterator {
