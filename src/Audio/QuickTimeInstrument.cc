@@ -11,52 +11,49 @@
 #include <phosg/Filesystem.hh>
 #include <vector>
 
+#include "../QuickTimeParser.hh"
 #include "QuickTimeInstrument.hh"
 
 namespace ResourceDASM {
 namespace Audio {
 
-static constexpr uint32_t SSAI_TYPE = 0x73736169; // 'ssai'
-static constexpr uint32_t SEAN_TYPE = 0x7365616E; // 'sean'
-static constexpr uint32_t TONE_TYPE = 0x746F6E65; // 'tone'; kaiToneDescType
-static constexpr uint32_t KNBL_TYPE = 0x6B6E626C; // 'knbl'; kaiKnobListType
-static constexpr uint32_t SINF_TYPE = 0x73696E66; // 'sinf'; kaiKeyRangeInfoType
-static constexpr uint32_t SDSC_TYPE = 0x73647363; // 'sdsc'; kaiSampleDescType
-static constexpr uint32_t SMIN_TYPE = 0x736D696E; // 'smin'; kaiSampleInfoType
-static constexpr uint32_t SNAM_TYPE = 0x736E616D; // 'snam'
-static constexpr uint32_t SDAT_TYPE = 0x73646174; // 'sdat'; kaiSampleDataType
-static constexpr uint32_t QUAL_TYPE = 0x7175616C; // 'qual'; kaiInstGMQualityType
-static constexpr uint32_t QUID_TYPE = 0x71756964; // 'quid'; kaiSampleDataQUIDType
-static constexpr uint32_t IINF_TYPE = 0x69696E66; // 'iinf'; kaiInstInfoType
-static constexpr uint32_t IREF_TYPE = 0x69726566; // 'iref'; kaiInstrumentRefType
+static constexpr uint32_t SSAI_TYPE = resource_type("ssai"); //
+static constexpr uint32_t SEAN_TYPE = resource_type("sean"); //
+static constexpr uint32_t TONE_TYPE = resource_type("tone"); // kaiToneDescType
+static constexpr uint32_t KNBL_TYPE = resource_type("knbl"); // kaiKnobListType
+static constexpr uint32_t SINF_TYPE = resource_type("sinf"); // kaiKeyRangeInfoType
+static constexpr uint32_t SDSC_TYPE = resource_type("sdsc"); // kaiSampleDescType
+static constexpr uint32_t SMIN_TYPE = resource_type("smin"); // kaiSampleInfoType
+static constexpr uint32_t SNAM_TYPE = resource_type("snam"); //
+static constexpr uint32_t SDAT_TYPE = resource_type("sdat"); // kaiSampleDataType
+static constexpr uint32_t QUAL_TYPE = resource_type("qual"); // kaiInstGMQualityType
+static constexpr uint32_t QUID_TYPE = resource_type("quid"); // kaiSampleDataQUIDType
+static constexpr uint32_t IINF_TYPE = resource_type("iinf"); // kaiInstInfoType
+static constexpr uint32_t IREF_TYPE = resource_type("iref"); // kaiInstrumentRefType
 static constexpr uint32_t COPYRIGHT_WRT_TYPE = 0xA9777274; // '©wrt' (in MacRoman); kaiWriterType
 static constexpr uint32_t COPYRIGHT_CPY_TYPE = 0xA9637079; // '©cpy' (in MacRoman); kaiCopyrightType
-static constexpr uint32_t STR_TYPE = 0x73747220; // 'str '; kaiOtherStrType
-static constexpr uint32_t MUSI_TYPE = 0x6D757369; // 'musi'
-static constexpr uint32_t SS_TYPE = 0x73732020; // 'ss  '
-// Block types in the QT headers which are not represented here (yet):
+static constexpr uint32_t STR_TYPE = resource_type("str "); // kaiOtherStrType
+static constexpr uint32_t MUSI_TYPE = resource_type("musi");
+static constexpr uint32_t SS_TYPE = resource_type("ss  ");
+// Atom types in the QT headers which are not represented here (yet):
 //   kaiNoteRequestInfoType        = FOUR_CHAR_CODE('ntrq')
 //   kaiPictType                   = FOUR_CHAR_CODE('pict')
 //   kaiLibraryInfoType            = FOUR_CHAR_CODE('linf')
 //   kaiLibraryDescType            = FOUR_CHAR_CODE('ldsc')
 
-struct FileHeader {
-  /* 00 */ phosg::be_uint32_t size = 0; // Includes this header
-  /* 04 */ phosg::be_uint32_t type = 0;
-  /* 08 */ phosg::be_uint32_t block_number = 0;
+struct SSAIAtom {
+  /* 08 */ phosg::be_uint32_t atom_number = 0;
   /* 0C */
 } __attribute__((packed));
 
-struct BlockHeader {
-  /* 00 */ phosg::be_uint32_t size = 0; // Includes this header
-  /* 04 */ phosg::be_uint32_t type = 0;
-  /* 08 */ phosg::be_uint32_t block_number = 0;
+struct AtomBase { // All atoms below begin with this structure (only 'ssai' does not include it)
+  /* 08 */ phosg::be_uint32_t atom_number = 0;
   /* 0C */ phosg::be_uint32_t child_count = 0;
   /* 10 */ phosg::be_uint32_t unknown_a1 = 0;
   /* 14 */
 } __attribute__((packed));
 
-struct ToneBlock {
+struct ToneAtom {
   /* 14 */ phosg::be_uint32_t unknown_a1[9] = {};
   /* 38 */ uint8_t name[0x20] = {}; // pstring; size is uncertain (may be shorter)
   /* 58 */ phosg::be_uint32_t unknown_a2 = 0xFFFFFFFF;
@@ -64,7 +61,7 @@ struct ToneBlock {
   /* 60 */
 } __attribute__((packed));
 
-struct KNBLBlock { // Knob list
+struct KNBLAtom { // Knob list
   struct Entry {
     phosg::be_uint32_t number = 0;
     phosg::be_int32_t value = 0;
@@ -75,13 +72,13 @@ struct KNBLBlock { // Knob list
   /* 1C */ // Entries follow here
 } __attribute__((packed));
 
-struct SDSCBlock { // Sample description
+struct SDSCAtom { // Sample description
   /* 14 */ phosg::be_uint32_t format = 0; // E.g. 'raw '
   /* 18 */ phosg::be_uint16_t num_channels = 0;
   /* 1A */ phosg::be_uint16_t bits_per_sample = 0;
   /* 1C */ phosg::be_uint16_t sample_rate_integer = 0; // Whole number part of a Fixed
   /* 1E */ phosg::be_uint16_t sample_rate_fractional = 0; // Fractional part of a Fixed
-  /* 20 */ phosg::be_uint16_t sdat_block_number = 0;
+  /* 20 */ phosg::be_uint16_t sdat_atom_number = 0;
   /* 22 */ phosg::be_uint32_t frame_offset = 0; // Possibly just for internal use? (See MPW headers)
   /* 26 */ phosg::be_uint32_t frame_count = 0; // TODO: Could also be sample_count or just num_sample_bytes
   /* 2A */ phosg::be_uint32_t loop_type = 0; // TODO: We don't use this; find out what the types are and implement them
@@ -93,12 +90,12 @@ struct SDSCBlock { // Sample description
   /* 42 */
 } __attribute__((packed));
 
-struct QualBlock {
+struct QualAtom {
   /* 14 */ uint8_t unknown_a3[4] = {};
   /* 18 */
 } __attribute__((packed));
 
-struct QuidBlock {
+struct QuidAtom {
   /* 14 */ uint8_t unknown_a3[0x10] = {};
   /* 24 */
 } __attribute__((packed));
@@ -111,157 +108,150 @@ std::string decode_pstring(const uint8_t* data) {
   return std::string(reinterpret_cast<const char*>(data + 1), *data);
 }
 
-SSAIInstrument::SSAIInstrument(const void* data, size_t size) {
-  phosg::StringReader r(data, size);
+class QuickTimeSSAIParser : public QuickTime::Parser {
+public:
+  QuickTimeSSAIParser(SSAIInstrument* ssai) : ssai(ssai) {}
 
-  const auto& root_header = r.get<FileHeader>();
-  if (root_header.type != SSAI_TYPE) {
-    throw std::runtime_error("Input is not an ssai file");
-  }
-  if (root_header.size != r.size()) {
-    throw std::runtime_error("Header size field does not match file size");
-  }
+protected:
+  SSAIInstrument* ssai;
+  SSAIInstrument::KeyRegion* current_key_region = nullptr;
+  SSAIInstrument::SampleData* current_sample_data = nullptr;
 
-  this->parse_blocks(r, 1, nullptr, nullptr);
-}
-
-template <typename T>
-static const T& get_fixed_block(phosg::StringReader& r, uint32_t block_type) {
-  if (r.remaining() != sizeof(T)) {
-    throw std::runtime_error(std::format("{:08X} block size is incorrect", block_type));
-  }
-  return r.get<T>();
-}
-
-void SSAIInstrument::parse_blocks(
-    phosg::StringReader& r, size_t block_count, KeyRegion* current_key_region, SampleData* current_sample_data) {
-  for (; block_count > 0; block_count--) {
-    const auto& header = r.get<BlockHeader>();
-    if (header.size < sizeof(BlockHeader)) {
-      throw std::runtime_error("Invalid block header size");
+  virtual void handle_atom(uint32_t type, const void* data, size_t size) {
+    phosg::StringReader r(data, size);
+    if (type == SSAI_TYPE) {
+      r.skip(sizeof(SSAIAtom)); // We don't care about the ssai block number
+      this->parse_atom_list(r.extract());
+      return;
     }
-    this->parse_block(
-        header.type,
-        header.block_number,
-        header.child_count,
-        r.sub(r.where(), header.size - sizeof(header)),
-        current_key_region,
-        current_sample_data);
-    r.skip(header.size - sizeof(header));
-  }
-}
 
-void SSAIInstrument::parse_block(
-    uint32_t block_type,
-    uint32_t block_number,
-    uint32_t child_count,
-    phosg::StringReader r,
-    KeyRegion* current_key_region,
-    SampleData* current_sample_data) {
-  switch (block_type) {
-    case SEAN_TYPE:
-    case IINF_TYPE:
-    case IREF_TYPE:
-      this->parse_blocks(r, child_count, current_key_region, current_sample_data);
-      break;
-    case SMIN_TYPE: {
-      auto emplace_ret = this->sample_datas.emplace(block_number, SampleData{});
-      if (!emplace_ret.second) {
-        throw std::runtime_error(std::format("Duplicate global sample number {}", block_number));
-      }
-      auto& sample_data = emplace_ret.first->second;
-      sample_data.smin_block_number = block_number;
-      sample_data.sdat_block_number = 0;
-      this->parse_blocks(r, child_count, current_key_region, &sample_data);
-      break;
-    }
-    case SINF_TYPE:
-      this->parse_blocks(r, child_count, &this->key_regions[block_number], current_sample_data);
-      break;
-
-    case TONE_TYPE: {
-      const auto& tone_block = get_fixed_block<ToneBlock>(r, block_type);
-      // Only update the name and resource ID if this block isn't a reference to another instrument. `tone` may appear
-      // in the hierarchy ssai->sean->tone in which case it's the instrument metadata; it may also appear within an
-      // sinf block in which case it's a reference to another instrument's samples
-      if (!current_key_region && !current_sample_data) {
-        // TODO: There might be other important stuff in ToneBlock too
-        this->name = decode_pstring<0x20>(tone_block.name);
-        if (this->resource_id == 0) {
-          this->resource_id = tone_block.resource_id;
+    const auto& base = r.get<AtomBase>();
+    switch (type) {
+      case SEAN_TYPE:
+      case IINF_TYPE:
+      case IREF_TYPE:
+        this->parse_atom_list(r.extract(), base.child_count);
+        break;
+      case SMIN_TYPE: {
+        auto emplace_ret = this->ssai->sample_datas.emplace(base.atom_number, SSAIInstrument::SampleData{});
+        if (!emplace_ret.second) {
+          throw std::runtime_error(std::format("Duplicate global sample number {}", base.atom_number));
         }
+        auto& sample_data = emplace_ret.first->second;
+        sample_data.smin_atom_number = base.atom_number;
+        sample_data.sdat_atom_number = 0;
+        if (this->current_sample_data) {
+          this->throw_parse_error("Received smin atom inside another smin atom");
+        }
+        this->current_sample_data = &sample_data;
+        this->parse_atom_list(r.extract(), base.child_count);
+        this->current_sample_data = nullptr;
+        break;
       }
-      break;
-    }
+      case SINF_TYPE:
+        if (this->current_key_region) {
+          this->throw_parse_error("Received sinf atom inside another sinf atom");
+        }
+        this->current_key_region = &this->ssai->key_regions[base.atom_number];
+        this->parse_atom_list(r.extract(), base.child_count);
+        this->current_key_region = nullptr;
+        break;
 
-    case KNBL_TYPE: {
-      const auto& knbl_block = r.get<KNBLBlock>();
-      auto& knobs = current_key_region ? current_key_region->knobs : this->knobs;
-      if (!knobs.empty()) {
-        throw std::runtime_error("Received multiple knob lists in same context");
+      case TONE_TYPE: {
+        const auto& tone_atom = this->get_fixed_atom<ToneAtom>(r);
+        // Only update the name and resource ID if this atom isn't a reference to another instrument. `tone` may appear
+        // in the hierarchy ssai->sean->tone in which case it's the instrument metadata; it may also appear within an
+        // sinf atom in which case it's a reference to another instrument's samples
+        if (!this->current_key_region && !this->current_sample_data) {
+          // TODO: There might be other important stuff in ToneAtom too
+          this->ssai->name = decode_pstring<0x20>(tone_atom.name);
+          if (this->ssai->resource_id == 0) {
+            this->ssai->resource_id = tone_atom.resource_id;
+          }
+        }
+        break;
       }
-      for (size_t z = 0; z < knbl_block.entry_count; z++) {
-        const auto& entry = r.get<KNBLBlock::Entry>();
-        knobs.emplace(entry.number, entry.value);
-      }
-      break;
-    }
 
-    case SDSC_TYPE: {
-      if (!current_key_region) {
-        throw std::runtime_error("Received sdsc block outside of sinf block");
+      case KNBL_TYPE: {
+        const auto& knbl_atom = r.get<KNBLAtom>();
+        auto& knobs = this->current_key_region ? this->current_key_region->knobs : this->ssai->knobs;
+        if (!knobs.empty()) {
+          this->throw_parse_error("Received multiple knob lists in same context");
+        }
+        for (size_t z = 0; z < knbl_atom.entry_count; z++) {
+          const auto& entry = r.get<KNBLAtom::Entry>();
+          knobs.emplace(entry.number, entry.value);
+        }
+        r.skip(r.remaining()); // Sometimes knbl atoms end with extra data; just ignore it
+        break;
       }
-      const auto& sdsc = r.get<SDSCBlock>();
-      current_key_region->num_channels = sdsc.num_channels;
-      current_key_region->bits_per_sample = sdsc.bits_per_sample;
-      current_key_region->sample_rate = sdsc.sample_rate_integer + (static_cast<float>(sdsc.sample_rate_fractional) / 0x10000);
-      current_key_region->sample_data_number = sdsc.sdat_block_number;
-      current_key_region->frame_count = sdsc.frame_count;
-      current_key_region->loop_start_offset = sdsc.loop_start_offset;
-      current_key_region->loop_end_offset = sdsc.loop_end_offset;
-      current_key_region->base_note = sdsc.base_note;
-      current_key_region->key_low = sdsc.key_low;
-      current_key_region->key_high = sdsc.key_high;
-      break;
-    }
 
-    case SDAT_TYPE: {
-      // Apparently sdat may appear within smin, or at the top level. If it appears within smin, it should be keyed by
-      // the smin's block number; if it appears at the top level it should be keyed by its own block number
-      if (current_sample_data) {
-        current_sample_data->data = r.read(r.remaining());
-      } else {
-        auto& sample_data = this->sample_datas[block_number];
-        sample_data.data = r.read(r.remaining());
-        sample_data.smin_block_number = -1;
-        sample_data.sdat_block_number = block_number;
+      case SDSC_TYPE: {
+        if (!this->current_key_region) {
+          this->throw_parse_error("Received sdsc atom outside of sinf atom");
+        }
+        const auto& sdsc = r.get<SDSCAtom>();
+        this->current_key_region->num_channels = sdsc.num_channels;
+        this->current_key_region->bits_per_sample = sdsc.bits_per_sample;
+        this->current_key_region->sample_rate = sdsc.sample_rate_integer +
+            (static_cast<float>(sdsc.sample_rate_fractional) / 0x10000);
+        this->current_key_region->sample_data_number = sdsc.sdat_atom_number;
+        this->current_key_region->frame_count = sdsc.frame_count;
+        this->current_key_region->loop_start_offset = sdsc.loop_start_offset;
+        this->current_key_region->loop_end_offset = sdsc.loop_end_offset;
+        this->current_key_region->base_note = sdsc.base_note;
+        this->current_key_region->key_low = sdsc.key_low;
+        this->current_key_region->key_high = sdsc.key_high;
+        break;
       }
-      break;
+
+      case SDAT_TYPE: {
+        // Apparently sdat may appear within smin, or at the top level. If it appears within smin, it should be keyed
+        // by the smin's atom number; if it appears at the top level it should be keyed by its own atom number
+        if (this->current_sample_data) {
+          this->current_sample_data->data = r.read(r.remaining());
+        } else {
+          auto& sample_data = this->ssai->sample_datas[base.atom_number];
+          sample_data.data = r.read(r.remaining());
+          sample_data.smin_atom_number = -1;
+          sample_data.sdat_atom_number = base.atom_number;
+        }
+        break;
+      }
+      case QUAL_TYPE:
+        this->get_fixed_atom<QualAtom>(r);
+        break;
+      case QUID_TYPE:
+        this->get_fixed_atom<QuidAtom>(r);
+        break;
+      case SNAM_TYPE:
+        if (!this->current_sample_data) {
+          throw std::runtime_error("Received snam atom outside of smin atom");
+        }
+        this->current_sample_data->name = r.read(r.remaining());
+        break;
+      case COPYRIGHT_WRT_TYPE:
+        this->ssai->copyright_wrt = r.read(r.remaining());
+        break;
+      case COPYRIGHT_CPY_TYPE:
+        this->ssai->copyright_cpy = r.read(r.remaining());
+        break;
+      case STR_TYPE:
+        this->ssai->info_string = r.read(r.remaining());
+        break;
+      default:
+        this->throw_parse_error("Unknown atom type");
     }
-    case QUAL_TYPE:
-      get_fixed_block<QualBlock>(r, QUAL_TYPE);
-      break;
-    case QUID_TYPE:
-      get_fixed_block<QuidBlock>(r, QUID_TYPE);
-      break;
-    case SNAM_TYPE:
-      if (!current_sample_data) {
-        throw std::runtime_error("Received snam block outside of smin block");
-      }
-      current_sample_data->name = r.all();
-      break;
-    case COPYRIGHT_WRT_TYPE:
-      this->copyright_wrt = r.all();
-      break;
-    case COPYRIGHT_CPY_TYPE:
-      this->copyright_cpy = r.all();
-      break;
-    case STR_TYPE:
-      this->info_string = r.all();
-      break;
-    default:
-      throw std::runtime_error(std::format("Unknown block type: {:08X}", block_type));
+    if (!r.eof()) {
+      this->throw_parse_error("Some atom data was not parsed (parsed 0x{:X} bytes, received 0x{:X} bytes)",
+          r.where(), r.size());
+    }
   }
+};
+
+SSAIInstrument::SSAIInstrument(const void* data, size_t size) {
+  QuickTimeSSAIParser parser(this);
+  parser.parse(data, size);
 }
 
 const char* SSAIInstrument::name_for_knob(uint32_t knob_id) {
@@ -406,16 +396,38 @@ struct TuneInstrumentDefinition {
   /* 58 */
 } __attribute__((packed));
 
-struct TuneExtendedInstrumentDefinition {
-  // NOTE: These can probably be arbitrarily complex; this just mirrors the format used in Harry the Handsome Executive
-  /* 00 */ uint8_t unknown_a1[0x0C];
-  /* 0C */ BlockHeader sean_block_header; // SEAN_TYPE, size 0x74, block index 1, child count 1
-  /* 20 */ BlockHeader tone_block_header; // TONE_TYPE, size 0x60, block index 1, child count 0
-  /* 34 */ ToneDescription desc;
-  /* 80 */ phosg::be_uint16_t flags_and_type;
-  /* 82 */ phosg::be_uint16_t message_size; // In 4-byte words
-  /* 84 */
-} __attribute__((packed));
+class TuneExtendedInstrumentDefinitionParser : public QuickTime::Parser {
+public:
+  TuneExtendedInstrumentDefinitionParser(ToneDescription* tone) : tone(tone) {}
+
+  bool received_tone_atom = false;
+
+protected:
+  ToneDescription* tone;
+
+  virtual void handle_atom(uint32_t type, const void* data, size_t size) {
+    phosg::StringReader r(data, size);
+    const auto& base = r.get<AtomBase>();
+    switch (type) {
+      case SEAN_TYPE:
+        this->parse_atom_list(r.extract(), base.child_count);
+        break;
+      case TONE_TYPE:
+        if (this->received_tone_atom) {
+          this->throw_parse_error("Received multiple tone atoms");
+        }
+        this->received_tone_atom = true;
+        *this->tone = this->get_fixed_atom<ToneDescription>(r);
+        break;
+      default:
+        this->throw_parse_error("Unknown atom type");
+    }
+    if (!r.eof()) {
+      this->throw_parse_error("Some atom data was not parsed (parsed 0x{:X} bytes, received 0x{:X} bytes)",
+          r.where(), r.size());
+    }
+  }
+};
 
 std::string TuneResource::Event::disassembly_prefix() const {
   return std::format("{:08X}  {:<32}  @{:08X}",
@@ -498,10 +510,11 @@ std::string TuneResource::ChannelSetupEvent::disassemble() const {
 TuneResource::TuneResource(const void* data, size_t size) {
   phosg::StringReader r(data, size);
 
-  const auto& header = r.get<BlockHeader>();
+  const auto& header = r.get<QuickTime::AtomHeader>();
   if (header.type != MUSI_TYPE) {
     throw std::runtime_error("Tune identifier is incorrect");
   }
+  r.skip(sizeof(AtomBase));
 
   std::unordered_map<uint16_t, uint8_t> partition_id_to_channel;
   uint64_t current_time = 0;
@@ -626,19 +639,20 @@ TuneResource::TuneResource(const void* data, size_t size) {
           }
 
           case 6: { // Extended (?) instrument definition
-            if (msg_r.remaining() != sizeof(TuneExtendedInstrumentDefinition)) {
-              throw std::runtime_error("Extended instrument definition size is incorrect");
+            ToneDescription inst;
+            TuneExtendedInstrumentDefinitionParser parser(&inst);
+            parser.parse(msg_r.pgetv(msg_r.where() + 0x0C, msg_r.size() - 0x10), msg_r.size() - 0x10);
+            if (!parser.received_tone_atom) {
+              throw std::runtime_error("Extended instrument definition did not include a tone atom");
             }
-            const auto& inst = msg_r.get<TuneExtendedInstrumentDefinition>();
-            if ((inst.sean_block_header.type != SEAN_TYPE) || (inst.tone_block_header.type != TONE_TYPE) ||
-                (inst.desc.collection_type != SS_TYPE)) {
+            if (inst.collection_type != SS_TYPE) {
               throw std::runtime_error("Extended instrument definition format is unrecognized");
             }
             auto ev = std::make_unique<ChannelSetupEvent>();
             ev->channel = channel;
-            ev->instrument_number = inst.desc.instrument_number;
-            ev->collection_name = decode_pstring<0x20>(inst.desc.collection_name);
-            ev->instrument_name = decode_pstring<0x20>(inst.desc.instrument_name);
+            ev->instrument_number = inst.instrument_number;
+            ev->collection_name = decode_pstring<0x20>(inst.collection_name);
+            ev->instrument_name = decode_pstring<0x20>(inst.instrument_name);
             add_event(std::move(ev), start_offset);
             break;
           }

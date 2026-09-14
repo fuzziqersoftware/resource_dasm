@@ -70,6 +70,8 @@ add_library(resource_file
   src/QuickDrawDefaultColorTables.cc
   src/QuickDrawEngine.cc
   src/QuickDrawFormats.cc
+  # src/QuickTimeFormats.cc
+  src/QuickTimeParser.cc
   src/ResourceCompression.cc
   src/ResourceDecompressors/System01.cc
   src/ResourceDecompressors/System2.cc

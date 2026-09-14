@@ -800,9 +800,9 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
     res_id_to_inst_id.emplace(ssai.resource_id, ssai.id);
     name_to_inst_id.emplace(ssai.name, ssai.id);
     for (const auto& [_, sample_data] : ssai.sample_datas) {
-      uint64_t key = (sample_data.smin_block_number >= 0)
-          ? sample_data.smin_block_number
-          : ((static_cast<uint64_t>(ssai.id) << 32) | sample_data.sdat_block_number);
+      uint64_t key = (sample_data.smin_atom_number >= 0)
+          ? sample_data.smin_atom_number
+          : ((static_cast<uint64_t>(ssai.id) << 32) | sample_data.sdat_atom_number);
       if (!sample_data_for_key.emplace(key, &sample_data).second) {
         throw std::runtime_error(std::format("Duplicate sample data key {:016X}", key));
       }

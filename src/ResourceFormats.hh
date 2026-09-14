@@ -1,6 +1,7 @@
 #pragma once
 
 #include <phosg/Encoding.hh>
+#include <phosg/Image.hh>
 
 namespace ResourceDASM {
 

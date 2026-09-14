@@ -146,21 +146,21 @@ public:
     uint32_t key_high = 0;
     std::unordered_map<uint32_t, int32_t> knobs;
   };
-  std::unordered_map<uint32_t, KeyRegion> key_regions; // Keyed by block_number
+  std::unordered_map<uint32_t, KeyRegion> key_regions; // Keyed by atom_number
   struct SampleData {
-    int64_t smin_block_number = -1; // -1 = not part of an smin
-    uint32_t sdat_block_number = 0;
+    int64_t smin_atom_number = -1; // -1 = not part of an smin
+    uint32_t sdat_atom_number = 0;
     std::string data;
     std::string name;
   };
   std::unordered_map<uint32_t, SampleData> sample_datas;
 
 protected:
-  void parse_blocks(
-      phosg::StringReader& r, size_t block_count, KeyRegion* current_key_region, SampleData* current_sample_data);
-  void parse_block(
-      uint32_t block_type,
-      uint32_t block_number,
+  void parse_atoms(
+      phosg::StringReader& r, size_t atom_count, KeyRegion* current_key_region, SampleData* current_sample_data);
+  void parse_atom(
+      uint32_t atom_type,
+      uint32_t atom_number,
       uint32_t child_count,
       phosg::StringReader r,
       KeyRegion* current_key_region,
