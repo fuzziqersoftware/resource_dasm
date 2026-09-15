@@ -15,7 +15,6 @@
 
 #include "Codecs.hh"
 #include "Instrument.hh"
-#include "QuickTimeInstrument.hh"
 #include "WAVFile.hh"
 
 namespace ResourceDASM {
@@ -778,26 +777,44 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
   auto& inst_bank = env.instrument_banks.emplace(0, 0).first->second;
   auto& sample_bank = env.sample_banks.emplace(0, 0).first->second;
 
-  std::unordered_map<std::string, SSAIInstrument> ssais;
-  std::unordered_map<std::string, TuneResource> tunes;
+  std::unordered_map<std::string, QuickTime::SSAIInstrument> ssais;
+  std::unordered_map<std::string, QuickTime::QTMASequence> tunes;
   for (const auto& item : std::filesystem::directory_iterator(instruments_directory)) {
     if (phosg::tolower(item.path().filename().extension().string()) == ".ssai") {
-      auto emplace_ret = ssais.emplace(item.path().filename().string(), phosg::load_file(item.path().string()));
-      log.info_f("Added instrument file {} (ssai {})", item.path().filename().string(), emplace_ret.first->second.resource_id);
+      log.info_f("Adding instrument file {}", item.path().filename().string());
+      ssais.emplace(item.path().filename().string(), phosg::load_file(item.path().string()));
     } else if (phosg::tolower(item.path().filename().extension().string()) == ".tune") {
-      tunes.emplace(item.path().filename().string(), phosg::load_file(item.path().string()));
-      log.info_f("Added sequence file {}", item.path().filename().string());
+      log.info_f("Adding sequence file {}", item.path().filename().string());
+      auto data = phosg::load_file(item.path().string());
+      tunes.emplace(item.path().filename().string(), QuickTime::QTMASequence{data.data(), data.size(), true});
+    } else if (phosg::tolower(item.path().filename().extension().string()) == ".moov") {
+      log.info_f("Adding movie file {}", item.path().filename().string());
+      auto mdat_filename = item.path().string();
+      mdat_filename[mdat_filename.size() - 3] = 'd';
+      mdat_filename[mdat_filename.size() - 2] = 'a';
+      mdat_filename[mdat_filename.size() - 1] = 't';
+      std::string moov_data = phosg::load_file(item.path().string());
+      if (std::filesystem::exists(mdat_filename)) {
+        std::string mdat_data = phosg::load_file(mdat_filename);
+        QuickTime::Movie movie(moov_data, mdat_data);
+        tunes.emplace(item.path().filename().string(), movie.as_qtma_sequence());
+      } else {
+        QuickTime::Movie movie(moov_data);
+        tunes.emplace(item.path().filename().string(), movie.as_qtma_sequence());
+      }
     }
   }
 
   // Assign instrument IDs and index the sounds (instruments can load each other's sounds if they're in smin blocks)
   size_t next_inst_id = 1;
-  std::unordered_map<uint64_t, const SSAIInstrument::SampleData*> sample_data_for_key;
-  std::unordered_map<uint32_t, uint32_t> res_id_to_inst_id;
+  std::unordered_map<uint64_t, const QuickTime::SSAIInstrument::SampleData*> sample_data_for_key;
+  std::unordered_map<uint32_t, uint32_t> midi_inst_id_to_inst_id;
   std::unordered_map<std::string, uint32_t> name_to_inst_id;
   for (auto& [_, ssai] : ssais) {
     ssai.id = next_inst_id++;
-    res_id_to_inst_id.emplace(ssai.resource_id, ssai.id);
+    if (ssai.midi_instrument_number != 0) {
+      midi_inst_id_to_inst_id.emplace(ssai.midi_instrument_number, ssai.id);
+    }
     name_to_inst_id.emplace(ssai.name, ssai.id);
     for (const auto& [_, sample_data] : ssai.sample_datas) {
       uint64_t key = (sample_data.smin_atom_number >= 0)
@@ -813,7 +830,8 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
   size_t sound_id = 1;
   for (const auto& [ssai_filename, ssai] : ssais) {
     auto& inst = inst_bank.id_to_instrument.emplace(ssai.id, ssai.id).first->second;
-    log.info_f("Adding instrument {} \"{}\" (ssai {} from {})", ssai.id, ssai.name, ssai.resource_id, ssai_filename);
+    log.info_f("Adding instrument {} \"{}\" (MIDI instrument {} from {})",
+        ssai.id, ssai.name, ssai.midi_instrument_number, ssai_filename);
     for (const auto& [rgn_id, rgn] : ssai.key_regions) {
       uint64_t local_key = ((static_cast<uint64_t>(ssai.id) << 32) | rgn.sample_data_number);
       uint64_t global_key = rgn.sample_data_number;
@@ -856,22 +874,22 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
 
       // Create the key region and vel region objects
       auto& key_rgn = inst.key_regions.emplace_back(rgn.key_low, rgn.key_high);
-      uint8_t adsr_exp_options = get_knob_value(QTMAKnobID::kQTMSKnobVolumeExpOptionsID).value_or(0);
+      uint8_t adsr_exp_options = get_knob_value(QuickTime::QTMAKnobID::kQTMSKnobVolumeExpOptionsID).value_or(0);
       key_rgn.vel_regions.emplace_back(VelocityRegion{
           .vel_low = 0,
           .vel_high = 0x7F,
           .sample_bank_id = 0,
           .sound_id = static_cast<uint16_t>(sound_id),
-          .freq_mult = static_cast<float>(pow(2, static_cast<double>(get_knob_value(QTMAKnobID::kQTMSKnobPitchTransposeID).value_or(0)) / 0xC00)),
-          .pitch_sensitivity = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobPitchSensitivityID).value_or(100)) / 100, // Knob value is a percentage (but can be <0 or >100)
+          .freq_mult = static_cast<float>(pow(2, static_cast<double>(get_knob_value(QuickTime::QTMAKnobID::kQTMSKnobPitchTransposeID).value_or(0)) / 0xC00)),
+          .pitch_sensitivity = static_cast<float>(get_knob_value(QuickTime::QTMAKnobID::kQTMSKnobPitchSensitivityID).value_or(100)) / 100, // Knob value is a percentage (but can be <0 or >100)
           .adsr = {
-              .attack_time_secs = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobVolumeAttackTimeID).value_or(0)) / 1000, // Knob value is milliseconds
+              .attack_time_secs = static_cast<float>(get_knob_value(QuickTime::QTMAKnobID::kQTMSKnobVolumeAttackTimeID).value_or(0)) / 1000, // Knob value is milliseconds
               .attack_exponential = static_cast<bool>(adsr_exp_options & 1),
-              .decay_time_secs = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobVolumeDecayTimeID).value_or(0)) / 1000, // Knob value is milliseconds
+              .decay_time_secs = static_cast<float>(get_knob_value(QuickTime::QTMAKnobID::kQTMSKnobVolumeDecayTimeID).value_or(0)) / 1000, // Knob value is milliseconds
               .decay_exponential = static_cast<bool>(adsr_exp_options & 2),
-              .sustain_level = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobVolumeSustainLevelID).value_or(0x10000)) / 0x10000, // Knob value is 16.16 fixed; 0-1
+              .sustain_level = static_cast<float>(get_knob_value(QuickTime::QTMAKnobID::kQTMSKnobVolumeSustainLevelID).value_or(0x10000)) / 0x10000, // Knob value is 16.16 fixed; 0-1
               .sustain_exponential = static_cast<bool>(adsr_exp_options & 4),
-              .release_time_secs = static_cast<float>(get_knob_value(QTMAKnobID::kQTMSKnobVolumeReleaseTimeID).value_or(200)) / 1000, // Knob value is milliseconds; default 200 to match SMS MIDI behavior (which is also an assumption, sigh)
+              .release_time_secs = static_cast<float>(get_knob_value(QuickTime::QTMAKnobID::kQTMSKnobVolumeReleaseTimeID).value_or(200)) / 1000, // Knob value is milliseconds; default 200 to match SMS MIDI behavior (which is also an assumption, sigh)
               .release_exponential = static_cast<bool>(adsr_exp_options & 8),
           },
           .base_note = static_cast<int8_t>(s.base_note)});
@@ -885,30 +903,45 @@ SoundEnvironment create_quicktime_sound_environment(const std::string& instrumen
     // be how QuickTime actually did it, right? There has to be some kind of numeric ID, right?
     log.info_f("Linking instruments for sequence \"{}\"", name);
     for (auto& event : tune.events) {
-      auto* setup_ev = dynamic_cast<ResourceDASM::Audio::TuneResource::ChannelSetupEvent*>(event.get());
-      if (setup_ev) {
-        auto it = res_id_to_inst_id.find(setup_ev->instrument_number);
-        if (it != res_id_to_inst_id.end()) {
-          log.info_f("  Rewriting channel {} setup event \"{}\" ({}) => {} by resource ID",
-              setup_ev->channel, setup_ev->instrument_name, setup_ev->instrument_number, it->second);
-          setup_ev->instrument_number = it->second;
-        } else {
-          auto it = name_to_inst_id.find(setup_ev->instrument_name);
-          if (it != name_to_inst_id.end()) {
-            log.info_f("  Rewriting channel {} setup event \"{}\" ({}) => {} by instrument name",
-                setup_ev->channel, setup_ev->instrument_name, setup_ev->instrument_number, it->second);
-            setup_ev->instrument_number = it->second;
-          } else {
-            throw std::runtime_error(std::format("Tune refers to missing instrument \"{}\" (ssai {}) from collection \"{}\"",
-                setup_ev->instrument_name, setup_ev->instrument_number, setup_ev->collection_name));
-          }
-        }
+      auto* setup_ev = dynamic_cast<ResourceDASM::QuickTime::QTMASequence::ChannelSetupEvent*>(event.get());
+      if (!setup_ev) {
+        continue;
+      }
+      auto it = midi_inst_id_to_inst_id.find(setup_ev->midi_instrument_number);
+      if (it != midi_inst_id_to_inst_id.end()) {
+        log.info_f("  Rewriting channel {} setup event \"{}\" (QTMA {}, MIDI {}) => {} by MIDI instrument number",
+            setup_ev->channel, setup_ev->instrument_name, setup_ev->instrument_number,
+            setup_ev->midi_instrument_number, it->second);
+        setup_ev->instrument_number = it->second;
+        continue;
+      }
+
+      it = midi_inst_id_to_inst_id.find(setup_ev->instrument_number);
+      if (it != midi_inst_id_to_inst_id.end()) {
+        log.info_f("  Rewriting channel {} setup event \"{}\" (QTMA {}, MIDI {}) => {} by QTMA instrument number",
+            setup_ev->channel, setup_ev->instrument_name, setup_ev->instrument_number,
+            setup_ev->midi_instrument_number, it->second);
+        setup_ev->instrument_number = it->second;
+      }
+
+      auto name_it = name_to_inst_id.find(setup_ev->instrument_name);
+      if (name_it != name_to_inst_id.end()) {
+        log.info_f("  Rewriting channel {} setup event \"{}\" (QTMA {}, MIDI {}) => {} by instrument name",
+            setup_ev->channel, setup_ev->instrument_name, setup_ev->instrument_number,
+            setup_ev->midi_instrument_number, name_it->second);
+        setup_ev->instrument_number = name_it->second;
+      } else {
+        log.warning_f("  Channel {} setup event refers to missing instrument \"{}\" (QTMA {}, MIDI {}) from collection \"{}\"",
+            setup_ev->channel, setup_ev->instrument_name, setup_ev->instrument_number,
+            setup_ev->midi_instrument_number, setup_ev->collection_name);
+        setup_ev->instrument_number = 0;
       }
     }
 
-    log.info_f("Generating MIDI for sequence \"{}\"", name);
+    log.info_f("Adding sequence \"{}\"", name);
     env.sequence_programs.emplace(name,
-        SequenceProgram{SequenceProgram::Type::TUNE, 0, tune.midi(), std::make_shared<TuneResource>(std::move(tune))});
+        SequenceProgram{
+            SequenceProgram::Type::TUNE, 0, "", std::make_shared<QuickTime::QTMASequence>(std::move(tune))});
   }
 
   env.resolve_pointers();

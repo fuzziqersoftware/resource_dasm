@@ -11,11 +11,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Audio/QuickTimeInstrument.hh"
 #include "Audio/WAVFile.hh"
 #include "Emulators/M68KEmulator.hh"
 #include "ExecutableFormats/PEFFile.hh"
 #include "QuickDrawFormats.hh"
+#include "QuickTime.hh"
 #include "ResourceFormats.hh"
 #include "ResourceTypes.hh"
 
@@ -782,9 +782,9 @@ public:
   // Sound resources
   // Note: return types may change here in the future to improve structuring and to make it easier for callers of the
   // library to use the returned data in any way other than just saving it to WAV/MIDI files
-  Audio::SSAIInstrument decode_ssai(int16_t id, uint32_t type = RESOURCE_TYPE_ssai) const;
-  static Audio::SSAIInstrument decode_ssai(std::shared_ptr<const Resource> res);
-  static Audio::SSAIInstrument decode_ssai(const void* data, size_t size);
+  QuickTime::SSAIInstrument decode_ssai(int16_t id, uint32_t type = RESOURCE_TYPE_ssai) const;
+  static QuickTime::SSAIInstrument decode_ssai(std::shared_ptr<const Resource> res);
+  static QuickTime::SSAIInstrument decode_ssai(const void* data, size_t size);
   DecodedInstrumentResource decode_INST(int16_t id, uint32_t type = RESOURCE_TYPE_INST) const;
   DecodedInstrumentResource decode_INST(std::shared_ptr<const Resource> res) const;
   // Note: The SONG format depends on the resource index format, so there are no static versions of this function.
@@ -826,9 +826,9 @@ public:
   std::string decode_ecmi(int16_t id, uint32_t type = RESOURCE_TYPE_ecmi) const;
   static std::string decode_ecmi(std::shared_ptr<const Resource> res);
   static std::string decode_ecmi(const void* data, size_t size);
-  Audio::TuneResource decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune) const;
-  static Audio::TuneResource decode_Tune(std::shared_ptr<const Resource> res);
-  static Audio::TuneResource decode_Tune(const void* data, size_t size);
+  QuickTime::QTMASequence decode_Tune(int16_t id, uint32_t type = RESOURCE_TYPE_Tune) const;
+  static QuickTime::QTMASequence decode_Tune(std::shared_ptr<const Resource> res);
+  static QuickTime::QTMASequence decode_Tune(const void* data, size_t size);
 
   // Text resources
   DecodedString decode_STR(int16_t id, uint32_t type = RESOURCE_TYPE_STR) const;

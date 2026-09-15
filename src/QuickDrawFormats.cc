@@ -183,14 +183,6 @@ bool Region::Iterator::check() const {
   return this->current_loc_in_region;
 }
 
-Fixed::Fixed() : value(0) {}
-
-Fixed::Fixed(int16_t whole, uint16_t decimal) : value((whole << 16) | decimal) {}
-
-double Fixed::as_double() const {
-  return static_cast<double>(this->value) / 0x10000;
-}
-
 Pattern::Pattern(uint64_t pattern) : pattern(pattern) {}
 
 bool Pattern::pixel_at(uint8_t x, uint8_t y) const {

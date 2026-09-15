@@ -60,18 +60,25 @@ struct Rect {
   }
 } __attribute__((packed));
 
-union Fixed {
-  struct {
-    phosg::be_int16_t whole;
-    phosg::be_uint16_t decimal;
-  } __attribute__((packed)) parts;
-  phosg::be_int32_t value;
+template <typename IntT, size_t FractionBits = 16>
+union FixedBase {
+  static constexpr uint64_t fraction_mask = (1 << FractionBits) - 1;
 
-  Fixed();
-  Fixed(int16_t whole, uint16_t decimal);
+  IntT value;
 
-  double as_double() const;
+  FixedBase() : value(0) {}
+  FixedBase(int32_t integer, uint32_t fraction) : value((integer << FractionBits) | (fraction & fraction_mask)) {}
+
+  // Note: Unlike a double, a float doesn't have enough mantissa bits to perfectly represent the value, hence the
+  // separate functions here
+  float as_float() const {
+    return static_cast<double>(this->value) / 0x10000;
+  }
+  double as_double() const {
+    return static_cast<double>(this->value) / 0x10000;
+  }
 } __attribute__((packed));
+using Fixed = FixedBase<phosg::be_int32_t, 16>;
 
 struct Polygon {
   phosg::be_uint16_t size;
@@ -140,9 +147,9 @@ struct Color8 {
 } __attribute__((packed));
 
 struct Color {
-  phosg::be_uint16_t r;
-  phosg::be_uint16_t g;
-  phosg::be_uint16_t b;
+  phosg::be_uint16_t r = 0;
+  phosg::be_uint16_t g = 0;
+  phosg::be_uint16_t b = 0;
 
   Color() = default;
   constexpr Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) {}

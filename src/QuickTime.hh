@@ -1,14 +1,12 @@
 #pragma once
 
-#include <inttypes.h>
-
 #include <phosg/Strings.hh>
-#include <string>
-#include <unordered_map>
-#include <vector>
+
+#include "ResourceFormats.hh"
+#include "ResourceTypes.hh"
 
 namespace ResourceDASM {
-namespace Audio {
+namespace QuickTime {
 
 enum QTMAControllerID {
   kControllerModulationWheel = 1,
@@ -118,8 +116,7 @@ enum QTMAKnobID {
   kQTMSKnobVolumeAttackVelScalingID = 0x0200003F,
 };
 
-class SSAIInstrument {
-public:
+struct SSAIInstrument {
   SSAIInstrument(const void* data, size_t size);
   inline SSAIInstrument(const std::string& data) : SSAIInstrument(data.data(), data.size()) {}
 
@@ -127,7 +124,7 @@ public:
   static const char* name_for_controller(uint32_t controller_id);
 
   uint32_t id;
-  uint32_t resource_id = 0;
+  uint32_t midi_instrument_number = 0;
   std::string name;
   std::string copyright_wrt;
   std::string copyright_cpy;
@@ -154,23 +151,12 @@ public:
     std::string name;
   };
   std::unordered_map<uint32_t, SampleData> sample_datas;
-
-protected:
-  void parse_atoms(
-      phosg::StringReader& r, size_t atom_count, KeyRegion* current_key_region, SampleData* current_sample_data);
-  void parse_atom(
-      uint32_t atom_type,
-      uint32_t atom_number,
-      uint32_t child_count,
-      phosg::StringReader r,
-      KeyRegion* current_key_region,
-      SampleData* current_sample_data);
 };
 
-class TuneResource {
+class QTMASequence {
 public:
-  TuneResource(const void* data, size_t size);
-  inline TuneResource(const std::string& data) : TuneResource(data.data(), data.size()) {}
+  QTMASequence() = default;
+  QTMASequence(const void* data, size_t size, bool expect_header);
 
   std::string midi() const;
   std::string disassemble() const;
@@ -219,6 +205,7 @@ public:
 
   struct ChannelSetupEvent : Event {
     uint32_t instrument_number;
+    uint32_t midi_instrument_number;
     std::string collection_name;
     std::string instrument_name;
 
@@ -229,5 +216,109 @@ public:
   std::vector<std::unique_ptr<Event>> events;
 };
 
-} // namespace Audio
+struct Matrix {
+  float a = 0.0f, b = 0.0f, u = 0.0f;
+  float c = 0.0f, d = 0.0f, v = 0.0f;
+  float tx = 0.0f, ty = 0.0f, w = 0.0f;
+};
+
+struct Movie {
+  struct HandlerReference {
+    uint32_t component_type = 0;
+    uint32_t component_subtype = 0;
+    uint32_t component_manufacturer = 0;
+    uint32_t component_flags = 0;
+    uint32_t component_flags_mask = 0;
+    std::string component_name;
+  };
+
+  struct Edit {
+    uint32_t duration = 0;
+    uint32_t time = 0;
+    float rate = 0.0f;
+  };
+
+  struct DataReference {
+    bool is_self = false;
+    bool is_url = false;
+    std::string path;
+    std::string handle_data;
+    uint32_t resource_type = 0;
+    int16_t resource_id = 0;
+  };
+
+  struct SampleToChunkEntry {
+    uint32_t first_chunk;
+    uint32_t samples_per_chunk;
+    uint32_t sample_description_id;
+  };
+
+  struct Track {
+    uint32_t creation_time = 0;
+    uint32_t modification_time = 0;
+    uint32_t track_id = 0;
+    uint32_t duration = 0;
+    uint16_t layer = 0;
+    uint16_t alternate_group = 0;
+    uint16_t volume = 0;
+    Matrix matrix;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    std::vector<Edit> edits;
+  };
+
+  struct Media {
+    struct Sample {
+      uint32_t duration = 0; // From stts
+      uint32_t size = 0; // From stsz
+      uint32_t chunk_offset = 0; // From stco
+      std::string data; // Resolved after parsing
+    };
+
+    uint32_t creation_time = 0; // Seconds since midnight 1 Jan 1904
+    uint32_t modification_time = 0; // Seconds since midnight 1 Jan 1904
+    uint32_t time_scale = 0; // Number of "time units" per second
+    uint32_t duration = 0;
+    uint16_t language = 0;
+    uint16_t quality = 0;
+    std::unique_ptr<HandlerReference> media_handler;
+    std::unique_ptr<HandlerReference> data_handler;
+
+    // TODO: These are only used by base media (gmin); when we support video and sound, diversify this structure
+    // appropriately
+    uint16_t graphics_mode = 0;
+    Color op_color;
+    int16_t sound_balance = 0;
+
+    std::vector<DataReference> data_refs;
+    std::string setup_sequence_data; // From 'musi'-type stsd, if present
+    std::vector<Sample> samples;
+    std::vector<SampleToChunkEntry> sample_to_chunk_entries; // From stsc
+  };
+
+  uint32_t creation_time = 0; // Seconds since midnight 1 Jan 1904
+  uint32_t modification_time = 0; // Seconds since midnight 1 Jan 1904
+  uint32_t time_scale = 0; // Number of "time units" per second
+  uint32_t duration = 0; // Measured in time units
+  float preferred_rate = 0.0f;
+  float preferred_volume = 0.0f;
+  Matrix matrix;
+  uint32_t preview_time = 0;
+  uint32_t preview_duration = 0;
+  uint32_t poster_time = 0;
+  uint32_t selection_time = 0;
+  uint32_t selection_duration = 0;
+  uint32_t current_time = 0;
+  uint32_t next_track_id = 0;
+
+  std::unordered_map<uint32_t, Track> tracks;
+  std::vector<Media> media;
+
+  explicit Movie(std::string_view moov, std::string_view mdat = "");
+  ~Movie() = default;
+
+  QTMASequence as_qtma_sequence() const;
+};
+
+} // namespace QuickTime
 } // namespace ResourceDASM

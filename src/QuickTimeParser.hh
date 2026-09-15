@@ -1,6 +1,7 @@
 #pragma once
 
 #include <phosg/Strings.hh>
+#include <set>
 
 #include "ResourceFormats.hh"
 #include "ResourceTypes.hh"
@@ -55,9 +56,11 @@ protected:
         std::format(std::forward<std::format_string<ArgTs...>>(fmt), std::forward<ArgTs>(args)...));
   }
 
-  void parse_atom_list(phosg::StringReader r, ssize_t expected_child_count = -1);
+  bool is_within_atom(uint32_t type) const;
+  void parse_atom_list(
+      phosg::StringReader r, ssize_t expected_child_count = -1, std::set<uint32_t> required_children = {});
 
-  virtual void handle_atom(uint32_t type, const void* data, size_t size) = 0;
+  virtual void handle_atom(uint32_t type, phosg::StringReader& r) = 0;
 };
 
 } // namespace QuickTime

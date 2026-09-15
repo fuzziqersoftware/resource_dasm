@@ -30,7 +30,6 @@ add_library(resource_file
   src/Audio/Constants.cc
   src/Audio/Instrument.cc
   src/Audio/MODSynthesizer.cc
-  src/Audio/QuickTimeInstrument.cc
   src/Audio/SoundEnvironment.cc
   src/Audio/WAVFile.cc
   src/BitmapFontRenderer.cc
@@ -70,7 +69,7 @@ add_library(resource_file
   src/QuickDrawDefaultColorTables.cc
   src/QuickDrawEngine.cc
   src/QuickDrawFormats.cc
-  # src/QuickTimeFormats.cc
+  src/QuickTime.cc
   src/QuickTimeParser.cc
   src/ResourceCompression.cc
   src/ResourceDecompressors/System01.cc
@@ -128,7 +127,7 @@ else()
   message("SDL3 is not available; disabling audio playback support in smssynth and modsynth")
 endif()
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kdasm appledouble_decode binhex_decode blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render flashback_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec m68ktest macbinary_decode mshines_render pop1_render pop2_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver rsrc_info)
+foreach(ExecutableName IN ITEMS resource_dasm m68kdasm appledouble_decode binhex_decode blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render flashback_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec m68ktest macbinary_decode mshines_render pop1_render pop2_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver rsrc_info parse_qt)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file)
 endforeach()

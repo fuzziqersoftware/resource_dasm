@@ -1,24 +1,17 @@
-#include "Instrument.hh"
-
-#include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
+#include "QuickTime.hh"
 
 #include <algorithm>
-#include <format>
-#include <map>
-#include <phosg/Encoding.hh>
-#include <phosg/Filesystem.hh>
-#include <vector>
+#include <phosg/Strings.hh>
 
-#include "../QuickTimeParser.hh"
-#include "QuickTimeInstrument.hh"
+#include "QuickTimeParser.hh"
+#include "TextCodecs.hh"
 
 namespace ResourceDASM {
-namespace Audio {
+namespace QuickTime {
 
-static constexpr uint32_t SSAI_TYPE = resource_type("ssai"); //
-static constexpr uint32_t SEAN_TYPE = resource_type("sean"); //
+// QTMA atom types
+static constexpr uint32_t SSAI_TYPE = resource_type("ssai");
+static constexpr uint32_t SEAN_TYPE = resource_type("sean");
 static constexpr uint32_t TONE_TYPE = resource_type("tone"); // kaiToneDescType
 static constexpr uint32_t KNBL_TYPE = resource_type("knbl"); // kaiKnobListType
 static constexpr uint32_t SINF_TYPE = resource_type("sinf"); // kaiKeyRangeInfoType
@@ -35,11 +28,40 @@ static constexpr uint32_t COPYRIGHT_CPY_TYPE = 0xA9637079; // '©cpy' (in MacRom
 static constexpr uint32_t STR_TYPE = resource_type("str "); // kaiOtherStrType
 static constexpr uint32_t MUSI_TYPE = resource_type("musi");
 static constexpr uint32_t SS_TYPE = resource_type("ss  ");
-// Atom types in the QT headers which are not represented here (yet):
-//   kaiNoteRequestInfoType        = FOUR_CHAR_CODE('ntrq')
-//   kaiPictType                   = FOUR_CHAR_CODE('pict')
-//   kaiLibraryInfoType            = FOUR_CHAR_CODE('linf')
-//   kaiLibraryDescType            = FOUR_CHAR_CODE('ldsc')
+
+// QT movie types
+constexpr uint32_t MOVIE_ATOM_TYPE = resource_type("moov");
+constexpr uint32_t MOVIE_HEADER_ATOM_TYPE = resource_type("mvhd");
+constexpr uint32_t TRACK_ATOM_TYPE = resource_type("trak");
+constexpr uint32_t TRACK_HEADER_ATOM_TYPE = resource_type("tkhd");
+constexpr uint32_t EDITS_ATOM_TYPE = resource_type("edts");
+constexpr uint32_t EDIT_LIST_ATOM_TYPE = resource_type("elst");
+constexpr uint32_t HANDLER_ATOM_TYPE = resource_type("hdlr");
+constexpr uint32_t MEDIA_ATOM_TYPE = resource_type("mdia");
+constexpr uint32_t MEDIA_HEADER_ATOM_TYPE = resource_type("mdhd");
+constexpr uint32_t MEDIA_INFO_ATOM_TYPE = resource_type("minf");
+constexpr uint32_t BASE_MEDIA_INFO_HEADER_ATOM_TYPE = resource_type("gmhd");
+constexpr uint32_t BASE_MEDIA_INFO_ATOM_TYPE = resource_type("gmin");
+constexpr uint32_t DATA_INFO_ATOM_TYPE = resource_type("dinf");
+constexpr uint32_t DATA_REFERENCE_ATOM_TYPE = resource_type("dref");
+constexpr uint32_t DATA_REFERENCE_ALIAS_ATOM_TYPE = resource_type("alis");
+constexpr uint32_t DATA_REFERENCE_HANDLE_ATOM_TYPE = resource_type("hndl");
+constexpr uint32_t DATA_REFERENCE_HANDLE_DATA_ATOM_TYPE = resource_type("data");
+// constexpr uint32_t DATA_REFERENCE_RESOURCE_ATOM_TYPE = resource_type("rsrc");
+// constexpr uint32_t DATA_REFERENCE_URL_ATOM_TYPE = resource_type("url ");
+constexpr uint32_t SAMPLE_TABLE_ATOM_TYPE = resource_type("stbl");
+constexpr uint32_t SAMPLE_DESCRIPTION_ATOM_TYPE = resource_type("stsd");
+constexpr uint32_t TIME_TO_SAMPLE_ATOM_TYPE = resource_type("stts");
+constexpr uint32_t SAMPLE_TO_CHUNK_ATOM_TYPE = resource_type("stsc");
+constexpr uint32_t SAMPLE_SIZES_ATOM_TYPE = resource_type("stsz");
+constexpr uint32_t CHUNK_OFFSETS_ATOM_TYPE = resource_type("stco");
+constexpr uint32_t USER_DATA_ATOM_TYPE = resource_type("udta");
+constexpr uint32_t CLIP_ATOM_TYPE = resource_type("clip");
+// constexpr uint32_t CLIP_REGION_ATOM_TYPE = resource_type("crgn");
+
+// Handler types
+constexpr uint32_t MUSI_COMPONENT_TYPE = resource_type("mhlr");
+constexpr uint32_t MUSI_COMPONENT_SUBTYPE = resource_type("musi");
 
 struct SSAIAtom {
   /* 08 */ phosg::be_uint32_t atom_number = 0;
@@ -51,14 +73,6 @@ struct AtomBase { // All atoms below begin with this structure (only 'ssai' does
   /* 0C */ phosg::be_uint32_t child_count = 0;
   /* 10 */ phosg::be_uint32_t unknown_a1 = 0;
   /* 14 */
-} __attribute__((packed));
-
-struct ToneAtom {
-  /* 14 */ phosg::be_uint32_t unknown_a1[9] = {};
-  /* 38 */ uint8_t name[0x20] = {}; // pstring; size is uncertain (may be shorter)
-  /* 58 */ phosg::be_uint32_t unknown_a2 = 0xFFFFFFFF;
-  /* 5C */ phosg::be_uint32_t resource_id = 0;
-  /* 60 */
 } __attribute__((packed));
 
 struct KNBLAtom { // Knob list
@@ -100,6 +114,15 @@ struct QuidAtom {
   /* 24 */
 } __attribute__((packed));
 
+struct ToneDescription {
+  /* 00 */ phosg::be_uint32_t collection_type; // 'ss  ' (0x73730202)
+  /* 04 */ uint8_t collection_name[0x20]; // Pascal string
+  /* 24 */ uint8_t instrument_name[0x20]; // Pascal string
+  /* 44 */ phosg::be_uint32_t instrument_number;
+  /* 48 */ phosg::be_uint32_t midi_instrument_number;
+  /* 4C */
+} __attribute__((packed));
+
 template <size_t BufSize>
 std::string decode_pstring(const uint8_t* data) {
   if (*data > (BufSize - 1)) {
@@ -117,8 +140,7 @@ protected:
   SSAIInstrument::KeyRegion* current_key_region = nullptr;
   SSAIInstrument::SampleData* current_sample_data = nullptr;
 
-  virtual void handle_atom(uint32_t type, const void* data, size_t size) {
-    phosg::StringReader r(data, size);
+  virtual void handle_atom(uint32_t type, phosg::StringReader& r) {
     if (type == SSAI_TYPE) {
       r.skip(sizeof(SSAIAtom)); // We don't care about the ssai block number
       this->parse_atom_list(r.extract());
@@ -158,15 +180,15 @@ protected:
         break;
 
       case TONE_TYPE: {
-        const auto& tone_atom = this->get_fixed_atom<ToneAtom>(r);
+        const auto& tone_atom = this->get_fixed_atom<ToneDescription>(r);
         // Only update the name and resource ID if this atom isn't a reference to another instrument. `tone` may appear
         // in the hierarchy ssai->sean->tone in which case it's the instrument metadata; it may also appear within an
         // sinf atom in which case it's a reference to another instrument's samples
         if (!this->current_key_region && !this->current_sample_data) {
           // TODO: There might be other important stuff in ToneAtom too
-          this->ssai->name = decode_pstring<0x20>(tone_atom.name);
-          if (this->ssai->resource_id == 0) {
-            this->ssai->resource_id = tone_atom.resource_id;
+          this->ssai->name = decode_pstring<0x20>(tone_atom.instrument_name);
+          if (this->ssai->midi_instrument_number == 0) {
+            this->ssai->midi_instrument_number = tone_atom.midi_instrument_number;
           }
         }
         break;
@@ -241,10 +263,6 @@ protected:
         break;
       default:
         this->throw_parse_error("Unknown atom type");
-    }
-    if (!r.eof()) {
-      this->throw_parse_error("Some atom data was not parsed (parsed 0x{:X} bytes, received 0x{:X} bytes)",
-          r.where(), r.size());
     }
   }
 };
@@ -371,15 +389,6 @@ const char* SSAIInstrument::name_for_controller(uint32_t controller_id) {
   return (it == names.end()) ? nullptr : it->second;
 }
 
-struct ToneDescription {
-  /* 00 */ phosg::be_uint32_t collection_type; // 'ss  ' (0x73730202)
-  /* 04 */ uint8_t collection_name[0x20]; // Pascal string
-  /* 24 */ uint8_t instrument_name[0x20]; // Pascal string
-  /* 44 */ phosg::be_uint32_t instrument_number;
-  /* 48 */ phosg::be_uint32_t general_midi_instrument_number;
-  /* 4C */
-} __attribute__((packed));
-
 struct TuneInstrumentDefinition {
   // Flag bits (from MPW headers):
   //   01 = kNoteRequestNoGM: don't degrade to a GM synth
@@ -389,7 +398,7 @@ struct TuneInstrumentDefinition {
   /* 00 */ uint8_t flags;
   /* 01 */ uint8_t midi_channel_number;
   /* 02 */ phosg::be_uint16_t max_polyphony; // Maximum number of concurrent voices
-  /* 04 */ phosg::be_uint32_t typical_polyphony;
+  /* 04 */ Fixed typical_polyphony;
   /* 08 */ ToneDescription desc;
   /* 54 */ phosg::be_uint16_t flags_and_type;
   /* 56 */ phosg::be_uint16_t message_size; // In 4-byte words
@@ -405,8 +414,7 @@ public:
 protected:
   ToneDescription* tone;
 
-  virtual void handle_atom(uint32_t type, const void* data, size_t size) {
-    phosg::StringReader r(data, size);
+  virtual void handle_atom(uint32_t type, phosg::StringReader& r) {
     const auto& base = r.get<AtomBase>();
     switch (type) {
       case SEAN_TYPE:
@@ -422,43 +430,39 @@ protected:
       default:
         this->throw_parse_error("Unknown atom type");
     }
-    if (!r.eof()) {
-      this->throw_parse_error("Some atom data was not parsed (parsed 0x{:X} bytes, received 0x{:X} bytes)",
-          r.where(), r.size());
-    }
   }
 };
 
-std::string TuneResource::Event::disassembly_prefix() const {
+std::string QTMASequence::Event::disassembly_prefix() const {
   return std::format("{:08X}  {:<32}  @{:08X}",
       this->source_offset,
       phosg::format_data_string(this->source_data, nullptr, phosg::FormatDataStringFlags::HEX_ONLY),
       this->when);
 }
 
-void TuneResource::NoteEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
+void QTMASequence::NoteEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
   ev.data.emplace_back(0x90 | this->channel);
   ev.data.emplace_back(this->key);
   ev.data.emplace_back(this->vel);
 }
-std::string TuneResource::NoteEvent::disassemble() const {
+std::string QTMASequence::NoteEvent::disassemble() const {
   return std::format("{}  note           channel {}, key {}, velocity {}, duration {}",
       this->disassembly_prefix(), this->channel, this->key, this->vel, this->duration);
 }
 
-void TuneResource::NoteOffEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
+void QTMASequence::NoteOffEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
   ev.data.emplace_back(0x80 | this->channel);
   ev.data.emplace_back(this->key);
   ev.data.emplace_back(this->vel);
 }
-std::string TuneResource::NoteOffEvent::disassemble() const {
+std::string QTMASequence::NoteOffEvent::disassemble() const {
   return std::format("{}  note_off       channel {}, key {}, velocity {}",
       this->disassembly_prefix(), this->channel, this->key, this->vel);
 }
 
-void TuneResource::ControllerEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
+void QTMASequence::ControllerEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev = events.emplace_back(MIDIEvent{this->when, {}});
   if (this->message == 0x20) { // Pitch bend
     ev.data.emplace_back(0xE0 | this->channel);
@@ -472,7 +476,7 @@ void TuneResource::ControllerEvent::add_midi_events(std::vector<MIDIEvent>& even
     ev.data.emplace_back(this->value >> 8);
   }
 }
-std::string TuneResource::ControllerEvent::disassemble() const {
+std::string QTMASequence::ControllerEvent::disassemble() const {
   auto name = SSAIInstrument::name_for_controller(this->message);
   if (name) {
     return std::format("{}  controller     channel {}, message {} ({}), value {}",
@@ -483,7 +487,7 @@ std::string TuneResource::ControllerEvent::disassemble() const {
   }
 }
 
-void TuneResource::ChannelSetupEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
+void QTMASequence::ChannelSetupEvent::add_midi_events(std::vector<MIDIEvent>& events) const {
   auto& ev1 = events.emplace_back(MIDIEvent{this->when, {}});
   ev1.data.emplace_back(0xC0 | this->channel);
   ev1.data.emplace_back(this->instrument_number);
@@ -500,21 +504,23 @@ void TuneResource::ChannelSetupEvent::add_midi_events(std::vector<MIDIEvent>& ev
   ev4.data.emplace_back(0x00); // 0x2000 (center of unsigned 14-bit range)
   ev4.data.emplace_back(0x40);
 }
-std::string TuneResource::ChannelSetupEvent::disassemble() const {
+std::string QTMASequence::ChannelSetupEvent::disassemble() const {
   return std::format(
-      "{}  channel_setup  channel {}, instrument number {}, collection name \"{}\", instrument name \"{}\"",
-      this->disassembly_prefix(), this->channel, this->instrument_number, this->collection_name,
-      this->instrument_name);
+      "{}  channel_setup  channel {}, instrument number {} (MIDI {}), collection name \"{}\", instrument name \"{}\"",
+      this->disassembly_prefix(), this->channel, this->instrument_number, this->midi_instrument_number,
+      this->collection_name, this->instrument_name);
 }
 
-TuneResource::TuneResource(const void* data, size_t size) {
+QTMASequence::QTMASequence(const void* data, size_t size, bool expect_header) {
   phosg::StringReader r(data, size);
 
-  const auto& header = r.get<QuickTime::AtomHeader>();
-  if (header.type != MUSI_TYPE) {
-    throw std::runtime_error("Tune identifier is incorrect");
+  if (expect_header) {
+    const auto& header = r.get<QuickTime::AtomHeader>();
+    if (header.type != MUSI_TYPE) {
+      throw std::runtime_error("Tune identifier is incorrect");
+    }
+    r.skip(sizeof(AtomBase));
   }
-  r.skip(sizeof(AtomBase));
 
   std::unordered_map<uint16_t, uint8_t> partition_id_to_channel;
   uint64_t current_time = 0;
@@ -609,17 +615,13 @@ TuneResource::TuneResource(const void* data, size_t size) {
           throw std::runtime_error("metadata message too short for type field");
         }
 
-        auto msg_r = r.subx(r.where(), message_size - 4);
-        r.skip(message_size - 4);
+        auto msg_r = r.extract(message_size - 4);
 
         // The second-to-last word contains the message type
         uint16_t message_type = msg_r.pget_u16b(msg_r.size() - 4) & 0x3FFF;
 
         // Meta messages can create channels
         uint8_t channel = partition_id_to_channel.emplace(partition_id, partition_id_to_channel.size()).first->second;
-        if (channel >= 0x10) {
-          throw std::runtime_error("not enough MIDI channels");
-        }
 
         switch (message_type) {
           case 1: { // Instrument definition
@@ -632,6 +634,7 @@ TuneResource::TuneResource(const void* data, size_t size) {
             auto ev = std::make_unique<ChannelSetupEvent>();
             ev->channel = channel;
             ev->instrument_number = inst.desc.instrument_number;
+            ev->midi_instrument_number = inst.desc.midi_instrument_number;
             ev->collection_name = decode_pstring<0x20>(inst.desc.collection_name);
             ev->instrument_name = decode_pstring<0x20>(inst.desc.instrument_name);
             add_event(std::move(ev), start_offset);
@@ -651,6 +654,7 @@ TuneResource::TuneResource(const void* data, size_t size) {
             auto ev = std::make_unique<ChannelSetupEvent>();
             ev->channel = channel;
             ev->instrument_number = inst.instrument_number;
+            ev->midi_instrument_number = inst.midi_instrument_number;
             ev->collection_name = decode_pstring<0x20>(inst.collection_name);
             ev->instrument_name = decode_pstring<0x20>(inst.instrument_name);
             add_event(std::move(ev), start_offset);
@@ -686,7 +690,13 @@ TuneResource::TuneResource(const void* data, size_t size) {
   }
 }
 
-std::string TuneResource::midi() const {
+std::string QTMASequence::midi() const {
+  for (const auto& event : this->events) {
+    if (event->channel >= 0x10) {
+      throw std::runtime_error("not enough MIDI channels");
+    }
+  }
+
   struct MIDIChunkHeader {
     phosg::be_uint32_t magic; // MThd or MTrk
     phosg::be_uint32_t size;
@@ -760,7 +770,7 @@ std::string TuneResource::midi() const {
   return std::move(w.str());
 }
 
-std::string TuneResource::disassemble() const {
+std::string QTMASequence::disassemble() const {
   std::vector<std::pair<uint64_t, std::string>> lines;
   for (const auto& ev : events) {
     lines.emplace_back(make_pair(ev->when, ev->disassemble()));
@@ -779,5 +789,466 @@ std::string TuneResource::disassemble() const {
   return ret;
 }
 
-} // namespace Audio
+struct MatrixField {
+  // a, b, c, d, tx, ty are 16.16 fixed-point; u, v, w are 2.30 fixed-point apparently
+  FixedBase<phosg::be_int32_t, 16> a;
+  FixedBase<phosg::be_int32_t, 16> b;
+  FixedBase<phosg::be_int32_t, 30> u;
+  FixedBase<phosg::be_int32_t, 16> c;
+  FixedBase<phosg::be_int32_t, 16> d;
+  FixedBase<phosg::be_int32_t, 30> v;
+  FixedBase<phosg::be_int32_t, 16> tx;
+  FixedBase<phosg::be_int32_t, 16> ty;
+  FixedBase<phosg::be_int32_t, 30> w;
+
+  operator Matrix() const {
+    Matrix ret;
+    ret.a = this->a.as_float();
+    ret.b = this->b.as_float();
+    ret.u = this->u.as_float();
+    ret.c = this->c.as_float();
+    ret.d = this->d.as_float();
+    ret.v = this->v.as_float();
+    ret.tx = this->tx.as_float();
+    ret.ty = this->ty.as_float();
+    ret.w = this->w.as_float();
+    return ret;
+  }
+};
+
+struct MovieHeaderAtom { // mvhd
+  /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
+  /* 0C */ phosg::be_uint32_t creation_time; // Seconds since midnight 1 Jan 1904
+  /* 10 */ phosg::be_uint32_t modification_time; // Seconds since midnight 1 Jan 1904
+  /* 14 */ phosg::be_uint32_t time_scale; // Number of "time units" per second
+  /* 18 */ phosg::be_uint32_t duration; // Measured in time units
+  /* 1C */ Fixed preferred_rate; // 16.16 fixed-point frame rate multiplier (1.0 = normal rate)
+  /* 1E */ FixedBase<phosg::be_int16_t, 8> preferred_volume; // 8.8 fixed-point volume multiplier (1.0 = full volume)
+  /* 22 */ uint8_t reserved[10];
+  /* 2C */ MatrixField matrix;
+  /* 50 */ phosg::be_uint32_t preview_time;
+  /* 54 */ phosg::be_uint32_t preview_duration;
+  /* 58 */ phosg::be_uint32_t poster_time;
+  /* 5C */ phosg::be_uint32_t selection_time;
+  /* 60 */ phosg::be_uint32_t selection_duration;
+  /* 64 */ phosg::be_uint32_t current_time;
+  /* 68 */ phosg::be_uint32_t next_track_id;
+  /* 6C */
+} __attribute__((packed));
+
+struct TrackHeaderAtom { // tkhd
+  /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
+  /* 0C */ phosg::be_uint32_t creation_time; // Seconds since midnight 1 Jan 1904
+  /* 10 */ phosg::be_uint32_t modification_time; // Seconds since midnight 1 Jan 1904
+  /* 14 */ phosg::be_uint32_t track_id;
+  /* 18 */ phosg::be_uint32_t reserved1;
+  /* 1C */ phosg::be_uint32_t duration;
+  /* 20 */ phosg::be_uint32_t reserved2;
+  /* 24 */ phosg::be_uint32_t reserved3;
+  /* 28 */ phosg::be_uint16_t layer;
+  /* 2A */ phosg::be_uint16_t alternate_group;
+  /* 2C */ phosg::be_uint16_t volume;
+  /* 2E */ phosg::be_uint16_t reserved4;
+  /* 30 */ MatrixField matrix;
+  /* 54 */ phosg::be_uint32_t width;
+  /* 58 */ phosg::be_uint32_t height;
+  /* 5C */
+} __attribute__((packed));
+
+struct CountedListAtom {
+  /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
+  /* 0C */ phosg::be_uint32_t entry_count;
+  /* 10 */ // Entry entries[entry_count]; // Type depends on atom type
+} __attribute__((packed));
+
+struct EditListAtomEntry { // elst (CountedListAtom)
+  phosg::be_uint32_t duration;
+  phosg::be_uint32_t time;
+  Fixed rate;
+} __attribute__((packed));
+
+struct MediaHeaderAtom { // mdhd
+  /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
+  /* 0C */ phosg::be_uint32_t creation_time; // Seconds since midnight 1 Jan 1904
+  /* 10 */ phosg::be_uint32_t modification_time; // Seconds since midnight 1 Jan 1904
+  /* 14 */ phosg::be_uint32_t time_scale; // Number of "time units" per second
+  /* 18 */ phosg::be_uint32_t duration;
+  /* 1C */ phosg::be_uint16_t language;
+  /* 1E */ phosg::be_uint16_t quality;
+  /* 20 */
+} __attribute__((packed));
+
+struct HandlerReferenceAtom { // hdlr
+  /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
+  /* 0C */ phosg::be_uint32_t component_type;
+  /* 10 */ phosg::be_uint32_t component_subtype;
+  /* 14 */ phosg::be_uint32_t component_manufacturer;
+  /* 18 */ phosg::be_uint32_t component_flags;
+  /* 1C */ phosg::be_uint32_t component_flags_mask;
+  /* 20 */ uint8_t component_name_bytes;
+  /* 21 */ char component_name[0]; // Actually [component_name_bytes] (p-string)
+} __attribute__((packed));
+
+struct BaseMediaInfoAtom { // gmin
+  /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
+  /* 0C */ phosg::be_uint16_t graphics_mode; // https://developer.apple.com/documentation/quicktime-file-format/graphics_modes
+  /* 0E */ Color op_color;
+  /* 14 */ phosg::be_int16_t sound_balance;
+  /* 16 */ phosg::be_uint16_t reserved;
+  /* 18 */
+} __attribute__((packed));
+
+struct DataReferenceAliasAtom { // alis
+  /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
+  /* 0C */ // If !(flags & 1), then an AliasRecord follows here (we don't support this)
+} __attribute__((packed));
+
+struct TimeToSampleTableEntry { // stts (CountedListAtom)
+  /* 00 */ phosg::be_uint32_t sample_count;
+  /* 04 */ phosg::be_uint32_t duration_per_sample;
+  /* 08 */
+} __attribute__((packed));
+
+struct SampleToChunkTableEntry { // stsc (CountedListAtom)
+  /* 00 */ phosg::be_uint32_t first_chunk;
+  /* 04 */ phosg::be_uint32_t samples_per_chunk;
+  /* 08 */ phosg::be_uint32_t sample_description_id;
+  /* 0C */
+} __attribute__((packed));
+
+struct SampleSizesAtom { // stsz
+  /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
+  /* 0C */ phosg::be_uint32_t base_sample_size;
+  /* 10 */ phosg::be_uint32_t entry_count;
+  /* 14 */ // Entry entries[entry_count]; // Type depends on atom type
+} __attribute__((packed));
+
+class MovieParser : public Parser {
+public:
+  MovieParser(Movie* moov) : moov(moov) {}
+
+protected:
+  Movie* moov;
+  Movie::Track* current_track = nullptr;
+  Movie::Media* current_media = nullptr;
+  Movie::DataReference* current_data_ref = nullptr;
+
+  Movie::Track& require_track() {
+    if (!this->current_track) {
+      this->throw_parse_error("Atom must be within a track atom");
+    }
+    return *this->current_track;
+  }
+  Movie::Media& require_media() {
+    if (!this->current_media) {
+      this->throw_parse_error("Atom must be within a media atom");
+    }
+    return *this->current_media;
+  }
+  Movie::DataReference& require_data_ref() {
+    if (!this->current_data_ref) {
+      this->throw_parse_error("Atom must be within a data reference atom");
+    }
+    return *this->current_data_ref;
+  }
+
+  void ensure_sample_count(size_t count) {
+    auto& media = this->require_media();
+    if (media.samples.empty()) {
+      media.samples.resize(count);
+    } else if (media.samples.size() != count) {
+      this->throw_parse_error("Incorrect sample count");
+    }
+  }
+
+  virtual void handle_atom(uint32_t type, phosg::StringReader& r) {
+    switch (type) {
+      case MOVIE_ATOM_TYPE:
+        this->parse_atom_list(r.extract(), -1, {MOVIE_HEADER_ATOM_TYPE});
+        break;
+      case MOVIE_HEADER_ATOM_TYPE: {
+        const auto& atom = r.get<MovieHeaderAtom>();
+        this->moov->creation_time = atom.creation_time;
+        this->moov->modification_time = atom.modification_time;
+        this->moov->time_scale = atom.time_scale;
+        this->moov->duration = atom.duration;
+        this->moov->preferred_rate = atom.preferred_rate.as_float();
+        this->moov->preferred_volume = atom.preferred_volume.as_float();
+        this->moov->matrix = atom.matrix;
+        this->moov->preview_time = atom.preview_time;
+        this->moov->preview_duration = atom.preview_duration;
+        this->moov->poster_time = atom.poster_time;
+        this->moov->selection_time = atom.selection_time;
+        this->moov->selection_duration = atom.selection_duration;
+        this->moov->current_time = atom.current_time;
+        this->moov->next_track_id = atom.next_track_id;
+        break;
+      }
+      case TRACK_ATOM_TYPE: {
+        if (this->current_track) {
+          this->throw_parse_error("Received track atom within another track");
+        }
+        Movie::Track track;
+        this->current_track = &track;
+        this->parse_atom_list(r.extract(), -1, {TRACK_HEADER_ATOM_TYPE, MEDIA_ATOM_TYPE});
+        this->current_track = nullptr;
+        if (!moov->tracks.emplace(track.track_id, std::move(track)).second) {
+          this->throw_parse_error("Duplicate track ID: {}", track.track_id);
+        }
+        break;
+      }
+      case TRACK_HEADER_ATOM_TYPE: {
+        auto& track = this->require_track();
+        const auto& atom = r.get<TrackHeaderAtom>();
+        track.creation_time = atom.creation_time;
+        track.modification_time = atom.modification_time;
+        track.track_id = atom.track_id;
+        track.duration = atom.duration;
+        track.layer = atom.layer;
+        track.alternate_group = atom.alternate_group;
+        track.volume = atom.volume;
+        track.matrix = atom.matrix;
+        track.width = atom.width;
+        track.height = atom.height;
+        break;
+      }
+      case EDITS_ATOM_TYPE:
+        this->parse_atom_list(r.extract(), -1, {EDIT_LIST_ATOM_TYPE});
+        break;
+      case EDIT_LIST_ATOM_TYPE: {
+        auto& track = this->require_track();
+        const auto& atom = r.get<CountedListAtom>();
+        for (size_t z = 0; z < atom.entry_count; z++) {
+          const auto& entry = r.get<EditListAtomEntry>();
+          track.edits.emplace_back(Movie::Edit{entry.duration.load(), entry.time.load(), entry.rate.as_float()});
+        }
+        break;
+      }
+      case MEDIA_ATOM_TYPE: {
+        if (this->current_media) {
+          this->throw_parse_error("Received media atom within another media");
+        }
+        this->current_media = &this->moov->media.emplace_back();
+        this->parse_atom_list(r.extract(), -1, {MEDIA_HEADER_ATOM_TYPE});
+        this->current_media = nullptr;
+        break;
+      }
+      case MEDIA_HEADER_ATOM_TYPE: {
+        auto& media = this->require_media();
+        const auto& atom = r.get<MediaHeaderAtom>();
+        media.creation_time = atom.creation_time;
+        media.modification_time = atom.modification_time;
+        media.time_scale = atom.time_scale;
+        media.duration = atom.duration;
+        media.language = atom.language;
+        media.quality = atom.quality;
+        break;
+      }
+      case HANDLER_ATOM_TYPE: {
+        auto& media = this->require_media();
+        bool in_minf = this->is_within_atom(MEDIA_INFO_ATOM_TYPE);
+        std::unique_ptr<Movie::HandlerReference>& ref = in_minf ? media.data_handler : media.media_handler;
+        if (ref) {
+          this->throw_parse_error("Received multiple handler atoms for the same media{}", in_minf ? " info" : "");
+        }
+        ref = std::make_unique<Movie::HandlerReference>();
+        const auto& atom = r.get<HandlerReferenceAtom>();
+        ref->component_type = atom.component_type;
+        ref->component_subtype = atom.component_subtype;
+        ref->component_manufacturer = atom.component_manufacturer;
+        ref->component_flags = atom.component_flags;
+        ref->component_flags_mask = atom.component_flags_mask;
+        ref->component_name = decode_mac_roman(r.read(atom.component_name_bytes));
+        break;
+      }
+      case MEDIA_INFO_ATOM_TYPE: {
+        if (!this->current_media) {
+          this->throw_parse_error("Received media info atom outside of any media");
+        }
+        // TODO: For video, you need vmhd and hdlr; for sound, you need smhd and hdlr
+        this->parse_atom_list(r.extract(), -1, {BASE_MEDIA_INFO_HEADER_ATOM_TYPE});
+        break;
+      }
+      case BASE_MEDIA_INFO_HEADER_ATOM_TYPE: {
+        if (!this->current_media) {
+          this->throw_parse_error("Received base media info header atom outside of any media");
+        }
+        this->parse_atom_list(r.extract(), -1, {BASE_MEDIA_INFO_ATOM_TYPE});
+        break;
+      }
+      case BASE_MEDIA_INFO_ATOM_TYPE: {
+        auto& media = this->require_media();
+        const auto& atom = r.get<BaseMediaInfoAtom>();
+        media.graphics_mode = atom.graphics_mode;
+        media.op_color = atom.op_color;
+        media.sound_balance = atom.sound_balance;
+        break;
+      }
+      case DATA_INFO_ATOM_TYPE:
+        this->parse_atom_list(r.extract(), -1, {DATA_REFERENCE_ATOM_TYPE});
+        break;
+      case DATA_REFERENCE_ATOM_TYPE: {
+        const auto& atom = r.get<CountedListAtom>();
+        this->parse_atom_list(r.extract(), atom.entry_count);
+        break;
+      }
+      case DATA_REFERENCE_ALIAS_ATOM_TYPE: {
+        auto& media = this->require_media();
+        const auto& atom = r.get<DataReferenceAliasAtom>();
+        if (atom.version_and_flags & 1) {
+          media.data_refs.emplace_back(Movie::DataReference{.is_self = true});
+        } else {
+          this->throw_parse_error("Data reference refers to non-self location");
+        }
+        break;
+      }
+      case DATA_REFERENCE_HANDLE_ATOM_TYPE: {
+        auto& media = this->require_media();
+        // Somewhere in these bytes is a Pascal string, but all examples I've seen contain only zeroes, so I don't know
+        // which of these 9 bytes is the length byte of the Pascal string.
+        for (size_t z = 0; z < 9; z++) {
+          if (r.get_u8() != 0) {
+            throw std::runtime_error("Handle data atom header contains nonzero bytes in unknown section");
+          }
+        }
+        if (this->current_data_ref) {
+          this->throw_parse_error("Received data reference atom inside another data reference");
+        }
+        this->current_data_ref = &media.data_refs.emplace_back();
+        this->parse_atom_list(r.extract(), -1, {DATA_REFERENCE_HANDLE_DATA_ATOM_TYPE});
+        this->current_data_ref = nullptr;
+        break;
+      }
+      case DATA_REFERENCE_HANDLE_DATA_ATOM_TYPE:
+        this->require_data_ref().handle_data = r.read(r.remaining());
+        break;
+      case SAMPLE_TABLE_ATOM_TYPE:
+        this->parse_atom_list(r.extract());
+        break;
+      case SAMPLE_DESCRIPTION_ATOM_TYPE: {
+        const auto& atom = r.get<CountedListAtom>();
+        this->parse_atom_list(r.extract(), atom.entry_count);
+        break;
+      }
+      case MUSI_TYPE:
+        r.skip(sizeof(AtomBase));
+        this->require_media().setup_sequence_data = r.read(r.remaining());
+        break;
+      case TIME_TO_SAMPLE_ATOM_TYPE: {
+        auto& media = this->require_media();
+        const auto& header = r.get<CountedListAtom>();
+        const auto* entries = r.get_array<TimeToSampleTableEntry>(header.entry_count);
+        size_t sample_count = 0;
+        for (size_t z = 0; z < header.entry_count; z++) {
+          sample_count += entries[z].sample_count;
+        }
+        if (media.samples.empty()) {
+          media.samples.resize(sample_count);
+        } else if (media.samples.size() != sample_count) {
+          this->throw_parse_error("Incorrect sample count");
+        }
+        size_t sample_index = 0;
+        for (size_t z = 0; z < header.entry_count; z++) {
+          for (size_t w = 0; w < entries[z].sample_count; w++) {
+            media.samples[sample_index].duration = entries[z].duration_per_sample;
+            sample_index++;
+          }
+        }
+        break;
+      }
+      case SAMPLE_TO_CHUNK_ATOM_TYPE: {
+        auto& media = this->require_media();
+        const auto& header = r.get<CountedListAtom>();
+        for (size_t z = 0; z < header.entry_count; z++) {
+          const auto& entry = r.get<SampleToChunkTableEntry>();
+          media.sample_to_chunk_entries.emplace_back(Movie::SampleToChunkEntry{
+              entry.first_chunk, entry.samples_per_chunk, entry.sample_description_id});
+        }
+        break;
+      }
+      case SAMPLE_SIZES_ATOM_TYPE: {
+        auto& media = this->require_media();
+        const auto& header = r.get<SampleSizesAtom>();
+        this->ensure_sample_count(header.entry_count);
+        for (size_t z = 0; z < header.entry_count; z++) {
+          // TODO: Is this right...? It seems some moovs have an incorrect count here
+          media.samples[z].size = r.eof() ? header.base_sample_size.load() : r.get_u32b();
+        }
+        break;
+      }
+      case CHUNK_OFFSETS_ATOM_TYPE: {
+        auto& media = this->require_media();
+        const auto& header = r.get<CountedListAtom>();
+        this->ensure_sample_count(header.entry_count);
+        for (size_t z = 0; z < header.entry_count; z++) {
+          media.samples[z].chunk_offset = r.get_u32b();
+        }
+        break;
+      }
+      case CLIP_ATOM_TYPE:
+      case USER_DATA_ATOM_TYPE:
+        // TODO: We probably shouldn't entirely ignore these
+        r.skip(r.remaining());
+        break;
+      default:
+        this->throw_parse_error("Unknown atom type");
+    }
+  }
+};
+
+Movie::Movie(std::string_view moov, std::string_view mdat) {
+  MovieParser parser(this);
+
+  // Parse only the first atom; the mdat atom (unsized) may be appended after the moov atom
+  parser.parse(moov.substr(0, phosg::StringReader(moov).get_u32b()));
+
+  for (auto& media : this->media) {
+    // TODO: How should we handle this? Is this what SampleToChunkEntry is for?
+    if (media.data_refs.size() != 1) {
+      throw std::runtime_error("Media does not have exactly one data reference");
+    }
+    const auto& data_ref = media.data_refs[0];
+    std::string_view data_view;
+    if (data_ref.is_self) {
+      data_view = mdat.empty() ? moov : mdat;
+    } else if (!data_ref.handle_data.empty()) {
+      data_view = data_ref.handle_data;
+    } else {
+      throw std::runtime_error("Unknown data reference type");
+    }
+    for (auto& sample : media.samples) {
+      sample.data = data_view.substr(sample.chunk_offset, sample.size);
+    }
+  }
+}
+
+QTMASequence Movie::as_qtma_sequence() const {
+  // TODO: We probably can support this in the future; just return a vector/map
+  if (this->media.size() != 1) {
+    throw std::runtime_error("Movie has multiple media");
+  }
+  const auto& media = this->media[0];
+  if (!media.media_handler) {
+    throw std::runtime_error("Media handler definition is missing");
+  }
+  if (media.media_handler->component_type != MUSI_COMPONENT_TYPE) {
+    throw std::runtime_error(std::format("Incorrect media handler component type ({})",
+        string_for_resource_type(media.media_handler->component_type)));
+  }
+  if (media.media_handler->component_subtype != MUSI_COMPONENT_SUBTYPE) {
+    throw std::runtime_error(std::format("Incorrect media handler component subtype ({})",
+        string_for_resource_type(media.media_handler->component_subtype)));
+  }
+  if (media.setup_sequence_data.empty()) {
+    throw std::runtime_error("Media setup sequence is missing");
+  }
+
+  std::string data = media.setup_sequence_data;
+  for (const auto& sample : media.samples) {
+    data += sample.data;
+  }
+  return QTMASequence(data.data(), data.size(), false);
+}
+
+} // namespace QuickTime
 } // namespace ResourceDASM

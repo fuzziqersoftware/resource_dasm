@@ -27,7 +27,7 @@ The tools in this project are:
   * **gvmdump**: Extracts all files in a GVM archive (from Phantasy Star Online) to the current directory, and converts the GVR textures to Windows BMP files. Also can decode individual GVR files outside of a GVM archive.
   * **rcfdump**: Extracts all files in a RCF archive (from The Simpsons: Hit and Run) to the current directory.
   * **smsdumpbanks**: Extracts the contents of JAudio instrument and waveform banks in AAF, BX, or BAA format (from Super Mario Sunshine, Luigi's Mansion, Pikmin, and other games). See "Using smssynth" for more information.
-  * **smssynth**: Synthesizes and debugs music sequences in BMS format (from Super Mario Sunshine, Luigi's Mansion, Pikmin, and other games) or MIDI format (from classic Macintosh games). See "Using smssynth" for more information.
+  * **smssynth**: Synthesizes and debugs music sequences in BMS format (from Super Mario Sunshine, Luigi's Mansion, Pikmin, and other games), or MIDI/Tune/QTMA formats (from classic Macintosh games). See "Using smssynth" for more information.
   * **modsynth**: Synthesizes and debugs music sequences in Protracker/Soundtracker MOD format.
 * Game map generators
   * **blobbo_render**: Generates maps from Blobbo levels.
@@ -505,22 +505,24 @@ After doing this, you can play the songs with (for example) `smssynth --json-env
 
 ### Usage for QTMA-based (Tune) Classic Mac OS games
 
-smssynth can also disassemble and play `Tune` resources from games that use QTMA. To play these sequences, you'll have to first get the necessary set of instruments (`ssai` resources); this can come from the QuickTime™ Musical Instruments extension, from the game itself, or both. After extracting the instruments, get the `Tune` resources from the game, and use `--quicktime-environment` to load them with smssynth. Unlike the MIDI environment, there is no index file; smssynth will load all .ssai and .tune files in the given directory.
+smssynth can also disassemble and play `Tune` resources from games that use QTMA, as well as QuickTime files that contain sequenced music. To play these sequences, you'll have to first get the necessary set of instruments (`ssai` resources); this can come from the QuickTime™ Musical Instruments extension, from the game itself, or both. After extracting the instruments, get the `Tune` resources from the game, and use `--quicktime-environment` to load them with smssynth. Unlike the MIDI environment, there is no index file; smssynth will load all .ssai and .tune files in the given directory.
 
 For Harry the Handsome Executive, for example, you could do the following:
-1. Extract instruments from QuickTime: `resource_dasm "QuickTime™ Musical Instruments" ./harry_qt_env --target=ssai --save-raw`
-2. Extract instruments from the game: `resource_dasm "Harry Instruments" ./harry_qt_env --target=ssai --save-raw`
-3. Extract songs from the game: `resource_dasm "Harry Music" ./harry_qt_env --target=Tune --save-raw`
+1. Extract instruments from QuickTime: `resource_dasm "QuickTime™ Musical Instruments" ./my_qt_env --target=ssai --save-raw`
+2. Extract instruments from the game: `resource_dasm "Harry Instruments" ./my_qt_env --target=ssai --save-raw`
+3. Extract songs from the game: `resource_dasm "Harry Music" ./my_qt_env --target=Tune --save-raw`
 
-After the environment is set up, you can use `smssynth --quicktime-environment=harry_qt_env ...` to list sequences, disassemble sequences, play sequences, etc.
+For other games that use QuickTime containers (moov resources), extract the moov resource to a file with extension .moov, then put the data segment in a file with the same name but with the .mdat extension. Usually this mdat file should be the data fork of the file that the moov resource came from. Some moovs contain the data in the moov resource itself and don't need a .mdat file.
+
+After the environment is set up, you can use e.g. `smssynth --quicktime-environment=my_qt_env ...` to list sequences, disassemble sequences, play sequences, etc.
 
 ### Compatibility
 
 I've tested smssynth with the following GameCube games that use JAudio/BMS and assigned an approximate correctness value for each one:
-- __Luigi's Mansion__: 60%. Most songs sound close to in-game audio, but a few instruments are clearly wrong and some effects are missing. I think this makes the staff roll sequence sound cooler, but I still intend to fix it.
-- __Mario Kart: Double Dash!!__: 80%. All songs work; some volume effects appear to be missing so they sound a little different.
+- __Luigi's Mansion__: 50%. Most songs sound close to in-game audio, but a few instruments are clearly wrong and some effects are missing. I think this makes the staff roll sequence sound cooler, but I still intend to fix it.
+- __Mario Kart: Double Dash!!__: 60%. All songs work; some volume effects appear to be missing so they sound a little different.
 - __Pikmin__: 70%. The game uses track volume effects to change how songs sound based on what's happening in-game; smssynth doesn't do this, so the songs sound a little different from how they sound in-game but are easily recognizable.
-- __Super Mario Sunshine__: 95%. Most songs sound perfect (exactly as they sound in-game); only a few are broken. Note that the game uses track 15 for Yoshi's drums; use `--disable-track=15` to silence them.
+- __Super Mario Sunshine__: 90%. Most songs sound perfect (exactly as they sound in-game); only a few are broken. Note that the game uses track 15 for Yoshi's drums; use `--disable-track=15` to silence them.
 - __The Legend of Zelda: Twilight Princess__: <20%. Most songs don't play or sound terrible. Some are recognizable but don't sound like the in-game music.
 - __Super Mario Galaxy__: <20%. Same as above.
 
@@ -549,7 +551,17 @@ Classic Mac OS games that use SoundMusicSys currently fare much better than JAud
 - __Ultimate Spin Doctor__: 100%
 - __Widget Workshop__: 100%
 
-Tune decoding and playback has only been tested with Harry the Handsome Executive. The output sounds relatively good, but there are a few obviously incorrect sounds (for example, incorrect pitching on some percussion instruments). Further work is needed here.
+QTMA/Tune decoding and playback isn't as good as SoundMusicSys:
+- __Billmo Comedy__: 95%; same issue as Harry the Handsome Executive
+- __BonYx__: 95%; same issue as Harry the Handsome Executive
+- __DeadEnd__: 100%
+- __Greebles__: 95%; same issue as Harry the Handsome Executive
+- __Harry the Handsome Executive__: 95%; some volume envelopes are incorrect so a few notes seem to end earlier or later than they should
+- __MacDo__: 80%
+- __Pop!__: 100%
+- __Skittles__: 5%; don't play these if you value your sense of hearing
+- __Step On It!__: 80%; some controller effects don't do the right thing, so _Bass For Lunch_'s pitch bends sound weird
+
 
 ### Getting auxiliary files from GameCube games
 

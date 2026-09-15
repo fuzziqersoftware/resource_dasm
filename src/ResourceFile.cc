@@ -3500,16 +3500,16 @@ std::string ResourceFile::decode_ecmi(const void* data, size_t size) {
 ////////////////////////////////////////////////////////////////////////////////
 // Sequenced music decoding
 
-Audio::SSAIInstrument ResourceFile::decode_ssai(int16_t id, uint32_t type) const {
+QuickTime::SSAIInstrument ResourceFile::decode_ssai(int16_t id, uint32_t type) const {
   return this->decode_ssai(this->get_resource(type, id));
 }
 
-Audio::SSAIInstrument ResourceFile::decode_ssai(std::shared_ptr<const Resource> res) {
+QuickTime::SSAIInstrument ResourceFile::decode_ssai(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_ssai(res->data.data(), res->data.size());
 }
 
-Audio::SSAIInstrument ResourceFile::decode_ssai(const void* data, size_t size) {
-  return Audio::SSAIInstrument(data, size);
+QuickTime::SSAIInstrument ResourceFile::decode_ssai(const void* data, size_t size) {
+  return QuickTime::SSAIInstrument(data, size);
 }
 
 ResourceFile::DecodedInstrumentResource::KeyRegion::KeyRegion(
@@ -3721,16 +3721,16 @@ ResourceFile::DecodedSongResource ResourceFile::decode_SONG(const void* vdata, s
   }
 }
 
-Audio::TuneResource ResourceFile::decode_Tune(int16_t id, uint32_t type) const {
+QuickTime::QTMASequence ResourceFile::decode_Tune(int16_t id, uint32_t type) const {
   return this->decode_Tune(this->get_resource(type, id));
 }
 
-Audio::TuneResource ResourceFile::decode_Tune(std::shared_ptr<const Resource> res) {
+QuickTime::QTMASequence ResourceFile::decode_Tune(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_Tune(res->data.data(), res->data.size());
 }
 
-Audio::TuneResource ResourceFile::decode_Tune(const void* vdata, size_t size) {
-  return Audio::TuneResource(vdata, size);
+QuickTime::QTMASequence ResourceFile::decode_Tune(const void* vdata, size_t size) {
+  return QuickTime::QTMASequence(vdata, size, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

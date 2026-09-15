@@ -1954,7 +1954,7 @@ protected:
 };
 
 struct TuneTrack : public BaseTrack {
-  std::vector<const ResourceDASM::Audio::TuneResource::Event*> events;
+  std::vector<const ResourceDASM::QuickTime::QTMASequence::Event*> events;
   size_t event_index = 0;
 
   TuneTrack(int16_t id) : BaseTrack(id, 0) {}
@@ -1962,11 +1962,11 @@ struct TuneTrack : public BaseTrack {
 
 class TuneRenderer : public Renderer<TuneTrack> {
 protected:
-  std::shared_ptr<const ResourceDASM::Audio::TuneResource> tune;
+  std::shared_ptr<const ResourceDASM::QuickTime::QTMASequence> tune;
 
 public:
   explicit TuneRenderer(
-      std::shared_ptr<const ResourceDASM::Audio::TuneResource> tune,
+      std::shared_ptr<const ResourceDASM::QuickTime::QTMASequence> tune,
       size_t sample_rate,
       ResourceDASM::Audio::ResampleMethod resample_method,
       std::shared_ptr<const ResourceDASM::Audio::SoundEnvironment> env,
@@ -1987,7 +1987,7 @@ public:
             freq_bias,
             volume_bias),
         tune(tune) {
-    using T = ResourceDASM::Audio::TuneResource;
+    using T = ResourceDASM::QuickTime::QTMASequence;
 
     // Create all the tracks
     std::unordered_map<size_t, std::shared_ptr<TuneTrack>> id_to_track;
@@ -2026,7 +2026,7 @@ public:
 
 protected:
   virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<TuneTrack>>::iterator track_it) {
-    using T = ResourceDASM::Audio::TuneResource;
+    using T = ResourceDASM::QuickTime::QTMASequence;
 
     auto t = track_it->second;
     if (t->events.empty()) {
@@ -2377,7 +2377,7 @@ int main(int argc, char** argv) {
 
     case ResourceDASM::Audio::SequenceProgram::Type::TUNE:
       if (!seq->source_tune) {
-        throw std::logic_error("TunePlayer requires a parsed TuneResource");
+        throw std::logic_error("TunePlayer requires a parsed QTMASequence");
       }
       r.reset(new TuneRenderer(
           seq->source_tune,

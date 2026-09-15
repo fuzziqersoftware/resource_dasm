@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "../QuickTime.hh"
 #include "Instrument.hh"
-#include "QuickTimeInstrument.hh"
 
 namespace ResourceDASM {
 namespace Audio {
@@ -26,7 +26,7 @@ struct SequenceProgram {
   Type type;
   uint32_t index;
   std::string data;
-  std::shared_ptr<const TuneResource> source_tune; // Null for non-QT sources
+  std::shared_ptr<const QuickTime::QTMASequence> source_tune; // Null for non-QT sources
 };
 
 struct SoundEnvironment {

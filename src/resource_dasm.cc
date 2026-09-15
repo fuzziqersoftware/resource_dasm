@@ -1980,7 +1980,7 @@ private:
     auto ssai = this->current_rf->decode_ssai(res);
 
     std::deque<std::string> lines{
-        std::format("# resource_id: {}\n", ssai.resource_id),
+        std::format("# MIDI instrument number: {}\n", ssai.midi_instrument_number),
         std::format("# name: \"{}\"\n", ssai.name),
     };
     if (!ssai.copyright_cpy.empty()) {
@@ -1993,7 +1993,7 @@ private:
       lines.emplace_back(std::format("# info_string: \"{}\"", ssai.info_string));
     }
     for (const auto& [number, value] : ssai.knobs) {
-      const char* name = ResourceDASM::Audio::SSAIInstrument::name_for_knob(number);
+      const char* name = ResourceDASM::QuickTime::SSAIInstrument::name_for_knob(number);
       if (name) {
         lines.emplace_back(std::format("# knob: {:08X} ({}) = {}", number, name, value));
       } else {
@@ -2008,7 +2008,7 @@ private:
           key_region.sample_data_number, key_region.num_channels, key_region.bits_per_sample, key_region.sample_rate,
           key_region.frame_count, key_region.loop_start_offset, key_region.loop_end_offset, key_region.base_note));
       for (const auto& [number, value] : key_region.knobs) {
-        const char* name = ResourceDASM::Audio::SSAIInstrument::name_for_knob(number);
+        const char* name = ResourceDASM::QuickTime::SSAIInstrument::name_for_knob(number);
         if (name) {
           lines.emplace_back(std::format("#   knob: {:08X} ({}) = {}", number, name, value));
         } else {
