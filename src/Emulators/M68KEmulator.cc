@@ -234,21 +234,16 @@ VisitorT::DecodeReturnT M68KEmulator::decode_instruction(VisitorT& visitor) {
             switch (size) {
               case Size::BYTE: {
                 uint16_t v = visitor.read_ins_u16(1);
-                if (v & 0xFF00) {
-                  return DecodedAddress{
-                      .mode = AM::INVALID, .invalid_reason = "bits above immediate 8-bit value are set"};
-                }
                 return DecodedAddress{
                     .mode = AM::IMM,
                     .base_disp = sign_extend_imm ? phosg::sign_extend<int32_t, uint8_t>(v) : (v & 0x00FF),
                 };
               }
-              case Size::WORD: {
+              case Size::WORD:
                 return DecodedAddress{
                     .mode = AM::IMM,
                     .base_disp = sign_extend_imm ? visitor.read_ins_s16(2) : visitor.read_ins_u16(2),
                 };
-              }
               case Size::LONG:
                 return DecodedAddress{.mode = AM::IMM, .base_disp = visitor.read_ins_s32(4)};
               default:

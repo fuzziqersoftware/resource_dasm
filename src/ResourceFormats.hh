@@ -299,7 +299,7 @@ struct Code0ResourceHeader {
   phosg::be_uint32_t above_a5_size;
   phosg::be_uint32_t below_a5_size;
   phosg::be_uint32_t jump_table_size; // Should be == resource_size - 0x10
-  phosg::be_uint32_t jump_table_offset; // From A5, so subtract 0x10 to get offset within CODE 0
+  phosg::be_uint32_t jump_table_a5_offset; // From A5, so subtract 0x10 to get offset within CODE 0
 
   struct MethodEntry {
     phosg::be_uint16_t offset; // Need to add 4 to this apparently

@@ -1266,6 +1266,8 @@ ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(const void* vdata
   DecodedCode0Resource ret;
   ret.above_a5_size = header.above_a5_size;
   ret.below_a5_size = header.below_a5_size;
+  ret.jump_table_a5_offset = header.jump_table_a5_offset;
+  ret.jump_table_size = header.jump_table_size;
 
   // Some apps have what looks like a compressed jump table - it has a single entry (usually pointing to the beginning
   // of the last CODE resource), followed by obviously non-jump-table data. Since this data often has a size that isn't

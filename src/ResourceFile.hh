@@ -297,6 +297,8 @@ public:
   struct DecodedCode0Resource {
     uint32_t above_a5_size;
     uint32_t below_a5_size;
+    uint32_t jump_table_a5_offset; // Subtract 0x10 to get offset within CODE 0 resource data
+    uint32_t jump_table_size; // Number of bytes, not number of entries
     std::vector<JumpTableEntry> jump_table;
   };
 
