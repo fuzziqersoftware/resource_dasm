@@ -918,14 +918,12 @@ public:
         ? this->vel_region->sound->base_note
         : this->vel_region->base_note;
     float note_factor = freq(base_note) / freq(base_note + (this->note - base_note) * this->vel_region->pitch_sensitivity);
-    {
-      float pitch_bend_factor = pow(2, (pitch_bend * pitch_bend_semitone_range) / 12.0) * freq_mult;
-      float new_src_ratio = note_factor * sample_rate_factor / (this->vel_region->freq_mult * pitch_bend_factor);
-      this->loop_start_offset = this->vel_region->sound->loop_start * new_src_ratio;
-      this->loop_end_offset = this->vel_region->sound->loop_end * new_src_ratio;
-      this->offset = this->offset * (new_src_ratio / this->src_ratio);
-      this->src_ratio = new_src_ratio;
-    }
+    float pitch_bend_factor = pow(2, (pitch_bend * pitch_bend_semitone_range) / 12.0) * freq_mult;
+    float new_src_ratio = note_factor * sample_rate_factor / (this->vel_region->freq_mult * pitch_bend_factor);
+    this->loop_start_offset = this->vel_region->sound->loop_start * new_src_ratio;
+    this->loop_end_offset = this->vel_region->sound->loop_end * new_src_ratio;
+    this->offset = this->offset * (new_src_ratio / this->src_ratio);
+    this->src_ratio = new_src_ratio;
 
     try {
       return this->cache->at(this->vel_region->sound, this->src_ratio);
@@ -1256,7 +1254,7 @@ public:
       if ((debug_flags & DebugFlag::COLOR_FIELD) || (short_status && (debug_flags & DebugFlag::COLOR_STATUS))) {
         phosg::fwrite_fmt(stderr,
             "\r{:08X}{:c} {}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.12}{}{:.8}{} @ {} + {:g}{:c}",
-            current_time, all_tracks_finished ? '-' : ':',
+            this->current_time, all_tracks_finished ? '-' : ':',
             field_magenta, &notes_table[0], field_red, &notes_table[12],
             field_yellow, &notes_table[24], field_green, &notes_table[36],
             field_cyan, &notes_table[48], field_blue, &notes_table[60],
