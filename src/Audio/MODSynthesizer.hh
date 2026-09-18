@@ -27,7 +27,9 @@ struct Module {
     std::vector<float> sample_data;
 
     constexpr bool has_loop() const {
-      return (this->loop_start_samples != 0) || (this->loop_length_samples != 0);
+      // The sample has a loop if the length in words is > 1. We convert words to samples long before this point, so we
+      // have to check for >2 here.
+      return (this->loop_length_samples > 2);
     }
     constexpr bool loop_valid() const {
       return (this->loop_start_samples < this->sample_data.size()) &&

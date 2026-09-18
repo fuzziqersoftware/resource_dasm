@@ -43,12 +43,15 @@ Format options (one of the following must be given):\n\
       data directly to the output.\n\
   --sms\n\
       Decompress data using SoundMusicSys LZSS encoding.\n\
+  --Yaz0\n\
+      Decompress data in Nintendo\'s Yaz0 format.\n\
 ");
 }
 
 enum class Encoding {
   MISSING = 0,
   SOUNDMUSICSYS,
+  YAZ0,
   MACSKI,
   PRESAGE_LZSS,
   DINOPARK_TYCOON,
@@ -71,6 +74,8 @@ int main(int argc, char** argv) {
       encoding = Encoding::MACSKI;
     } else if (!strcmp(argv[z], "--sms")) {
       encoding = Encoding::SOUNDMUSICSYS;
+    } else if (!strcmp(argv[z], "--yaz0") || !strcmp(argv[z], "--Yaz0")) {
+      encoding = Encoding::YAZ0;
     } else if (!strcmp(argv[z], "--unpack-pathways")) {
       encoding = Encoding::UNPACK_PATHWAYS;
     } else if (!strcmp(argv[z], "--pack-bits")) {
@@ -108,6 +113,9 @@ int main(int argc, char** argv) {
       throw std::logic_error("this case should have been handled earlier");
     case Encoding::SOUNDMUSICSYS:
       decoded = ResourceDASM::decompress_soundmusicsys_lzss(input_data);
+      break;
+    case Encoding::YAZ0:
+      decoded = ResourceDASM::decompress_Yaz0(input_data);
       break;
     case Encoding::MACSKI:
       decoded = ResourceDASM::decompress_macski_multi(input_data);

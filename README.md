@@ -25,6 +25,7 @@ The tools in this project are:
   * **gcmdump**: Extracts all files in a GCM file (GameCube disc image) or TGC file (embedded GameCube disc image).
   * **gcmasm**: Generates a GCM image from a directory tree.
   * **gvmdump**: Extracts all files in a GVM archive (from Phantasy Star Online) to the current directory, and converts the GVR textures to Windows BMP files. Also can decode individual GVR files outside of a GVM archive.
+  * **rarcdump**: Extracts all files in a RARC or SZS archive to the current directory.
   * **rcfdump**: Extracts all files in a RCF archive (from The Simpsons: Hit and Run) to the current directory.
   * **smsdumpbanks**: Extracts the contents of JAudio instrument and waveform banks in AAF, BX, or BAA format (from Super Mario Sunshine, Luigi's Mansion, Pikmin, and other games). See "Using smssynth" for more information.
   * **smssynth**: Synthesizes and debugs music sequences in BMS format (from Super Mario Sunshine, Luigi's Mansion, Pikmin, and other games), or MIDI/Tune/QTMA formats (from classic Macintosh games). See "Using smssynth" for more information.
@@ -571,8 +572,7 @@ Luigi's Mansion should work without any modifications. Just point `--audiores-di
 
 You'll have to copy msound.aaf into the AudioRes directory manually to use the Super Mario Sunshine tools. To do so:
 - Get nintendo.szs from the disc image (use gcmdump or some other tool).
-- Yaz0-decompress it (use yaz0dec, which is part of [szstools](http://amnoid.de/gc/)).
-- Extract the contents of the archive (use rarcdump, which is also part of [szstools](http://amnoid.de/gc/)).
+- Extract the contents of the archive (use `rarcdump --szs nintendo.szs`).
 - Copy msound.aaf into the AudioRes directory.
 
 #### Getting sequence.barc from Pikmin
@@ -647,6 +647,7 @@ decode_data can decode and decompress a few custom encoding formats used by vari
     PackBits (decompress)          | PackBits  | --unpack-bits     |
     Pathways Into Darkness         | Pathways  | --unpack-pathways |
     SoundMusicSys                  | LZSS      | --sms             | %0
+    Nintendo                       | Yaz0      | --Yaz0            | %0
     Odyssey: The Legend of Nemesis | NTEX/NPIC | --crypt-odyssey   | %1
 
     Notes:

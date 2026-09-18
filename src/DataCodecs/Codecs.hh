@@ -36,6 +36,10 @@ std::string decompress_dinopark_tycoon_rle(const std::string& data);
 std::string decompress_dinopark_tycoon_data(const void* data, size_t size);
 std::string decompress_dinopark_tycoon_data(const std::string& data);
 
+// Nintendo-Yaz0.cc
+std::string decompress_Yaz0(const void* data, size_t size);
+std::string decompress_Yaz0(const std::string& data);
+
 // Presage-LZSS.cc
 std::string decompress_presage_lzss(phosg::StringReader& r, size_t max_output_bytes = 0);
 std::string decompress_presage_lzss(const void* data, size_t size, size_t max_output_bytes = 0);

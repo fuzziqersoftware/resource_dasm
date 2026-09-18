@@ -30,6 +30,7 @@ macbinary_decode
 modsynth
 mshines_render
 pop2_render
+rarcdump
 rcfdump
 realmz_dasm
 render_bits

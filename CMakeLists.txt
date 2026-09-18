@@ -37,6 +37,7 @@ add_library(resource_file
   src/DataCodecs/Bungie.cc
   src/DataCodecs/DinoParkTycoon-LZSS-RLE.cc
   src/DataCodecs/MacSki-RUN4-COOK-CO2K.cc
+  src/DataCodecs/Nintendo-Yaz0.cc
   src/DataCodecs/PackBits.cc
   src/DataCodecs/Presage-LZSS.cc
   src/DataCodecs/SoundMusicSys-LZSS.cc
@@ -127,7 +128,7 @@ else()
   message("SDL3 is not available; disabling audio playback support in smssynth and modsynth")
 endif()
 
-foreach(ExecutableName IN ITEMS resource_dasm m68kdasm appledouble_decode binhex_decode blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render flashback_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec m68ktest macbinary_decode mshines_render pop1_render pop2_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver rsrc_info parse_qt)
+foreach(ExecutableName IN ITEMS resource_dasm m68kdasm appledouble_decode binhex_decode blobbo_render bugs_bannis_render decode_data dupe_finder ferazel_render flashback_render gamma_zee_render harry_render hypercard_dasm infotron_render lemmings_render m68kexec m68ktest macbinary_decode mshines_render pop1_render pop2_render render_bits render_sprite render_text replace_clut assemble_images icon_dearchiver rarcdump rsrc_info parse_qt)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} resource_file)
 endforeach()
