@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "SampleCache.hh"
+#include "Resample.hh"
 
 namespace ResourceDASM {
 namespace Audio {
@@ -26,7 +26,10 @@ struct Module {
     std::vector<int8_t> original_sample_data;
     std::vector<float> sample_data;
 
-    inline bool loop_valid() const {
+    constexpr bool has_loop() const {
+      return (this->loop_start_samples != 0) || (this->loop_length_samples != 0);
+    }
+    constexpr bool loop_valid() const {
       return (this->loop_start_samples < this->sample_data.size()) &&
           ((this->loop_start_samples + this->loop_length_samples) < this->sample_data.size());
     }
@@ -79,9 +82,6 @@ public:
     double amiga_hardware_frequency = 7159090.5;
     // Sample rate of the resulting audio.
     size_t sample_rate = 48000;
-    // Method to use when resampling instruments for different notes. EXTEND produces crisper-sounding audio and is
-    // generally appropriate for Protracker/Soundtracker modules.
-    ResampleMethod resample_method = ResampleMethod::EXTEND;
     // How far each track's output is from center on the left-right spectrum
     int8_t default_panning_split = 0x20; // -0x40-0x40
     // Whether to enable the panning surround effect by default
@@ -231,7 +231,6 @@ protected:
   Timing timing;
   SongPosition pos;
   std::vector<TrackState> tracks;
-  SampleCache<uint8_t> sample_cache;
   float dc_offset_decay = 0.001;
 
   [[nodiscard]] virtual bool on_tick_samples_ready(std::vector<float>&&) = 0;

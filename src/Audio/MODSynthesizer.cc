@@ -13,7 +13,7 @@
 #include <string>
 
 #include "MODSynthesizer.hh"
-#include "SampleCache.hh"
+#include "Resample.hh"
 #include "WAVFile.hh"
 
 namespace ResourceDASM {
@@ -396,8 +396,7 @@ MODSynthesizer::MODSynthesizer(std::shared_ptr<const Module> mod, std::shared_pt
       opts(opts),
       timing(this->opts->sample_rate),
       pos(this->mod->partition_count, this->opts->skip_partitions, this->opts->skip_divisions),
-      tracks(this->mod->num_tracks),
-      sample_cache(this->opts->resample_method) {
+      tracks(this->mod->num_tracks) {
   // Initialize track state which depends on track index
   for (size_t x = 0; x < this->tracks.size(); x++) {
     this->tracks[x].index = x;
@@ -899,54 +898,26 @@ bool MODSynthesizer::render_current_division_audio() {
       track.last_effective_volume = effective_volume;
 
       // Apply the appropriate portion of the instrument's sample data to the tick output data.
-      const std::vector<float>* resampled_data = nullptr;
       ssize_t segment_index = -1;
-      double src_ratio = -1.0;
-      double resampled_offset = -1.0;
-      double loop_start_offset = -1.0;
-      double loop_end_offset = -1.0;
+      double playback_rate = -1.0;
       for (size_t tick_output_offset = 0;
           tick_output_offset < tick_samples.size();
           tick_output_offset += 2, division_output_offset += 2) {
 
         // Advance to the appropriate segment if there is one
-        bool changed_segment = false;
         while ((segment_index < static_cast<ssize_t>(segments.size() - 1)) &&
             division_output_offset >= segments.at(segment_index + 1).first) {
           segment_index++;
-          changed_segment = true;
-        }
-        if (changed_segment) {
-          const auto& segment = segments.at(segment_index);
-          // Resample the instrument to the appropriate pitch. The input samples to be played per second is:
-          //   track_input_samples_per_second = hardware_freq / (2 * period)
-          // To convert this to the number of output samples per input sample, all we have to do is divide the output
-          // sample rate by it:
-          //   out_samples_per_in_sample = sample_rate / (hardware_freq / (2 * period))
-          //   out_samples_per_in_sample = (sample_rate * 2 * period) / hardware_freq
-          // This gives how many samples to generate for each input sample.
-          src_ratio = static_cast<double>(2 * this->timing.sample_rate * segment.second) / this->opts->amiga_hardware_frequency;
-          resampled_data = &this->sample_cache.resample_add(track.instrument_num, i.sample_data, 1, src_ratio);
-          resampled_offset = track.input_sample_offset * src_ratio;
-
-          // The sample has a loop if the length in words is > 1. We convert words to samples long before this point,
-          // so we have to check for >2 here.
-          loop_start_offset = static_cast<double>(i.loop_start_samples) * src_ratio;
-          loop_end_offset = (i.loop_length_samples > 2)
-              ? static_cast<double>(i.loop_start_samples + i.loop_length_samples) * src_ratio
-              : 0.0;
-        }
-
-        if (!resampled_data) {
-          throw std::logic_error("resampled data not present at sound generation time");
+          playback_rate = this->opts->amiga_hardware_frequency /
+              static_cast<double>(2 * this->timing.sample_rate * segments.at(segment_index).second);
         }
 
         // The sample could "end" here (and not below) because of floating-point imprecision
-        if (resampled_offset >= resampled_data->size()) {
-          if (loop_end_offset != 0.0) {
+        if (track.input_sample_offset >= i.sample_data.size()) {
+          if (i.has_loop()) {
             // This should only happen if the loop ends right at the end of the sample, so we can just blindly reset to
             // the loop start offset.
-            track.input_sample_offset = loop_start_offset / src_ratio;
+            track.input_sample_offset -= i.loop_length_samples;
           } else {
             track.input_sample_offset = i.sample_data.size();
           }
@@ -962,7 +933,7 @@ bool MODSynthesizer::render_current_division_audio() {
         // track and adjust it so that the new sample begins at the same amplitude. The DC offset then decays after
         // each subsequent sample and fairly quickly reaches zero. This eliminates the tick and doesn't leave any other
         // audible effects.
-        float sample_from_ins = resampled_data->at(static_cast<size_t>(resampled_offset)) *
+        float sample_from_ins = i.sample_data.at(static_cast<size_t>(track.input_sample_offset)) *
             overall_volume_factor;
         if (track.next_sample_may_be_discontinuous) {
           track.last_sample = track.dc_offset;
@@ -989,21 +960,18 @@ bool MODSynthesizer::render_current_division_audio() {
         // The observational spec claims that the loop only begins after the the sample has been played to the end
         // once, but this seems false. It seems like we should instead always jump back when we reach the end of the
         // loop region, even the first time we reach it (which is what's implemented here).
-        resampled_offset++;
+        track.input_sample_offset += playback_rate;
         // Since we use floats to represent the loop points, we actually could miss it and think the sample ended when
         // there's really a loop to be played! To handle this, we assume that if we reach the end and a loop is
         // defined, we should just always use it.
-        if ((loop_end_offset != 0.0) &&
-            ((resampled_offset >= loop_end_offset) || (resampled_offset >= resampled_data->size() - 1))) {
-          resampled_offset = loop_start_offset;
-        } else if (resampled_offset >= resampled_data->size()) {
+        if (i.has_loop() &&
+            ((track.input_sample_offset >= i.loop_start_samples + i.loop_length_samples) ||
+                (track.input_sample_offset >= i.sample_data.size() - 1))) {
+          track.input_sample_offset -= i.loop_length_samples;
+        } else if (track.input_sample_offset >= i.sample_data.size()) {
           track.input_sample_offset = i.sample_data.size();
           break;
         }
-
-        // Advance the input offset by a proportional amount to the sound we just generated, so the next tick or
-        // segment will start at the right place
-        track.input_sample_offset = resampled_offset / src_ratio;
       }
 
       // Apparently per-tick slides don't happen after the last tick in the division. (Why? Protracker bug?)

@@ -62,7 +62,7 @@ std::vector<SampleT> resample_audio(const std::vector<SampleT>& input_samples, s
       current_samples[z] = sample_to_float<SampleT>(input_samples[in_frame_index + z]);
     }
     write_current_output_frames();
-    prev_samples = current_samples;
+    prev_samples = std::move(current_samples);
   }
   write_current_output_frames(); // Ensure the last sample is represented in the output
   return ret;
@@ -80,39 +80,6 @@ std::vector<SampleT> resample_audio(
       throw std::logic_error("Invalid resampling method");
   }
 }
-
-template <typename KeyT>
-class SampleCache {
-public:
-  explicit SampleCache(ResampleMethod method) : method(method) {}
-  ~SampleCache() = default;
-
-  const std::vector<float>& at(const KeyT& k, float ratio) const {
-    return this->cache.at(k).at(ratio);
-  }
-
-  const std::vector<float>& add(const KeyT& k, float ratio, std::vector<float>&& data) {
-    return this->cache[k].emplace(ratio, std::move(data)).first->second;
-  }
-
-  const std::vector<float>& resample_add(
-      const KeyT& k, const std::vector<float>& input_samples, size_t num_channels, float ratio) {
-    try {
-      return this->at(k, ratio);
-    } catch (const std::out_of_range&) {
-      auto data = resample_audio<float>(input_samples, num_channels, ratio, this->method);
-      return this->add(k, ratio, std::move(data));
-    }
-  }
-
-  std::vector<float> resample(const std::vector<float>& input_samples, size_t num_channels, double src_ratio) const {
-    return resample_audio<float>(input_samples, num_channels, src_ratio, this->method);
-  }
-
-private:
-  ResampleMethod method;
-  std::unordered_map<KeyT, std::unordered_map<float, std::vector<float>>> cache;
-};
 
 } // namespace Audio
 } // namespace ResourceDASM

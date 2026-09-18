@@ -81,11 +81,6 @@ Options for --render and --play:\n\
   --sample-rate=N\n\
       Output audio at this sample rate (default 48000). The sample format is\n\
       always 32-bit float.\n\
-  --resample-method=METHOD\n\
-      Use this method for resampling instruments. Values are sinc-best,\n\
-      sinc-medium, sinc-fast, hold, and linear. The default is hold, which most\n\
-      closely approximates what happens on old systems when they play these\n\
-      kinds of modules.\n\
   --volume=N\n\
       Set global volume to N (-1.0-1.0). With --render this doesn\'t really\n\
       matter unless --skip-normalize is also used, but with --play it overrides\n\
@@ -189,11 +184,6 @@ int main(int argc, char** argv) {
       behavior = Behavior::RENDER;
     } else if (!strcmp(argv[x], "--play")) {
       behavior = Behavior::PLAY;
-
-    } else if (!strcmp(argv[x], "--resample-method=hold")) {
-      opts->resample_method = ResourceDASM::Audio::ResampleMethod::EXTEND;
-    } else if (!strcmp(argv[x], "--resample-method=linear")) {
-      opts->resample_method = ResourceDASM::Audio::ResampleMethod::LINEAR_INTERPOLATE;
 
     } else if (!strcmp(argv[x], "--write-stdout")) {
       write_stdout = true;

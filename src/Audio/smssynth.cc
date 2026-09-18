@@ -13,7 +13,7 @@
 #include <unordered_map>
 
 #include "Constants.hh"
-#include "SampleCache.hh"
+#include "Resample.hh"
 #include "SoundEnvironment.hh"
 #include "WAVFile.hh"
 
@@ -730,7 +730,7 @@ public:
       : output_sample_rate(output_sample_rate), note(note), vel(vel), channel(channel) {}
   virtual ~Voice() = default;
 
-  virtual std::vector<float> render(size_t count, float freq_mult, float volume_bias) = 0;
+  virtual void render_into(std::vector<float>& result, float freq_mult, float volume_bias) = 0;
   virtual void off() = 0;
   virtual bool is_off() const = 0;
   virtual bool complete() const = 0;
@@ -743,8 +743,7 @@ public:
 
 class SilentVoice : public Voice {
 public:
-  SilentVoice(size_t output_sample_rate, int8_t note, int8_t vel, std::shared_ptr<Channel> channel)
-      : Voice(output_sample_rate, note, vel, channel) {}
+  using Voice::Voice;
   virtual ~SilentVoice() = default;
 
   virtual void off() {
@@ -757,9 +756,7 @@ public:
     return this->is_finished;
   }
 
-  virtual std::vector<float> render(size_t count, float, float) {
-    return std::vector<float>(count * 2, 0.0f);
-  }
+  virtual void render_into(std::vector<float>&, float, float) {}
 
   bool is_finished = false;
 };
@@ -780,21 +777,18 @@ public:
     return this->is_finished;
   }
 
-  virtual std::vector<float> render(size_t count, float, float volume_bias) {
+  virtual void render_into(std::vector<float>& result, float, float volume_bias) {
     // TODO: implement pitch bend and freq_mult somehow
-    std::vector<float> data(count * 2, 0.0f);
 
     double frequency = ResourceDASM::Audio::frequency_for_note(this->note);
     float vel_factor = static_cast<float>(this->vel) / 0x7F;
-    for (size_t x = 0; x < count; x++) {
+    for (size_t x = 0; x < result.size() / 2; x++) {
       // Panning is 0.0f (left) - 1.0f (right)
       float sample = volume_bias * vel_factor * this->channel->volume.get() * sin((2.0f * M_PI * frequency) / this->output_sample_rate * (x + this->offset));
-      data[2 * x + 0] = sample * (1.0f - this->channel->panning.get());
-      data[2 * x + 1] = sample * this->channel->panning.get();
+      result[2 * x + 0] = sample * (1.0f - this->channel->panning.get());
+      result[2 * x + 1] = sample * this->channel->panning.get();
     }
-    this->offset += count;
-
-    return data;
+    this->offset += result.size() / 2;
   }
 
   size_t offset = 0;
@@ -806,20 +800,20 @@ public:
   SampleVoice(
       size_t output_sample_rate,
       std::shared_ptr<const ResourceDASM::Audio::SoundEnvironment> env,
-      std::shared_ptr<ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>> cache,
       uint16_t bank_id,
       uint16_t instrument_id,
       int8_t note,
       int8_t vel,
-      std::shared_ptr<Channel> channel)
+      std::shared_ptr<Channel> channel,
+      ResourceDASM::Audio::ResampleMethod resample_method)
       : Voice(output_sample_rate, note, vel, channel),
         instrument_bank(&env->instrument_banks.at(bank_id)),
         instrument(&this->instrument_bank->id_to_instrument.at(instrument_id)),
         key_region(&this->instrument->region_for_key(note)),
         vel_region(&this->key_region->region_for_velocity(vel)),
+        resample_method(resample_method),
         adsr_attack_end_samples(this->output_sample_rate * this->vel_region->adsr.attack_time_secs),
-        adsr_decay_end_samples(this->adsr_attack_end_samples + this->output_sample_rate * this->vel_region->adsr.decay_time_secs),
-        cache(cache) {
+        adsr_decay_end_samples(this->adsr_attack_end_samples + this->output_sample_rate * this->vel_region->adsr.decay_time_secs) {
     if (!this->vel_region->sound) {
       throw std::out_of_range("instrument sound is missing");
     }
@@ -905,101 +899,70 @@ public:
     return ret;
   }
 
-  const std::vector<float>& get_samples(float pitch_bend, float pitch_bend_semitone_range, float freq_mult) {
+  virtual void render_into(std::vector<float>& result, float freq_mult, float volume_bias) {
     const auto& freq = ResourceDASM::Audio::frequency_for_note;
 
-    // Stretch it out by the sample rate difference (on modern systems, the output sample rate is nearly always higher
-    // than the instrument's sample rate)
-    float sample_rate_factor = static_cast<float>(this->output_sample_rate) /
-        static_cast<float>(this->vel_region->sound->sample_rate);
-
-    // Stretch or compress it so it's the right note
     int8_t base_note = (this->vel_region->base_note < 0)
         ? this->vel_region->sound->base_note
         : this->vel_region->base_note;
-    float note_factor = freq(base_note) / freq(base_note + (this->note - base_note) * this->vel_region->pitch_sensitivity);
-    float pitch_bend_factor = pow(2, (pitch_bend * pitch_bend_semitone_range) / 12.0) * freq_mult;
-    float new_src_ratio = note_factor * sample_rate_factor / (this->vel_region->freq_mult * pitch_bend_factor);
-    this->loop_start_offset = this->vel_region->sound->loop_start * new_src_ratio;
-    this->loop_end_offset = this->vel_region->sound->loop_end * new_src_ratio;
-    this->offset = this->offset * (new_src_ratio / this->src_ratio);
-    this->src_ratio = new_src_ratio;
 
-    try {
-      return this->cache->at(this->vel_region->sound, this->src_ratio);
-    } catch (const std::out_of_range&) {
-      const auto& ret = this->cache->resample_add(
-          this->vel_region->sound, this->vel_region->sound->samples(),
-          this->vel_region->sound->num_channels, this->src_ratio);
-      if (debug_flags & DebugFlag::SHOW_RESAMPLE_EVENTS) {
-        std::string key_low_str = ResourceDASM::Audio::name_for_note(this->key_region->key_low);
-        std::string key_high_str = ResourceDASM::Audio::name_for_note(this->key_region->key_high);
-        phosg::fwrite_fmt(stderr,
-            "[{}:{:X}] resampled note {:02X} in range [{:02X},{:02X}] [{},{}] (base {:02X} from {}) ({:g}), "
-            "with freq_mult {:g}, from {}Hz to {}Hz ({:g}) with loop at [{},{}]->[{},{}] for an overall "
-            "ratio of {:g}; {} samples were converted to {} samples\n",
-            this->vel_region->sound->source_filename,
-            this->vel_region->sound->sound_id,
-            this->note,
-            this->key_region->key_low,
-            this->key_region->key_high,
-            key_low_str,
-            key_high_str,
-            base_note,
-            (this->vel_region->base_note == -1) ? "sample" : "vel region",
-            note_factor,
-            this->vel_region->freq_mult,
-            this->vel_region->sound->sample_rate,
-            this->output_sample_rate,
-            sample_rate_factor,
-            this->vel_region->sound->loop_start,
-            this->vel_region->sound->loop_end,
-            this->loop_start_offset,
-            this->loop_end_offset,
-            this->src_ratio,
-            this->vel_region->sound->samples().size(),
-            ret.size());
-      }
-      return ret;
-    }
-  }
+    double playback_rate = (
+        // Stretch it out by the sample rate difference (on modern systems, the output sample rate is nearly always
+        // higher than the instrument's sample rate)
+        (static_cast<double>(this->vel_region->sound->sample_rate) / static_cast<double>(this->output_sample_rate)) *
+        // Stretch or compress it so it's the right note
+        (freq(base_note + (this->note - base_note) * this->vel_region->pitch_sensitivity) / freq(base_note)) *
+        // Scale rate by the current pitch bend
+        pow(2, (this->channel->pitch_bend.get() * this->channel->pitch_bend_semitone_range) / 12.0) *
+        // Apply fixed scaling factors from the track and velocity region
+        freq_mult * this->vel_region->freq_mult);
 
-  virtual std::vector<float> render(size_t count, float freq_mult, float volume_bias) {
-    std::vector<float> data(count * 2, 0.0f);
-
-    const auto& samples = this->get_samples(
-        this->channel->pitch_bend.get(), this->channel->pitch_bend_semitone_range, freq_mult);
-
+    const auto& sound = this->vel_region->sound;
+    const auto& input_samples = sound->samples();
     float vol_factor = volume_bias * (static_cast<float>(this->vel) / 0x7F) * this->vel_region->volume_mult * this->channel->volume.get();
-    for (size_t x = 0; (x < count) && (this->offset < samples.size()); x++) {
-      float sample = vol_factor * this->adsr_factor() * samples[this->offset];
-      data[2 * x + 0] = sample * (1.0f - this->channel->panning.get());
-      data[2 * x + 1] = sample * this->channel->panning.get();
+    for (size_t x = 0; (x < result.size() / 2) && (this->position < input_samples.size()); x++) {
+      size_t left_sample_index = static_cast<size_t>(this->position);
+      float output_sample;
+      switch (this->resample_method) {
+        case ResourceDASM::Audio::ResampleMethod::EXTEND:
+          output_sample = input_samples[left_sample_index];
+          break;
+        case ResourceDASM::Audio::ResampleMethod::LINEAR_INTERPOLATE:
+          if (this->position < (input_samples.size() - 1)) {
+            float left_distance = this->position - left_sample_index;
+            output_sample = input_samples[left_sample_index] * (1.0f - left_distance) +
+                input_samples[left_sample_index + 1] * left_distance;
+          } else {
+            output_sample = input_samples.back();
+          }
+          break;
+        default:
+          throw std::logic_error("Invalid resampling method");
+      }
+      output_sample *= vol_factor * this->adsr_factor();
+      result[2 * x + 0] += output_sample * (1.0f - this->channel->panning.get());
+      result[2 * x + 1] += output_sample * this->channel->panning.get();
 
-      this->offset++;
+      this->position += playback_rate;
       this->samples_produced++;
-      if ((this->loop_end_offset > 0) && (this->offset >= this->loop_end_offset)) {
-        this->offset = this->loop_start_offset;
+      if ((sound->loop_end > 0) && (this->position >= sound->loop_end)) {
+        this->position -= (sound->loop_end - sound->loop_start);
       }
     }
 
     // If there's no more sample data, end the envelope immediately
-    if (this->offset == samples.size()) {
+    if (this->position >= input_samples.size()) {
       this->adsr_release_end_samples = this->samples_produced;
     }
-
-    return data;
   }
 
   const ResourceDASM::Audio::InstrumentBank* instrument_bank;
   const ResourceDASM::Audio::Instrument* instrument;
   const ResourceDASM::Audio::KeyRegion* key_region;
   const ResourceDASM::Audio::VelocityRegion* vel_region;
-  float src_ratio = 1.0f;
 
-  size_t loop_start_offset;
-  size_t loop_end_offset;
-  size_t offset = 0;
+  double position = 0;
+  ResourceDASM::Audio::ResampleMethod resample_method = ResourceDASM::Audio::ResampleMethod::LINEAR_INTERPOLATE;
 
   size_t samples_produced = 0;
   size_t adsr_attack_end_samples = 0;
@@ -1008,8 +971,6 @@ public:
   size_t adsr_release_start_samples = 0; // Uncomputed until off() is called (and is_off is then true)
   size_t adsr_release_end_samples = 0; // Uncomputed until off() is called (and is_off is then true)
   bool release_started = false;
-
-  std::shared_ptr<ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>> cache;
 };
 
 class RendererBase {
@@ -1031,6 +992,7 @@ protected:
   std::multimap<uint64_t, std::shared_ptr<TrackT>> next_event_to_track;
 
   size_t sample_rate;
+  ResourceDASM::Audio::ResampleMethod resample_method;
   uint64_t current_time;
   size_t samples_rendered;
   uint16_t tempo;
@@ -1044,8 +1006,6 @@ protected:
   std::unordered_set<int16_t> solo_tracks;
   std::unordered_set<int16_t> disable_tracks;
 
-  std::shared_ptr<ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>> cache;
-
   virtual void execute_opcode(std::multimap<uint64_t, std::shared_ptr<TrackT>>::iterator track_it) = 0;
 
   std::shared_ptr<Voice> voice_on(
@@ -1055,8 +1015,12 @@ protected:
     std::shared_ptr<Voice> voice;
     if (this->env) {
       try {
-        voice = std::make_shared<SampleVoice>(
-            this->sample_rate, this->env, this->cache, t->bank, t->instrument, key, vel, c);
+        if (this->mute_tracks.count(t->id)) {
+          voice = std::make_shared<SilentVoice>(this->sample_rate, key, vel, c);
+        } else {
+          voice = std::make_shared<SampleVoice>(
+              this->sample_rate, this->env, t->bank, t->instrument, key, vel, c, this->resample_method);
+        }
       } catch (const std::out_of_range& e) {
         std::string key_str = ResourceDASM::Audio::name_for_note(key);
         if (debug_flags & DebugFlag::SHOW_MISSING_NOTES) {
@@ -1089,6 +1053,7 @@ public:
       double freq_bias,
       double volume_bias)
       : sample_rate(sample_rate),
+        resample_method(resample_method),
         current_time(0),
         samples_rendered(0),
         tempo(0),
@@ -1099,8 +1064,7 @@ public:
         env(env),
         mute_tracks(mute_tracks),
         solo_tracks(solo_tracks),
-        disable_tracks(disable_tracks),
-        cache(new ResourceDASM::Audio::SampleCache<const ResourceDASM::Audio::Sound*>(resample_method)) {}
+        disable_tracks(disable_tracks) {}
 
   virtual ~Renderer() = default;
 
@@ -1170,21 +1134,11 @@ public:
       for (auto v : all_voices) {
         std::vector<float> voice_samples;
         try {
-          voice_samples = v->render(samples_per_pulse, t->freq_mult, this->volume_bias);
+          v->render_into(step_samples, t->freq_mult, this->volume_bias);
         } catch (...) {
           phosg::fwrite_fmt(stderr, "error while rendering voices for track {} (freq_mult={:g})\n",
               t->id, t->freq_mult);
           throw;
-        }
-        if (voice_samples.size() != step_samples.size()) {
-          throw std::logic_error(std::format(
-              "voice produced incorrect sample count (returned {} samples, expected {} samples)",
-              voice_samples.size(), step_samples.size()));
-        }
-        if (!this->mute_tracks.count(t->id)) {
-          for (size_t y = 0; y < voice_samples.size(); y++) {
-            step_samples[y] += voice_samples[y];
-          }
         }
 
         // Only draw the note in the text view if it's on
