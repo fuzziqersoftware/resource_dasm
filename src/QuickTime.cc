@@ -814,7 +814,7 @@ struct MatrixField {
     ret.w = this->w.as_float();
     return ret;
   }
-};
+} __attribute__((packed));
 
 struct MovieHeaderAtom { // mvhd
   /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags

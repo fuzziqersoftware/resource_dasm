@@ -241,8 +241,8 @@ struct Movie {
   struct DataReference {
     bool is_self = false;
     bool is_url = false;
-    std::string path;
-    std::string handle_data;
+    std::string path = "";
+    std::string handle_data = "";
     uint32_t resource_type = 0;
     int16_t resource_id = 0;
   };
