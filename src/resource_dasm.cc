@@ -1311,7 +1311,7 @@ private:
       };
       std::map<int16_t, CodeResource> codes;
       std::unordered_map<uint64_t, uint32_t> loaded_resources;
-      uint32_t next_code_addr = ret.base + (ret.a5_world_size + 1) & (~1);
+      uint32_t next_code_addr = ret.base + ((ret.a5_world_size + 1) & (~1));
       for (int16_t res_id : this->current_rf->all_resources_of_type(ResourceDASM::RESOURCE_TYPE_CODE)) {
         if (res_id != 0) {
           auto res = this->current_rf->get_resource(ResourceDASM::RESOURCE_TYPE_CODE, res_id);

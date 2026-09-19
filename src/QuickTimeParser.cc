@@ -37,14 +37,19 @@ void Parser::parse_atom_list(
   ssize_t atoms_parsed = 0;
   while (!r.eof()) {
     if ((expected_child_count >= 0) && (atoms_parsed >= expected_child_count)) {
-      this->throw_parse_error("Excess data in atom after {} children", this->render_current_path(), atoms_parsed);
+      this->throw_parse_error("Excess data after {} children", atoms_parsed);
     }
     const auto& header = r.get<AtomHeader>();
     this->current_path.emplace_back(AtomPathNode{header.type, header.size, base_offset + r.where() - sizeof(AtomHeader)});
-    if (header.size < sizeof(AtomHeader)) {
+    size_t atom_size;
+    if ((header.size == 0) && (this->current_path.size() == 1)) { // 0 only valid for last top-level atom in the file
+      atom_size = r.remaining();
+    } else if (header.size >= sizeof(AtomHeader)) {
+      atom_size = header.size - sizeof(AtomHeader);
+    } else {
       this->throw_parse_error("Invalid atom header size ({})", header.size);
     }
-    auto data_r = r.extract(header.size - sizeof(AtomHeader));
+    auto data_r = r.extract(atom_size);
     this->handle_atom(header.type, data_r);
     if (!data_r.eof()) {
       this->throw_parse_error("Some atom data was not parsed (parsed 0x{:X} bytes, received 0x{:X} bytes)",

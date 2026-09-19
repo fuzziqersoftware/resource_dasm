@@ -21,13 +21,13 @@ public:
   Parser() = default;
   virtual ~Parser() = default;
 
-  inline void parse(std::string_view data, ssize_t expected_child_count = 1) {
+  inline void parse(std::string_view data, ssize_t expected_child_count = -1) {
     this->parse_atom_list(phosg::StringReader(data), expected_child_count);
   }
-  inline void parse(const void* data, size_t size, ssize_t expected_child_count = 1) {
+  inline void parse(const void* data, size_t size, ssize_t expected_child_count = -1) {
     this->parse_atom_list(phosg::StringReader(data, size), expected_child_count);
   }
-  inline void parse(phosg::StringReader& r, ssize_t expected_child_count = 1) {
+  inline void parse(phosg::StringReader& r, ssize_t expected_child_count = -1) {
     this->parse_atom_list(r, expected_child_count);
   }
 

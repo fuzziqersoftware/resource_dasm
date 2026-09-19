@@ -30,38 +30,41 @@ static constexpr uint32_t MUSI_TYPE = resource_type("musi");
 static constexpr uint32_t SS_TYPE = resource_type("ss  ");
 
 // QT movie types
-constexpr uint32_t MOVIE_ATOM_TYPE = resource_type("moov");
-constexpr uint32_t MOVIE_HEADER_ATOM_TYPE = resource_type("mvhd");
-constexpr uint32_t TRACK_ATOM_TYPE = resource_type("trak");
-constexpr uint32_t TRACK_HEADER_ATOM_TYPE = resource_type("tkhd");
-constexpr uint32_t EDITS_ATOM_TYPE = resource_type("edts");
-constexpr uint32_t EDIT_LIST_ATOM_TYPE = resource_type("elst");
-constexpr uint32_t HANDLER_ATOM_TYPE = resource_type("hdlr");
-constexpr uint32_t MEDIA_ATOM_TYPE = resource_type("mdia");
-constexpr uint32_t MEDIA_HEADER_ATOM_TYPE = resource_type("mdhd");
-constexpr uint32_t MEDIA_INFO_ATOM_TYPE = resource_type("minf");
-constexpr uint32_t BASE_MEDIA_INFO_HEADER_ATOM_TYPE = resource_type("gmhd");
-constexpr uint32_t BASE_MEDIA_INFO_ATOM_TYPE = resource_type("gmin");
-constexpr uint32_t DATA_INFO_ATOM_TYPE = resource_type("dinf");
-constexpr uint32_t DATA_REFERENCE_ATOM_TYPE = resource_type("dref");
-constexpr uint32_t DATA_REFERENCE_ALIAS_ATOM_TYPE = resource_type("alis");
-constexpr uint32_t DATA_REFERENCE_HANDLE_ATOM_TYPE = resource_type("hndl");
-constexpr uint32_t DATA_REFERENCE_HANDLE_DATA_ATOM_TYPE = resource_type("data");
-// constexpr uint32_t DATA_REFERENCE_RESOURCE_ATOM_TYPE = resource_type("rsrc");
-// constexpr uint32_t DATA_REFERENCE_URL_ATOM_TYPE = resource_type("url ");
-constexpr uint32_t SAMPLE_TABLE_ATOM_TYPE = resource_type("stbl");
-constexpr uint32_t SAMPLE_DESCRIPTION_ATOM_TYPE = resource_type("stsd");
-constexpr uint32_t TIME_TO_SAMPLE_ATOM_TYPE = resource_type("stts");
-constexpr uint32_t SAMPLE_TO_CHUNK_ATOM_TYPE = resource_type("stsc");
-constexpr uint32_t SAMPLE_SIZES_ATOM_TYPE = resource_type("stsz");
-constexpr uint32_t CHUNK_OFFSETS_ATOM_TYPE = resource_type("stco");
-constexpr uint32_t USER_DATA_ATOM_TYPE = resource_type("udta");
-constexpr uint32_t CLIP_ATOM_TYPE = resource_type("clip");
-// constexpr uint32_t CLIP_REGION_ATOM_TYPE = resource_type("crgn");
+static constexpr uint32_t WIDE_ATOM_TYPE = resource_type("wide");
+static constexpr uint32_t FREE_ATOM_TYPE = resource_type("free");
+static constexpr uint32_t MOVIE_DATA_ATOM_TYPE = resource_type("mdat");
+static constexpr uint32_t MOVIE_ATOM_TYPE = resource_type("moov");
+static constexpr uint32_t MOVIE_HEADER_ATOM_TYPE = resource_type("mvhd");
+static constexpr uint32_t TRACK_ATOM_TYPE = resource_type("trak");
+static constexpr uint32_t TRACK_HEADER_ATOM_TYPE = resource_type("tkhd");
+static constexpr uint32_t EDITS_ATOM_TYPE = resource_type("edts");
+static constexpr uint32_t EDIT_LIST_ATOM_TYPE = resource_type("elst");
+static constexpr uint32_t HANDLER_ATOM_TYPE = resource_type("hdlr");
+static constexpr uint32_t MEDIA_ATOM_TYPE = resource_type("mdia");
+static constexpr uint32_t MEDIA_HEADER_ATOM_TYPE = resource_type("mdhd");
+static constexpr uint32_t MEDIA_INFO_ATOM_TYPE = resource_type("minf");
+static constexpr uint32_t BASE_MEDIA_INFO_HEADER_ATOM_TYPE = resource_type("gmhd");
+static constexpr uint32_t BASE_MEDIA_INFO_ATOM_TYPE = resource_type("gmin");
+static constexpr uint32_t DATA_INFO_ATOM_TYPE = resource_type("dinf");
+static constexpr uint32_t DATA_REFERENCE_ATOM_TYPE = resource_type("dref");
+static constexpr uint32_t DATA_REFERENCE_ALIAS_ATOM_TYPE = resource_type("alis");
+static constexpr uint32_t DATA_REFERENCE_HANDLE_ATOM_TYPE = resource_type("hndl");
+static constexpr uint32_t DATA_REFERENCE_HANDLE_DATA_ATOM_TYPE = resource_type("data");
+// static constexpr uint32_t DATA_REFERENCE_RESOURCE_ATOM_TYPE = resource_type("rsrc");
+// static constexpr uint32_t DATA_REFERENCE_URL_ATOM_TYPE = resource_type("url ");
+static constexpr uint32_t SAMPLE_TABLE_ATOM_TYPE = resource_type("stbl");
+static constexpr uint32_t SAMPLE_DESCRIPTION_ATOM_TYPE = resource_type("stsd");
+static constexpr uint32_t TIME_TO_SAMPLE_ATOM_TYPE = resource_type("stts");
+static constexpr uint32_t SAMPLE_TO_CHUNK_ATOM_TYPE = resource_type("stsc");
+static constexpr uint32_t SAMPLE_SIZES_ATOM_TYPE = resource_type("stsz");
+static constexpr uint32_t CHUNK_OFFSETS_ATOM_TYPE = resource_type("stco");
+static constexpr uint32_t USER_DATA_ATOM_TYPE = resource_type("udta");
+static constexpr uint32_t CLIP_ATOM_TYPE = resource_type("clip");
+// static constexpr uint32_t CLIP_REGION_ATOM_TYPE = resource_type("crgn");
 
 // Handler types
-constexpr uint32_t MUSI_COMPONENT_TYPE = resource_type("mhlr");
-constexpr uint32_t MUSI_COMPONENT_SUBTYPE = resource_type("musi");
+static constexpr uint32_t MUSI_COMPONENT_TYPE = resource_type("mhlr");
+static constexpr uint32_t MUSI_COMPONENT_SUBTYPE = resource_type("musi");
 
 struct SSAIAtom {
   /* 08 */ phosg::be_uint32_t atom_number = 0;
@@ -963,6 +966,17 @@ protected:
 
   virtual void handle_atom(uint32_t type, phosg::StringReader& r) {
     switch (type) {
+      case WIDE_ATOM_TYPE:
+        if (r.size() != 0) {
+          this->throw_parse_error("wide atom contains data");
+        }
+        break;
+      case FREE_ATOM_TYPE:
+      case MOVIE_DATA_ATOM_TYPE:
+        // Ignore the contents of these. In the case of mdat, the data is referred to by absolute file offsets from
+        // within moov child atoms; we don't have to do anything here
+        r.skip(r.remaining());
+        break;
       case MOVIE_ATOM_TYPE:
         this->parse_atom_list(r.extract(), -1, {MOVIE_HEADER_ATOM_TYPE});
         break;
@@ -1198,9 +1212,7 @@ protected:
 
 Movie::Movie(std::string_view moov, std::string_view mdat) {
   MovieParser parser(this);
-
-  // Parse only the first atom; the mdat atom (unsized) may be appended after the moov atom
-  parser.parse(moov.substr(0, phosg::StringReader(moov).get_u32b()));
+  parser.parse(moov);
 
   for (auto& media : this->media) {
     // TODO: How should we handle this? Is this what SampleToChunkEntry is for?
@@ -1224,8 +1236,10 @@ Movie::Movie(std::string_view moov, std::string_view mdat) {
 
 QTMASequence Movie::as_qtma_sequence() const {
   // TODO: We probably can support this in the future; just return a vector/map
-  if (this->media.size() != 1) {
+  if (this->media.size() > 1) {
     throw std::runtime_error("Movie has multiple media");
+  } else if (this->media.empty()) {
+    throw std::runtime_error("Movie has no media");
   }
   const auto& media = this->media[0];
   if (!media.media_handler) {
