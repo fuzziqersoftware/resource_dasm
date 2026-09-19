@@ -1015,7 +1015,7 @@ protected:
     std::shared_ptr<Voice> voice;
     if (this->env) {
       try {
-        if (this->mute_tracks.count(t->id)) {
+        if (this->mute_tracks.count(t->id) || (!solo_tracks.empty() && !solo_tracks.contains(t->id))) {
           voice = std::make_shared<SilentVoice>(this->sample_rate, key, vel, c);
         } else {
           voice = std::make_shared<SampleVoice>(
@@ -1125,9 +1125,12 @@ public:
     notes_table[0x80] = 0;
     for (const auto& t : this->tracks) {
       // Get all voices, including those that are fading
-      std::unordered_set<std::shared_ptr<Voice>> all_voices = t->voices_off;
+      std::unordered_set<Voice*> all_voices;
       for (auto& it : t->voices) {
-        all_voices.insert(it.second);
+        all_voices.insert(it.second.get());
+      }
+      for (auto& it : t->voices_off) {
+        all_voices.insert(it.get());
       }
 
       // Render all the voices
@@ -2124,6 +2127,7 @@ int main(int argc, char** argv) {
   double volume_bias = 1.0;
   bool list_sequences = false;
   int32_t default_bank = -1;
+  float sms_note_decay = -1.0f;
   ResourceDASM::Audio::ResampleMethod resample_method = ResourceDASM::Audio::ResampleMethod::LINEAR_INTERPOLATE;
   std::string env_json_filename;
   for (int x = 1; x < argc; x++) {
@@ -2183,6 +2187,8 @@ int main(int argc, char** argv) {
       resample_method = ResourceDASM::Audio::ResampleMethod::LINEAR_INTERPOLATE;
     } else if (!strncmp(argv[x], "--default-bank=", 15)) {
       default_bank = atoi(&argv[x][15]);
+    } else if (!strncmp(argv[x], "--sms-note-decay=", 17)) {
+      sms_note_decay = atof(&argv[x][17]);
     } else if (!strncmp(argv[x], "--tempo-bias=", 13)) {
       tempo_bias = parse_fraction(&argv[x][13]);
     } else if (!strncmp(argv[x], "--freq-bias=", 12)) {
@@ -2237,7 +2243,9 @@ int main(int argc, char** argv) {
   if (!env_json.is_null()) {
     env.reset(new ResourceDASM::Audio::SoundEnvironment(
         ResourceDASM::Audio::create_json_sound_environment(
-            env_json.at("instruments"), env_json.get_float("note_decay", 12.0f) / 60.0f, env_json_dir)));
+            env_json.at("instruments"),
+            (sms_note_decay >= 0) ? sms_note_decay : (env_json.get_float("note_decay", 12.0f) / 60.0f),
+            env_json_dir)));
   } else if (aaf_directory) {
     env.reset(new ResourceDASM::Audio::SoundEnvironment(
         ResourceDASM::Audio::load_sound_environment(aaf_directory)));

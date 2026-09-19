@@ -231,6 +231,7 @@ public:
       uint8_t key_low;
       uint8_t key_high;
       uint8_t base_note;
+      int16_t override_volume;
       int16_t snd_id;
       uint32_t snd_type; // can be RESOURCE_TYPE_snd or RESOURCE_TYPE_csnd
 

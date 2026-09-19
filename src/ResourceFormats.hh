@@ -681,7 +681,10 @@ struct InstrumentResourceHeader {
   uint8_t flags1;
   uint8_t flags2;
   int8_t smod_id;
-  phosg::be_int16_t smod_params[2];
+  // If USE_SOUND_MODIFIER_AS_BASE_NOTE is set, this is a base note delta for the sound
+  phosg::be_int16_t param1;
+  // If USE_SOUND_MODIFIER_AS_BASE_NOTE is set, this is an override volume level (0-100, with 0 behaving as 100)
+  phosg::be_int16_t param2;
   phosg::be_uint16_t num_key_regions;
 } __attribute__((packed));
 
@@ -689,9 +692,9 @@ struct InstrumentResourceKeyRegion {
   // low/high are inclusive
   uint8_t key_low;
   uint8_t key_high;
-
   phosg::be_int16_t snd_id;
-  phosg::be_int16_t smod_params[2];
+  phosg::be_int16_t param1;
+  phosg::be_int16_t param2;
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -704,6 +707,7 @@ struct SMSSongResourceHeader {
   } __attribute__((packed));
 
   enum Flags1 {
+    LOCKED = 0x80,
     TERMINATE_DECAY_NOTES_EARLY = 0x40,
     NOTE_INTERPOLATE_ENTIRE_SONG = 0x20,
     NOTE_INTERPOLATE_LEAD_INSTRUMENT = 0x10,
@@ -713,11 +717,14 @@ struct SMSSongResourceHeader {
     USE_LEAD_INSTRUMENT_FOR_ALL_VOICES = 0x01,
   };
   enum Flags2 {
+    IGNORE_BAD_PATCHES = 0x80,
+    RESERVED4 = 0x40,
     INTERPOLATE_11KHZ_BUFFER = 0x20,
     ENABLE_PITCH_RANDOMNESS = 0x10,
     AMPLITUDE_SCALE_LEAD_INSTRUMENT = 0x08,
     AMPLITUDE_SCALE_ALL_INSTRUMENTS = 0x04,
     ENABLE_AMPLITUDE_SCALING = 0x02,
+    RESERVED6 = 0x01,
   };
 
   phosg::be_int16_t midi_id;

@@ -1094,7 +1094,8 @@ DisassembleResult MCS6502Emulator::disassemble_one_structured(DisassemblyState& 
       .is_valid = s.prev_was_valid,
       .address = s.opcode_start_address,
       .size = s.r.where() - opcode_offset,
-      .disassembly = std::move(disassembly)});
+      .disassembly = std::move(disassembly),
+      .imm_offsets = {}});
 
   return ret;
 }
