@@ -19,7 +19,6 @@
 - FOND
 - ictb (IM: Toolbox Essentials, 6-159)
 - mctb (IM: Toolbox Essentials, 3-156; there's a TMPL for this too)
-- MOOV/MooV/moov
 - ppat type 2 is not monochrome; it's RGB (see QuickDraw docs). Unclear if these are ever stored in resource forks though
 - Should we add icm and kcs icons to .icns output files too? (kcs should be added as ics types, which could conflict)
 

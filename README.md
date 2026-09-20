@@ -553,16 +553,18 @@ Classic Mac OS games that use SoundMusicSys currently fare much better than JAud
 - __Widget Workshop__: 100%
 
 QTMA/Tune decoding and playback isn't as good as SoundMusicSys:
-- __Billmo Comedy__: 95%; same issue as Harry the Handsome Executive
-- __BonYx__: 95%; same issue as Harry the Handsome Executive
+- __Ant Run Pro__: 100%
+- __Billmo Comedy__: 100%
+- __BonYx__: 100%
 - __DeadEnd__: 100%
-- __Greebles__: 95%; same issue as Harry the Handsome Executive
+- __Greebles__: 100%
 - __Harry the Handsome Executive__: 95%; some volume envelopes are incorrect so a few notes seem to end earlier or later than they should
+- __Jewel of Arabia__: 80%
 - __MacDo__: 80%
 - __Pop!__: 100%
-- __Skittles__: 5%; don't play these if you value your sense of hearing
-- __Step On It!__: 80%; some controller effects don't do the right thing, so _Bass For Lunch_'s pitch bends sound weird
-
+- __SimCity 1.5__: 5%; don't play these if you value your sense of hearing
+- __Skittles__: 5%; same as SimCity 1.5
+- __Step On It!__: 100%
 
 ### Getting auxiliary files from GameCube games
 

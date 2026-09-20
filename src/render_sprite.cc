@@ -18,7 +18,7 @@
 
 template <phosg::PixelFormat Format>
 void write_output(
-    const ResourceDASM::ImageSaver& image_saver, const std::string& output_prefix, const phosg::Image<Format>& img) {
+    const ResourceDASM::ImageSaver& image_saver, std::string_view output_prefix, const phosg::Image<Format>& img) {
   std::string filename = image_saver.save_image(img, output_prefix);
   phosg::fwrite_fmt(stderr, "... {}\n", filename);
 }
@@ -26,7 +26,7 @@ void write_output(
 template <phosg::PixelFormat Format>
 void write_output(
     const ResourceDASM::ImageSaver& image_saver,
-    const std::string& output_prefix,
+    std::string_view output_prefix,
     const std::vector<phosg::Image<Format>>& seq) {
   for (size_t x = 0; x < seq.size(); x++) {
     std::string filename = std::format("{}.{}", output_prefix, x);
@@ -38,7 +38,7 @@ void write_output(
 template <phosg::PixelFormat Format>
 void write_output(
     const ResourceDASM::ImageSaver& image_saver,
-    const std::string& output_prefix,
+    std::string_view output_prefix,
     const std::unordered_map<std::string, phosg::Image<Format>>& dict) {
   for (const auto& it : dict) {
     std::string filename = std::format("{}.{}", output_prefix, it.first);
@@ -49,7 +49,7 @@ void write_output(
 
 void write_output(
     const ResourceDASM::ImageSaver& image_saver,
-    const std::string& output_prefix,
+    std::string_view output_prefix,
     const std::map<size_t, ResourceDASM::ColorPPSSEntry>& dict) {
   for (const auto& it : dict) {
     std::string filename = std::format("{}.{}", output_prefix, it.first);
@@ -58,21 +58,21 @@ void write_output(
   }
 }
 
-void write_output(const std::string& output_prefix, const ResourceDASM::DecodedShap3D& shap) {
-  std::string filename = output_prefix + "_model.stl";
+void write_output(std::string_view output_prefix, const ResourceDASM::DecodedShap3D& shap) {
+  std::string filename = std::format("{}_model.stl", output_prefix);
   phosg::save_file(filename, shap.model_as_stl());
   phosg::fwrite_fmt(stderr, "... {}\n", filename);
-  filename = output_prefix + "_model.obj";
+  filename = std::format("{}_model.obj", output_prefix);
   phosg::save_file(filename, shap.model_as_obj());
   phosg::fwrite_fmt(stderr, "... {}\n", filename);
-  filename = output_prefix + "_top_view.svg";
+  filename = std::format("{}_top_view.svg", output_prefix);
   phosg::save_file(filename, shap.top_view_as_svg());
   phosg::fwrite_fmt(stderr, "... {}\n", filename);
 }
 
 std::unordered_map<std::string, phosg::ImageRGBA8888N> decode_SHPD_collection_images_only(
     ResourceDASM::ResourceFile& rf,
-    const std::string& data_fork_contents,
+    std::string_view data_fork_contents,
     const std::vector<ResourceDASM::ColorTableEntry>& clut,
     ResourceDASM::SHPDVersion version) {
   std::unordered_map<std::string, phosg::ImageRGBA8888N> ret;
@@ -88,19 +88,19 @@ std::unordered_map<std::string, phosg::ImageRGBA8888N> decode_SHPD_collection_im
 }
 
 struct Format {
-  using DecoderG1 = std::function<phosg::ImageG1(const std::string&)>;
-  using DecoderG1Multi = std::function<std::vector<phosg::ImageG1>(const std::string&)>;
-  using DecoderGA11 = std::function<phosg::ImageGA11(const std::string&)>;
-  using DecoderRGB888WithCLUT = std::function<phosg::ImageRGB888(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888WithCLUT = std::function<phosg::ImageRGBA8888N(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGB888MultiWithCLUT = std::function<std::vector<phosg::ImageRGB888>(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888 = std::function<phosg::ImageRGBA8888N(const std::string&)>;
-  using DecoderRGBA8888Multi = std::function<std::vector<phosg::ImageRGBA8888N>(const std::string&)>;
-  using DecoderRGBA8888MultiWithCLUT = std::function<std::vector<phosg::ImageRGBA8888N>(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888PPSSMapWithCLUT = std::function<std::map<size_t, ResourceDASM::ColorPPSSEntry>(const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888MapFromResCollWithCLUT = std::function<std::unordered_map<std::string, phosg::ImageRGBA8888N>(ResourceDASM::ResourceFile&, const std::string&, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderPICT = std::function<ResourceDASM::ResourceFile::DecodedPICTResource(const std::string&)>;
-  using DecoderModelAndVectorImage = std::function<ResourceDASM::DecodedShap3D(const std::string&)>;
+  using DecoderG1 = std::function<phosg::ImageG1(std::string_view)>;
+  using DecoderG1Multi = std::function<std::vector<phosg::ImageG1>(std::string_view)>;
+  using DecoderGA11 = std::function<phosg::ImageGA11(std::string_view)>;
+  using DecoderRGB888WithCLUT = std::function<phosg::ImageRGB888(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGBA8888WithCLUT = std::function<phosg::ImageRGBA8888N(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGB888MultiWithCLUT = std::function<std::vector<phosg::ImageRGB888>(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGBA8888 = std::function<phosg::ImageRGBA8888N(std::string_view)>;
+  using DecoderRGBA8888Multi = std::function<std::vector<phosg::ImageRGBA8888N>(std::string_view)>;
+  using DecoderRGBA8888MultiWithCLUT = std::function<std::vector<phosg::ImageRGBA8888N>(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGBA8888PPSSMapWithCLUT = std::function<std::map<size_t, ResourceDASM::ColorPPSSEntry>(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGBA8888MapFromResCollWithCLUT = std::function<std::unordered_map<std::string, phosg::ImageRGBA8888N>(ResourceDASM::ResourceFile&, std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderPICT = std::function<ResourceDASM::ResourceFile::DecodedPICTResource(std::string_view)>;
+  using DecoderModelAndVectorImage = std::function<ResourceDASM::DecodedShap3D(std::string_view)>;
 
   using DecoderT = std::variant<
       DecoderG1,

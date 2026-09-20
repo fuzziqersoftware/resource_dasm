@@ -48,7 +48,7 @@ std::string decompress_soundmusicsys_lzss(const void* vsrc, size_t size) {
   return ret;
 }
 
-std::string decompress_soundmusicsys_lzss(const std::string& data) {
+std::string decompress_soundmusicsys_lzss(std::string_view data) {
   return decompress_soundmusicsys_lzss(data.data(), data.size());
 }
 

@@ -219,7 +219,7 @@ uint32_t load_pe(std::shared_ptr<ResourceDASM::MemoryContext> mem, const std::st
   uint32_t base = pe.load_into(mem);
 
   // Set the base and exported function address symbols
-  std::string symbol_prefix = phosg::basename(filename) + ":";
+  std::string symbol_prefix = std::format("{}:", phosg::basename(filename));
   mem->set_symbol_addr(symbol_prefix + "<base>", base);
   for (const auto& it : pe.labels_for_loaded_exports(base)) {
     mem->set_symbol_addr(symbol_prefix + it.second, it.first);

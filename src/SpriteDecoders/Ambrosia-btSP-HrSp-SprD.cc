@@ -7,7 +7,7 @@
 
 namespace ResourceDASM {
 
-phosg::ImageRGBA8888N decode_btSP(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGBA8888N decode_btSP(std::string_view data, const std::vector<ColorTableEntry>& clut) {
   if (data.size() < 8) {
     throw std::invalid_argument("not enough data");
   }
@@ -174,7 +174,7 @@ static phosg::ImageRGBA8888N decode_HrSp_commands(
 }
 
 phosg::ImageRGBA8888N decode_HrSp(
-    const std::string& data, const std::vector<ColorTableEntry>& clut, size_t header_size) {
+    std::string_view data, const std::vector<ColorTableEntry>& clut, size_t header_size) {
   if (header_size < 8) {
     throw std::logic_error("header size is too small");
   }
@@ -197,7 +197,7 @@ phosg::ImageRGBA8888N decode_HrSp(
   return decode_HrSp_commands(r, width, height, clut);
 }
 
-std::vector<phosg::ImageRGBA8888N> decode_SprD(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+std::vector<phosg::ImageRGBA8888N> decode_SprD(std::string_view data, const std::vector<ColorTableEntry>& clut) {
   phosg::StringReader r(data.data(), data.size());
 
   std::vector<phosg::ImageRGBA8888N> ret;

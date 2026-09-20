@@ -63,7 +63,7 @@ std::string decompress_Yaz0(const void* data, size_t size) {
   return std::move(w.str());
 }
 
-std::string decompress_Yaz0(const std::string& data) {
+std::string decompress_Yaz0(std::string_view data) {
   return decompress_Yaz0(data.data(), data.size());
 }
 

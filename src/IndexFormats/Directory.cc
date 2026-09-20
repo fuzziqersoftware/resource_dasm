@@ -12,7 +12,7 @@
 
 namespace ResourceDASM {
 
-ResourceFile load_resource_file_from_directory(const std::string& dir_path) {
+ResourceFile load_resource_file_from_directory(std::string_view dir_path) {
   ResourceFile ret;
   for (const auto& type_item : std::filesystem::directory_iterator(dir_path)) {
     if (!type_item.is_directory()) {
@@ -76,7 +76,7 @@ ResourceFile load_resource_file_from_directory(const std::string& dir_path) {
   return ret;
 }
 
-void save_resource_file_to_directory(const ResourceFile& rf, const std::string& dir_path) {
+void save_resource_file_to_directory(const ResourceFile& rf, std::string_view dir_path) {
   std::filesystem::path base_path = dir_path;
   // TODO: This is kinda dumb. It'd be nice if we could use a generator to just iterate the
   // std::shared_ptr<const Resource> objects directly

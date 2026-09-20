@@ -23,15 +23,15 @@ struct SpriHeader {
   // uint8_t blitter_code[...EOF]
 } __attribute__((packed));
 
-phosg::ImageRGBA8888N decode_Spri(const std::string& spri_data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGBA8888N decode_Spri(std::string_view spri_data, const std::vector<ColorTableEntry>& clut) {
   phosg::StringReader r(spri_data);
 
   const auto& header = r.get<SpriHeader>();
   if (header.area != header.side * header.side) {
     throw std::runtime_error("sprite is not square");
   }
-  std::string data = r.read(header.area);
-  std::string code = r.read(r.size() - r.where());
+  std::string_view data = r.read(header.area);
+  std::string_view code = r.read(r.size() - r.where());
 
   // To render these sprites with accurate transparency, we have to actually execute the code they contain.
   // Fortunately, the code's interface is fairly simple (and is described below). In its original mode of operation,
@@ -125,7 +125,7 @@ phosg::ImageRGBA8888N decode_Spri(const std::string& spri_data, const std::vecto
   wrapper_code_w.put_u16b(0x4E70);
 
   // Set up the wrapper code region
-  const std::string& wrapper_code = wrapper_code_w.str();
+  std::string_view wrapper_code = wrapper_code_w.str();
   uint32_t wrapper_code_addr = 0xF0000000;
   mem->allocate_at(wrapper_code_addr, wrapper_code.size());
   mem->memcpy(wrapper_code_addr, wrapper_code.data(), wrapper_code.size());

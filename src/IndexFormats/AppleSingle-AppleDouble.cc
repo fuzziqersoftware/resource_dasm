@@ -149,23 +149,23 @@ DecodedAppleSingle parse_applesingle_appledouble(phosg::StringReader& r) {
   return ret;
 }
 
-DecodedAppleSingle parse_applesingle_appledouble(const std::string& data) {
+DecodedAppleSingle parse_applesingle_appledouble(std::string_view data) {
   phosg::StringReader r(data.data(), data.size());
   return parse_applesingle_appledouble(r);
 }
 
-ResourceFile parse_applesingle_appledouble_resource_fork(const std::string& data) {
+ResourceFile parse_applesingle_appledouble_resource_fork(std::string_view data) {
   auto parsed = parse_applesingle_appledouble(data);
   return std::move(parsed.resource_fork);
 }
 
 std::string DecodedAppleSingle::serialize() const {
   size_t offset = 0;
-  std::vector<std::pair<Entry, const std::string*>> entries;
-  auto add_entry = [&](Entry::Type type, const std::string& data) {
+  std::vector<std::pair<Entry, std::string_view>> entries;
+  auto add_entry = [&](Entry::Type type, std::string_view data) {
     if (!data.empty()) {
       entries.emplace_back(std::make_pair(
-          Entry{.be_type = static_cast<uint32_t>(type), .offset = offset, .size = data.size()}, &data));
+          Entry{.be_type = static_cast<uint32_t>(type), .offset = offset, .size = data.size()}, data));
       offset += data.size();
     }
   };
@@ -209,7 +209,7 @@ std::string DecodedAppleSingle::serialize() const {
     w.put<Entry>(it.first);
   }
   for (const auto& it : entries) {
-    w.write(*it.second);
+    w.write(it.second);
   }
   return std::move(w.str());
 }

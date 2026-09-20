@@ -53,7 +53,7 @@ static phosg::ImageRGBA8888N decode_lemmings_color_image(
 std::map<size_t, DecodedSHPDImage> decode_SHPD_images(
     ResourceFile& rf,
     int16_t shpd_id,
-    const std::string& data,
+    std::string_view data,
     const std::vector<ColorTableEntry>& clut,
     SHPDVersion version) {
   phosg::StringReader r(data);
@@ -130,7 +130,7 @@ std::map<size_t, DecodedSHPDImage> decode_SHPD_images(
 
 std::unordered_map<size_t, DecodedSHPDImage> decode_SHPD(
     ResourceFile& rf,
-    const std::string& data_fork_contents,
+    std::string_view data_fork_contents,
     int16_t res_id,
     const std::vector<ColorTableEntry>& clut,
     SHPDVersion version) {

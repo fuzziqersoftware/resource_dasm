@@ -3846,7 +3846,7 @@ void SH4Emulator::Assembler::assemble(
   size_t line_num = 0;
   size_t stream_offset = 0;
   while (!r.eof()) {
-    std::string line = r.get_line();
+    std::string line{r.get_line()};
     line_num++;
 
     try {

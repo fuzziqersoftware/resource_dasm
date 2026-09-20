@@ -6714,7 +6714,7 @@ void PPC32Emulator::Assembler::assemble(
   size_t stream_offset = 0;
   uint32_t si_address = this->start_address;
   while (!r.eof()) {
-    std::string line = r.get_line();
+    std::string line{r.get_line()};
     line_num++;
 
     try {

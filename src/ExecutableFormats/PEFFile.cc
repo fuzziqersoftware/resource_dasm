@@ -76,9 +76,9 @@ static uint64_t read_pattern_varint(phosg::StringReader& r) {
   return ret;
 }
 
-static std::string decompress_pattern_data(const std::string& data) {
+static std::string decompress_pattern_data(std::string_view data) {
   std::string ret;
-  phosg::StringReader r(data.data(), data.size());
+  phosg::StringReader r(data);
   while (!r.eof()) {
     uint8_t b = r.get_u8();
     uint8_t op = (b >> 5) & 0x07;
@@ -96,7 +96,7 @@ static std::string decompress_pattern_data(const std::string& data) {
         break;
       case 2: { // write block repeatedly
         uint32_t repeat_count = read_pattern_varint(r) + 1;
-        std::string data = r.read(count);
+        auto data = r.read(count);
         for (; repeat_count; repeat_count--) {
           ret.append(data);
         }
@@ -106,7 +106,7 @@ static std::string decompress_pattern_data(const std::string& data) {
         uint32_t common_size = count;
         uint32_t custom_size = read_pattern_varint(r);
         uint32_t custom_section_count = read_pattern_varint(r);
-        std::string common_data = r.read(common_size);
+        auto common_data = r.read(common_size);
         for (; custom_section_count; custom_section_count--) {
           ret.append(common_data);
           ret.append(r.read(custom_size));
@@ -361,12 +361,14 @@ void PEFFile::parse(const void* data, size_t size) {
 
     auto sec_kind = static_cast<PEFSectionKind>(sec_header.section_kind);
 
+    std::string pattern_data;
     auto sec_data = r.pread(sec_header.container_offset, sec_header.packed_size);
     if (sec_kind == PEFSectionKind::PATTERN_DATA) {
-      sec_data = decompress_pattern_data(sec_data);
+      pattern_data = decompress_pattern_data(sec_data);
+      sec_data = pattern_data;
     } else if (sec_kind == PEFSectionKind::LOADER) {
       this->parse_loader_section(sec_data.data(), sec_data.size());
-      sec_data.clear();
+      sec_data = std::string_view{};
     }
 
     std::string name;

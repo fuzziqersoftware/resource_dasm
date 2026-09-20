@@ -29,6 +29,7 @@
 #include "Emulators/M68KEmulator.hh"
 #include "Emulators/PPC32Emulator.hh"
 #include "Emulators/X86Emulator.hh"
+#include "ExecutableFormats/ClassicMacOSApplication.hh"
 #include "ExecutableFormats/DOLFile.hh"
 #include "ExecutableFormats/ELFFile.hh"
 #include "ExecutableFormats/PEFFile.hh"
@@ -1171,257 +1172,6 @@ private:
     this->write_decoded_data(base_filename, res, ".txt", disassembly);
   }
 
-  struct DecompArchiveData {
-    std::string data;
-    uint32_t base = 0xA0000000;
-    uint32_t a5 = 0xA0000000;
-    uint32_t a5_world_size = 0;
-    uint32_t stop_address = 0;
-    std::map<int16_t, uint32_t> segment_bases;
-
-    ResourceDASM::Code0ResourceHeader* code0() {
-      return reinterpret_cast<ResourceDASM::Code0ResourceHeader*>(this->data.data() + this->a5 - this->base + 0x10);
-    }
-  };
-
-  DecompArchiveData generate_decomp_archive() const {
-    auto code0_res = this->current_rf->get_resource(ResourceDASM::RESOURCE_TYPE_CODE, static_cast<int16_t>(0));
-    auto code0_dec = this->current_rf->decode_CODE_0(code0_res);
-    if (code0_res->data.size() + 0x10 > code0_dec.above_a5_size) {
-      throw std::runtime_error("CODE 0 does not fit in space above A5");
-    }
-
-    DecompArchiveData ret;
-    ret.base = 0xA0000000;
-    ret.a5 = ret.base + code0_dec.below_a5_size;
-    ret.a5_world_size = code0_dec.below_a5_size + 0x10 + code0_dec.above_a5_size;
-
-    // If there are DATA and ZERO resources, we can initialize the global state without emulation
-    constexpr static int16_t global_init_res_id = 0;
-    auto data_res = this->current_rf->get_resource_if_exists(ResourceDASM::RESOURCE_TYPE_DATA, global_init_res_id);
-    auto zero_res = this->current_rf->get_resource_if_exists(ResourceDASM::RESOURCE_TYPE_ZERO, global_init_res_id);
-    if (data_res && zero_res) {
-      phosg::StringWriter global_data_w;
-      phosg::StringReader data_r(data_res->data);
-      phosg::StringReader zero_r(zero_res->data);
-      while (!data_r.eof()) {
-        uint16_t v = data_r.get_u16b();
-        global_data_w.put_u16b(v);
-        if (v == 0) {
-          global_data_w.extend_by(zero_r.get_u16b(), 0);
-        }
-      }
-      if (global_data_w.size() > code0_dec.below_a5_size) {
-        throw std::runtime_error("Decompressed global data does not fit in below A5 region");
-      } else if (global_data_w.size() < code0_dec.below_a5_size) {
-        phosg::fwrite_fmt(stderr,
-            "warning: decompressed global data (0x{:X} bytes) is smaller than below A5 region (0x{:X} bytes)\n",
-            global_data_w.size(), code0_dec.below_a5_size);
-      }
-      ret.data = std::move(global_data_w.str());
-
-      ret.data.resize(code0_dec.below_a5_size + 0x10 + code0_dec.above_a5_size, '\0');
-      ret.a5 = ret.base + code0_dec.below_a5_size;
-      memcpy(ret.code0(), code0_res->data.data(), code0_res->data.size());
-      size_t num_jump_table_entries = code0_dec.jump_table.size();
-
-      for (const auto& res_id : this->current_rf->all_resources_of_type(ResourceDASM::RESOURCE_TYPE_CODE)) {
-        if (res_id == 0) {
-          continue;
-        }
-        auto code = this->current_rf->decode_CODE(res_id);
-
-        uint32_t segment_base = ret.base + ret.data.size();
-        ret.segment_bases.emplace(res_id, segment_base);
-        ret.data += code.code;
-        if (ret.data.size() & 1) {
-          ret.data.push_back(0xFF);
-        }
-
-        if (code.num_jump_table_entries > 0) {
-          if (code.first_jump_table_entry_index < 0) {
-            throw std::runtime_error("Adding far model CODE resources to decomp archives is not supported yet");
-          }
-          if (code.first_jump_table_entry_index + code.num_jump_table_entries > static_cast<ssize_t>(num_jump_table_entries)) {
-            throw std::runtime_error(std::format(
-                "CODE {} refers to {} jump table entries starting at index {}, but there are only {} entries in total",
-                res_id, code.num_jump_table_entries, code.first_jump_table_entry_index, num_jump_table_entries));
-          }
-          for (size_t z = 0; z < code.num_jump_table_entries; z++) {
-            // Expect the jump table entry to be like XXXX 3F3C YYYY A9F0, where X = offset into code and Y = CODE id
-            size_t entry_index = code.first_jump_table_entry_index + z;
-            auto& entry = ret.code0()->entries[entry_index];
-            if ((entry.push_opcode != 0x3F3C) || (entry.resource_id != res_id) || (entry.trap_opcode != 0xA9F0)) {
-              throw std::runtime_error(std::format(
-                  "Jump table entry {} is not valid for CODE {} ({})",
-                  entry_index, res_id, phosg::format_data_string(&entry, sizeof(entry))));
-            }
-            uint32_t target = segment_base + entry.offset;
-            entry.offset = static_cast<uint16_t>(res_id);
-            entry.push_opcode = 0x4EF9;
-            entry.resource_id = static_cast<int16_t>(target >> 16);
-            entry.trap_opcode = target & 0xFFFF;
-          }
-        }
-      }
-
-      auto drel_res = this->current_rf->get_resource_if_exists(ResourceDASM::RESOURCE_TYPE_DREL, global_init_res_id);
-      if (drel_res) {
-        phosg::StringReader r(drel_res->data);
-        while (!r.eof()) {
-          int32_t v = static_cast<int32_t>(r.get_s16b());
-          // If the low bit is set, it's relative to the start of the first code resource?
-          uint32_t base_offset = (code0_dec.below_a5_size + ((v & 1) * (0x10 + code0_dec.above_a5_size)));
-          uint32_t relocation_offset = base_offset + (v & (~1));
-          if (relocation_offset > ret.data.size() - 4) {
-            throw std::runtime_error("Invalid relocation");
-          }
-          *reinterpret_cast<phosg::be_uint32_t*>(ret.data.data() + relocation_offset) += ret.base + base_offset;
-        }
-      } else {
-        phosg::fwrite_fmt(stderr, "warning: DREL:0 is missing; skipping relocations\n");
-      }
-
-    } else {
-      // The application doesn't appear to use a known initialization paradigm.
-      // General strategy: run the application until it performs any syscall except the few implemented below. This
-      // allows us to handle arbitrary methods of initializing the A5 world, at the cost of it possibly executing too
-      // much or too little code and producing an incorrectly-initialized application.
-
-      auto mem = std::make_shared<ResourceDASM::MemoryContext>();
-
-      // Allocate stack region
-      static constexpr uint32_t stack_size = 0x00010000;
-      static constexpr uint32_t stack_addr = 0x80000000 - stack_size;
-      mem->allocate_at(stack_addr, stack_size);
-
-      // Allocate low-memory globals (but not anything in the 00000000-000000FF range; we want null pointer dereferences
-      // to cause errors)
-      mem->allocate_at(0x00000100, sizeof(ResourceDASM::LowMemoryGlobals) - 0x100);
-
-      auto resource_key = [](uint32_t res_type, int16_t res_id) -> uint64_t {
-        return (static_cast<uint64_t>(res_type) << 16) | (static_cast<uint64_t>(res_id) & 0xFFFF);
-      };
-
-      struct CodeResource {
-        std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res;
-        ResourceDASM::ResourceFile::DecodedCodeResource decoded;
-        uint32_t base_addr;
-        uint32_t header_size;
-      };
-      std::map<int16_t, CodeResource> codes;
-      std::unordered_map<uint64_t, uint32_t> loaded_resources;
-      uint32_t next_code_addr = ret.base + ((ret.a5_world_size + 1) & (~1));
-      for (int16_t res_id : this->current_rf->all_resources_of_type(ResourceDASM::RESOURCE_TYPE_CODE)) {
-        if (res_id != 0) {
-          auto res = this->current_rf->get_resource(ResourceDASM::RESOURCE_TYPE_CODE, res_id);
-          auto decoded = this->current_rf->decode_CODE(res);
-          uint32_t header_size = (decoded.first_jump_table_entry_index >= 0)
-              ? sizeof(ResourceDASM::CodeResourceHeader)
-              : sizeof(ResourceDASM::CodeResourceFarHeader);
-          const auto& code = codes.emplace(res_id, CodeResource{res, std::move(decoded), next_code_addr, header_size}).first->second;
-          ret.segment_bases.emplace(res_id, next_code_addr);
-          next_code_addr += (res->data.size() + 1) & (~1);
-          loaded_resources.emplace(resource_key(ResourceDASM::RESOURCE_TYPE_CODE, res_id), code.base_addr);
-        }
-      }
-
-      // Allocate the main region and copy all the CODE resources into it (including CODE 0)
-      mem->allocate_at(ret.base, next_code_addr - ret.base);
-      mem->memcpy(ret.a5 + 0x10, code0_res->data.data(), code0_res->data.size());
-      for (const auto& [_, code] : codes) {
-        mem->memcpy(code.base_addr, code.res->data.data(), code.res->data.size());
-      }
-
-      // Update the jump table since all segments are loaded (keeping the LoadSeg traps would just be confusing later)
-      for (uint32_t addr = ret.a5 + code0_dec.jump_table_a5_offset; addr < ret.a5 + code0_dec.above_a5_size; addr += 8) {
-
-        // Expect the jump table entry to be like XXXX 3F3C YYYY A9F0, where X = offset into code and Y = CODE res id
-        uint64_t entry = mem->read_u64b(addr);
-        if ((entry & 0x0000FFFF0000FFFFULL) != 0x00003F3C0000A9F0ULL) {
-          phosg::fwrite_fmt(stderr, "warning: jump table entry at {:08X} ({:016X}) is not valid\n", addr, entry);
-          continue;
-        }
-        int16_t code_res_id = (entry >> 16) & 0xFFFF;
-        uint16_t offset_after_header = (entry >> 48) & 0xFFFF;
-
-        auto code_it = codes.find(code_res_id);
-        if (code_it == codes.end()) {
-          phosg::fwrite_fmt(stderr, "warning: jump table entry at {:08X} ({:016X}) refers to missing CODE resource {}\n",
-              addr, entry, code_res_id);
-          continue;
-        }
-        const auto& code = code_it->second;
-        uint32_t target = code.base_addr + code.header_size + offset_after_header;
-        mem->write_u64b(addr, 0x00004EF900000000ULL | (static_cast<uint64_t>(code_res_id) << 48) | target);
-      }
-
-      // Start executing at the first jump table entry
-      ResourceDASM::M68KEmulator emu(mem);
-      auto& regs = emu.registers();
-      regs.a[5] = ret.a5;
-      regs.a[7] = stack_addr + stack_size;
-      regs.pc = ret.a5 + code0_dec.jump_table_a5_offset + 2;
-
-      // Uncomment for debugging
-      auto debugger = std::make_shared<ResourceDASM::EmulatorDebugger<ResourceDASM::M68KEmulator>>();
-      debugger->bind(emu);
-      debugger->state.mode = ResourceDASM::DebuggerMode::TRACE;
-
-      std::unordered_map<uint32_t, uint64_t> handle_to_resource_key;
-      emu.set_syscall_handler([&](ResourceDASM::M68KEmulator& emu, uint16_t opcode) -> void {
-        auto& regs = emu.registers();
-        if (opcode == 0xA9A0) { // GetResource(ResType theType @ [A7 + 2], short theID @ [A7]) -> Handle @ [A7]
-          uint32_t res_type = mem->read_u32b(regs.a[7] + 2);
-          int16_t res_id = mem->read_s16b(regs.a[7]);
-          regs.a[7] += 2;
-
-          uint32_t res_addr;
-          uint64_t res_key = resource_key(res_type, res_id);
-          if (auto it = loaded_resources.find(res_key); it != loaded_resources.end()) {
-            res_addr = it->second;
-          } else {
-            auto res = this->current_rf->get_resource(res_type, res_id);
-            res_addr = mem->allocate(res->data.size());
-            mem->memcpy(res_addr, res->data.data(), res->data.size());
-            loaded_resources.emplace(res_key, res_addr);
-          }
-
-          uint32_t handle_value = mem->allocate(4);
-          mem->write_u32b(handle_value, res_addr);
-          mem->write_u32b(regs.a[7], handle_value);
-          handle_to_resource_key.emplace(handle_value, res_key);
-
-        } else if (opcode == 0xA9A3) { // ReleaseResource(Handle theResource @ [A7]) -> void
-          // We never release resources since we're just emulating the beginning of application initialization
-          regs.a[7] += 4;
-
-        } else if (opcode == 0xA9A5) { // GetResourceSizeOnDisk(Handle theResource @ [A7]) -> long @ [A7]
-          uint64_t res_key = handle_to_resource_key.at(mem->read_u32b(emu.registers().a[7]));
-          auto res = this->current_rf->get_resource(
-              (res_key >> 16) & 0xFFFFFFFF, static_cast<int16_t>(res_key & 0xFFFF));
-          mem->write_u32b(emu.registers().a[7], res->data.size());
-
-        } else if (opcode == 0xA9A6) { // GetResAttrs(Handle theResource @ [A7]) -> short @ [A7]
-          // No attributes are relevant in this environment; just return 0
-          emu.registers().a[7] += 2;
-          mem->write_u16b(emu.registers().a[7], 0);
-
-        } else {
-          throw ResourceDASM::M68KEmulator::terminate_emulation();
-        }
-      });
-
-      emu.execute();
-
-      // Copy out the memory contents - this is the decomp archive
-      ret.data = mem->read(ret.base, next_code_addr - ret.base);
-      ret.stop_address = regs.pc;
-    }
-
-    return ret;
-  }
-
   void write_decoded_CODE(
       const std::string& base_filename, std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res) {
     std::string disassembly;
@@ -1937,8 +1687,9 @@ private:
                 id, rgn.key_low, rgn.key_high, rgn.snd_id, e.what());
           });
 
-      key_region_dict.emplace("filename",
-          phosg::basename(this->output_filename(base_filename, snd_res, snd_is_mp3 ? ".mp3" : ".wav")));
+      key_region_dict.emplace(
+          "filename",
+          std::string{phosg::basename(this->output_filename(base_filename, snd_res, snd_is_mp3 ? ".mp3" : ".wav"))});
 
       uint8_t base_note;
       if (rgn.base_note && snd_base_note) {
@@ -2350,23 +2101,13 @@ private:
           // disassembly archive
           if (has_CODE && this->should_generate_decomp_archive) {
             std::string filename = output_filename(
-                base_filename, nullptr, nullptr, "generated", "", 0, "decomp_archive.bin");
+                base_filename, nullptr, nullptr, "generated", "", 0, "decomp_archive.elf");
             catch_exceptions_conditionally(
                 this->catch_exceptions,
                 [&]() -> void {
-                  auto archive = this->generate_decomp_archive();
-                  std::vector<std::string> annotations;
-                  annotations.emplace_back(std::format("base address 0x{:08X}", archive.base));
-                  annotations.emplace_back(std::format("a5 at 0x{:08X}", archive.a5));
-                  annotations.emplace_back(std::format("code at 0x{:08X}", archive.base + archive.a5_world_size));
-                  if (archive.stop_address) {
-                    annotations.emplace_back(std::format("stopped at 0x{:08X}", archive.stop_address));
-                  }
-                  for (const auto& [res_id, base_addr] : archive.segment_bases) {
-                    annotations.emplace_back(std::format("CODE:{} at 0x{:08X}", res_id, base_addr));
-                  }
-                  phosg::save_file(filename, archive.data);
-                  phosg::fwrite_fmt(stderr, "... {} ({})\n", filename, phosg::join(annotations, ", "));
+                  auto elf = elf_for_classic_mac_os_application(*this->current_rf);
+                  phosg::save_file(filename, elf);
+                  phosg::fwrite_fmt(stderr, "... {}\n", filename);
                 },
                 [&](const std::exception& e) -> void {
                   phosg::fwrite_fmt(stderr, "failed to write decomp archive {}: {}\n", filename, e.what());

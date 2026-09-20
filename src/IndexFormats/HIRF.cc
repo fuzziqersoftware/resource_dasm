@@ -34,7 +34,7 @@ struct HIRFTopLevelResourceHeader {
   // uint32_t size;
 } __attribute__((packed));
 
-ResourceFile parse_hirf(const std::string& data) {
+ResourceFile parse_hirf(std::string_view data) {
   phosg::StringReader r(data.data(), data.size());
 
   const auto& header = r.get<HIRFFileHeader>();
@@ -48,10 +48,10 @@ ResourceFile parse_hirf(const std::string& data) {
   ResourceFile ret(IndexFormat::HIRF);
   while (!r.eof()) {
     const auto& res_header = r.get<HIRFTopLevelResourceHeader>();
-    std::string name = r.read(res_header.name_length);
+    r.skip(res_header.name_length);
     uint32_t size = r.get_u32b();
 
-    ResourceFile::Resource res(res_header.type, res_header.id, r.read(size));
+    ResourceFile::Resource res(res_header.type, res_header.id, std::string(r.read(size)));
     ret.add(std::move(res));
 
     r.go(res_header.next_res_offset);

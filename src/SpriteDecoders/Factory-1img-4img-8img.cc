@@ -16,16 +16,16 @@ namespace ResourceDASM {
 // have this restriction, but still have widths 32 and 40. All the examples I've seen have nothing relevant in that
 // extra unused space, so it's not clear why the images are so large.
 
-phosg::ImageG1 decode_1img(const std::string& data) {
+phosg::ImageG1 decode_1img(std::string_view data) {
   return decode_monochrome_image(data.data(), data.size(), 32, 21);
 }
 
-phosg::ImageRGB888 decode_4img(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGB888 decode_4img(std::string_view data, const std::vector<ColorTableEntry>& clut) {
   auto clut8 = to_color8(clut);
   return decode_4bit_image(data.data(), data.size(), 32, 21, &clut8);
 }
 
-phosg::ImageRGB888 decode_8img(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGB888 decode_8img(std::string_view data, const std::vector<ColorTableEntry>& clut) {
   auto clut8 = to_color8(clut);
   return decode_8bit_image(data.data(), data.size(), 40, 21, &clut8);
 }

@@ -439,7 +439,7 @@ protected:
 std::string QTMASequence::Event::disassembly_prefix() const {
   return std::format("{:08X}  {:<32}  @{:08X}",
       this->source_offset,
-      phosg::format_data_string(this->source_data, nullptr, phosg::FormatDataStringFlags::HEX_ONLY),
+      phosg::format_data_string(this->source_data, phosg::FormatDataStringFlags::HEX_ONLY),
       this->when);
 }
 

@@ -42,7 +42,7 @@ std::string decompress_presage_lzss(const void* data, size_t size, size_t max_ou
   return decompress_presage_lzss(r, max_output_bytes);
 }
 
-std::string decompress_presage_lzss(const std::string& data, size_t max_output_bytes) {
+std::string decompress_presage_lzss(std::string_view data, size_t max_output_bytes) {
   return decompress_presage_lzss(data.data(), data.size(), max_output_bytes);
 }
 

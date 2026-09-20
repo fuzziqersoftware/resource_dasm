@@ -64,7 +64,7 @@ std::string decode_mac_roman(const char* data, size_t size, bool for_filename) {
   return ret;
 }
 
-std::string decode_mac_roman(const std::string& data, bool for_filename) {
+std::string decode_mac_roman(std::string_view data, bool for_filename) {
   return decode_mac_roman(data.data(), data.size(), for_filename);
 }
 
@@ -99,7 +99,7 @@ std::string raw_string_for_resource_type(uint32_t type) {
   return result;
 }
 
-uint32_t resource_type_for_raw_string(const std::string& s) {
+uint32_t resource_type_for_raw_string(std::string_view s) {
   switch (s.size()) {
     case 0:
       return 0x20202020;
@@ -122,7 +122,7 @@ uint32_t resource_type_for_raw_string(const std::string& s) {
   }
 }
 
-std::string escape_hex_bytes_for_filename(const std::string& s) {
+std::string escape_hex_bytes_for_filename(std::string_view s) {
   std::string ret;
   for (size_t z = 0; z < s.size(); z++) {
     if (s[z] == '_' || s[z] == '/' || s[z] == ':' || s[z] < 0x20 || s[z] > 0x7E) {
@@ -134,7 +134,7 @@ std::string escape_hex_bytes_for_filename(const std::string& s) {
   return ret;
 }
 
-std::string unescape_hex_bytes_for_filename(const std::string& s) {
+std::string unescape_hex_bytes_for_filename(std::string_view s) {
   std::string ret;
   for (size_t z = 0; z < s.size(); z++) {
     if (s[z] == '_') {

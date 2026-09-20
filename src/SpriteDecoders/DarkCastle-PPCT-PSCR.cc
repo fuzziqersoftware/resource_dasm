@@ -21,8 +21,8 @@ std::string decompress_PSCR_v1(phosg::StringReader& r) {
   phosg::StringWriter w;
 
   r.skip(2); // Size field; we use phosg::StringReader to check bounds instead
-  std::string short_const_table = r.readx(0x08);
-  std::string long_const_table = r.readx(0x80);
+  std::string_view short_const_table = r.readx(0x08);
+  std::string_view long_const_table = r.readx(0x80);
 
   while (!r.eof()) {
     uint8_t cmd = r.get_u8();
@@ -51,7 +51,7 @@ std::string decompress_PSCR_v1(phosg::StringReader& r) {
 
 std::string decompress_PSCR_v2(phosg::StringReader& r) {
   size_t data_bytes = r.get_u16b();
-  std::string const_table = r.readx(8);
+  std::string_view const_table = r.readx(8);
 
   if (r.remaining() < data_bytes) {
     throw std::runtime_error("data extends beyond end of resource");
@@ -95,13 +95,13 @@ std::string decompress_PSCR_v2(phosg::StringReader& r) {
   return w.str();
 }
 
-phosg::ImageG1 decode_PSCR(const std::string& data, bool is_v2) {
+phosg::ImageG1 decode_PSCR(std::string_view data, bool is_v2) {
   phosg::StringReader r(data);
   std::string decompressed_data = is_v2 ? decompress_PSCR_v2(r) : decompress_PSCR_v1(r);
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 512, 342);
 }
 
-phosg::ImageG1 decode_PBLK(const std::string& data) {
+phosg::ImageG1 decode_PBLK(std::string_view data) {
   phosg::StringReader r(data);
   std::string decompressed_data = decompress_PSCR_v2(r);
   return decode_monochrome_image(decompressed_data.data(), decompressed_data.size(), 128, 120);
@@ -167,7 +167,7 @@ struct PPCTHeader {
   //   decompressed size = num_images * unknown3 (*2 if type is 0, 3, or 9)
 } __attribute__((packed));
 
-phosg::ImageGA11 decode_PPCT(const std::string& data) {
+phosg::ImageGA11 decode_PPCT(std::string_view data) {
   phosg::StringReader r(data);
   const auto& h = r.get<PPCTHeader>();
   size_t width = h.width_words << 4;

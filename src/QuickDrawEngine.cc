@@ -25,8 +25,8 @@
 
 namespace ResourceDASM {
 
-pict_contains_undecodable_quicktime::pict_contains_undecodable_quicktime(std::string&& ext, std::string&& data)
-    : extension(std::move(ext)), data(std::move(data)) {}
+pict_contains_undecodable_quicktime::pict_contains_undecodable_quicktime(std::string&& ext, std::string_view data)
+    : extension(std::move(ext)), data(data) {}
 
 QuickDrawPortInterface::~QuickDrawPortInterface() {}
 
@@ -470,7 +470,7 @@ void QuickDrawEngine::pict_paint_rect(phosg::StringReader& r, uint16_t opcode) {
 
 // Text opcodes
 
-void QuickDrawEngine::pict_render_text(const std::string& text) {
+void QuickDrawEngine::pict_render_text(std::string_view text) {
   int16_t font_id = this->port->get_text_font();
   int16_t text_size = this->port->get_text_size();
   uint8_t text_style = this->port->get_text_style();
@@ -636,12 +636,13 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(phosg::StringReader& r, uint1
     }
 
     uint16_t row_bytes = header.flags_row_bytes & 0x7FFF;
-    std::string data = is_packed
-        ? unpack_bits(r, header.bounds.height(), row_bytes, header.pixel_size == 0x10)
-        : r.read(header.bounds.height() * row_bytes);
-    const PixelMapData* pixel_map = reinterpret_cast<const PixelMapData*>(data.data());
-
-    source_image = decode_color_image(header, *pixel_map, &ctable);
+    if (is_packed) {
+      auto data = unpack_bits(r, header.bounds.height(), row_bytes, header.pixel_size == 0x10);
+      source_image = decode_color_image(header, *reinterpret_cast<const PixelMapData*>(data.data()), &ctable);
+    } else {
+      auto data = r.read(header.bounds.height() * row_bytes);
+      source_image = decode_color_image(header, *reinterpret_cast<const PixelMapData*>(data.data()), &ctable);
+    }
 
   } else {
     const auto& args = r.get<PictCopyBitsMonochromeArgs>();
@@ -663,12 +664,18 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(phosg::StringReader& r, uint1
       mask_region = std::make_shared<Region>(r);
     }
 
-    std::string data = is_packed
-        ? unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false)
-        : r.read(args.header.bounds.height() * args.header.flags_row_bytes);
-    auto mono_source_image = decode_monochrome_image(
-        data.data(), data.size(), args.header.bounds.width(), args.header.bounds.height(),
-        args.header.flags_row_bytes);
+    phosg::ImageG1 mono_source_image;
+    if (is_packed) {
+      auto data = unpack_bits(r, args.header.bounds.height(), args.header.flags_row_bytes, false);
+      mono_source_image = decode_monochrome_image(
+          data.data(), data.size(), args.header.bounds.width(), args.header.bounds.height(),
+          args.header.flags_row_bytes);
+    } else {
+      auto data = r.read(args.header.bounds.height() * args.header.flags_row_bytes);
+      mono_source_image = decode_monochrome_image(
+          data.data(), data.size(), args.header.bounds.width(), args.header.bounds.height(),
+          args.header.flags_row_bytes);
+    }
     source_image = mono_source_image.convert_monochrome_to_color(0xFFFFFFFF, 0x000000FF);
   }
 
@@ -761,7 +768,7 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(phosg::StringReader& r,
 // QuickTime embedded file support
 
 phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
-    const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, const std::string& data) {
+    const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, std::string_view data) {
   if (data.size() < 4) {
     throw std::runtime_error("smc-encoded image too small for header");
   }
@@ -957,7 +964,7 @@ phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
 }
 
 phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(
-    const PictQuickTimeImageDescription& desc, const std::string& data) {
+    const PictQuickTimeImageDescription& desc, std::string_view data) {
   if (data.size() < 4) {
     throw std::runtime_error("rpza-encoded image too small for header");
   }
@@ -1104,7 +1111,7 @@ void QuickDrawEngine::pict_write_quicktime_data(phosg::StringReader& r, uint16_t
     }
 
     // Read the encoded image data
-    std::string encoded_data = r.read(desc.data_size);
+    std::string_view encoded_data = r.read(desc.data_size);
 
     // Find the appropriate handler, if it's implemented
     phosg::ImageRGBA8888N decoded;
@@ -1113,17 +1120,17 @@ void QuickDrawEngine::pict_write_quicktime_data(phosg::StringReader& r, uint16_t
     } else if (desc.codec == 0x72707A61) { // kVideoCodecType
       decoded = this->pict_decode_rpza(desc, encoded_data);
     } else if (desc.codec == 0x67696620) { // kGIFCodecType
-      throw pict_contains_undecodable_quicktime("gif", std::move(encoded_data));
+      throw pict_contains_undecodable_quicktime("gif", encoded_data);
     } else if (desc.codec == 0x6A706567) { // kJPEGCodecType
-      throw pict_contains_undecodable_quicktime("jpeg", std::move(encoded_data));
+      throw pict_contains_undecodable_quicktime("jpeg", encoded_data);
     } else if (desc.codec == 0x6B706364) { // kPhotoCDCodecType
-      throw pict_contains_undecodable_quicktime("pcd", std::move(encoded_data));
+      throw pict_contains_undecodable_quicktime("pcd", encoded_data);
     } else if (desc.codec == 0x706E6720) { // kPNGCodecType
-      throw pict_contains_undecodable_quicktime("png", std::move(encoded_data));
+      throw pict_contains_undecodable_quicktime("png", encoded_data);
     } else if (desc.codec == 0x74676120) { // kTargaCodecType
-      throw pict_contains_undecodable_quicktime("tga", std::move(encoded_data));
+      throw pict_contains_undecodable_quicktime("tga", encoded_data);
     } else if (desc.codec == 0x74696666) { // kTIFFCodecType
-      throw pict_contains_undecodable_quicktime("tiff", std::move(encoded_data));
+      throw pict_contains_undecodable_quicktime("tiff", encoded_data);
     } else {
       throw std::runtime_error(std::format("compressed QuickTime data uses codec '{}' (0x{:08X})",
           string_for_resource_type(desc.codec), desc.codec));

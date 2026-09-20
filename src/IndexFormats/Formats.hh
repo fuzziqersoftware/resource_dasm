@@ -29,8 +29,8 @@ struct DecodedAppleSingle {
   std::string serialize() const;
 };
 DecodedAppleSingle parse_applesingle_appledouble(phosg::StringReader& r);
-DecodedAppleSingle parse_applesingle_appledouble(const std::string& data);
-ResourceFile parse_applesingle_appledouble_resource_fork(const std::string& data);
+DecodedAppleSingle parse_applesingle_appledouble(std::string_view data);
+ResourceFile parse_applesingle_appledouble_resource_fork(std::string_view data);
 
 // BinHex.cc
 struct DecodedBinHex {
@@ -41,31 +41,31 @@ struct DecodedBinHex {
   uint32_t creator_code;
   uint16_t finder_flags;
 };
-DecodedBinHex parse_binhex(const std::string& data);
-ResourceFile parse_binhex_resource_fork(const std::string& data);
+DecodedBinHex parse_binhex(std::string_view data);
+ResourceFile parse_binhex_resource_fork(std::string_view data);
 
 // CBag.cc
-ResourceFile parse_cbag(const std::string& data);
+ResourceFile parse_cbag(std::string_view data);
 
 // DCData.cc
-ResourceFile parse_dc_data(const std::string& data);
+ResourceFile parse_dc_data(std::string_view data);
 
 // Directory.cc
-ResourceFile load_resource_file_from_directory(const std::string& dir_path);
-void save_resource_file_to_directory(const ResourceFile& rf, const std::string& dir_path);
+ResourceFile load_resource_file_from_directory(std::string_view dir_path);
+void save_resource_file_to_directory(const ResourceFile& rf, std::string_view dir_path);
 
 // HIRF.cc
-ResourceFile parse_hirf(const std::string& data);
+ResourceFile parse_hirf(std::string_view data);
 
 // MacBinary.cc
-std::pair<phosg::StringReader, phosg::StringReader> parse_macbinary(const std::string& data);
-ResourceFile parse_macbinary_resource_fork(const std::string& data);
+std::pair<phosg::StringReader, phosg::StringReader> parse_macbinary(std::string_view data);
+ResourceFile parse_macbinary_resource_fork(std::string_view data);
 
 // Mohawk.cc
-ResourceFile parse_mohawk(const std::string& data);
+ResourceFile parse_mohawk(std::string_view data);
 
 // ResourceFork.cc
-ResourceFile parse_resource_fork(const std::string& data);
+ResourceFile parse_resource_fork(std::string_view data);
 ResourceFile parse_resource_fork(phosg::StringReader& data);
 std::string serialize_resource_fork(const ResourceFile& rf);
 

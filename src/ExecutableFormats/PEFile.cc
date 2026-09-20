@@ -174,7 +174,7 @@ void PEFile::parse(const void* data, size_t size) {
         } else {
           auto name_r = this->read_from_rva(imp_entry.name_table_entry_rva(), 0xFFFFFFFF);
           uint16_t ordinal_hint = name_r.get_u16l();
-          lib.imports.emplace_back(ImportLibrary::Function{ordinal_hint, name_r.get_cstr(), addr_addr});
+          lib.imports.emplace_back(ImportLibrary::Function{ordinal_hint, std::string{name_r.get_cstr()}, addr_addr});
         }
       }
     }

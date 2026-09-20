@@ -61,7 +61,7 @@ std::string decompress_macski_RUN4(const void* vdata, size_t size) {
   return ret;
 }
 
-std::string decompress_macski_RUN4(const std::string& data) {
+std::string decompress_macski_RUN4(std::string_view data) {
   return decompress_macski_RUN4(data.data(), data.size());
 }
 
@@ -181,7 +181,7 @@ std::string decompress_macski_COOK_CO2K(const void* vdata, size_t size) {
   return ret;
 }
 
-std::string decompress_macski_COOK_CO2K(const std::string& data) {
+std::string decompress_macski_COOK_CO2K(std::string_view data) {
   return decompress_macski_COOK_CO2K(data.data(), data.size());
 }
 
@@ -217,10 +217,11 @@ std::string decompress_macski_multi(const void* data, size_t size) {
   }
 }
 
-std::string decompress_macski_multi(const std::string& data) {
-  std::string ret = data;
+std::string decompress_macski_multi(std::string_view data) {
+  std::string ret;
   while (auto decomp = get_decompressor(ret.data(), ret.size())) {
     ret = decomp(ret.data(), ret.size());
+    data = ret;
   }
   return ret;
 }

@@ -54,7 +54,7 @@ std::string decompress_dinopark_tycoon_lzss(const void* data, size_t size) {
   return std::move(w.str());
 }
 
-std::string decompress_dinopark_tycoon_lzss(const std::string& data) {
+std::string decompress_dinopark_tycoon_lzss(std::string_view data) {
   return decompress_dinopark_tycoon_lzss(data.data(), data.size());
 }
 
@@ -96,7 +96,7 @@ std::string decompress_dinopark_tycoon_rle(const void* data, size_t size) {
   return std::move(w.str());
 }
 
-std::string decompress_dinopark_tycoon_rle(const std::string& data) {
+std::string decompress_dinopark_tycoon_rle(std::string_view data) {
   return decompress_dinopark_tycoon_rle(data.data(), data.size());
 }
 
@@ -112,7 +112,7 @@ std::string decompress_dinopark_tycoon_data(const void* data, size_t size) {
   }
 }
 
-std::string decompress_dinopark_tycoon_data(const std::string& data) {
+std::string decompress_dinopark_tycoon_data(std::string_view data) {
   return decompress_dinopark_tycoon_data(data.data(), data.size());
 }
 

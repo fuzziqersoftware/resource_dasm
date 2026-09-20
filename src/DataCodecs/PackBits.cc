@@ -41,7 +41,7 @@ std::string unpack_bits(const void* data, size_t size) {
   return std::move(w.str());
 }
 
-std::string unpack_bits(const std::string& data) {
+std::string unpack_bits(std::string_view data) {
   return unpack_bits(data.data(), data.size());
 }
 
@@ -105,7 +105,7 @@ std::string pack_bits(const void* data, size_t size) {
   return std::move(w.str());
 }
 
-std::string pack_bits(const std::string& data) {
+std::string pack_bits(std::string_view data) {
   return pack_bits(data.data(), data.size());
 }
 
@@ -129,7 +129,7 @@ std::string decompress_packed_icns_data(const void* data, size_t size) {
   return std::move(w.str());
 }
 
-std::string decompress_packed_icns_data(const std::string& data) {
+std::string decompress_packed_icns_data(std::string_view data) {
   return decompress_packed_icns_data(data.data(), data.size());
 }
 

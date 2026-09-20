@@ -13,7 +13,7 @@
 
 namespace ResourceDASM {
 
-ResourceFile::DecodedPICTResource decode_NPIC(const std::string& data) {
+ResourceFile::DecodedPICTResource decode_NPIC(std::string_view data) {
   auto decoded = decrypt_encrypt_odyssey(data);
   return ResourceFile::decode_PICT_only(decoded.data(), decoded.size());
 }
@@ -44,7 +44,7 @@ struct SHPSHeader {
 } __attribute__((packed));
 static_assert(sizeof(SHPSHeader) == 0x83C, "SHPSHeader size is incorrect");
 
-std::vector<phosg::ImageRGBA8888N> decode_SHPS(const std::string& data) {
+std::vector<phosg::ImageRGBA8888N> decode_SHPS(std::string_view data) {
   phosg::StringReader r(data);
   const auto& header = r.get<SHPSHeader>();
 

@@ -364,7 +364,7 @@ std::string DecodedShap3D::top_view_as_svg() const {
   return phosg::join(lines, "\n");
 }
 
-DecodedShap3D decode_shap(const std::string& data) {
+DecodedShap3D decode_shap(std::string_view data) {
   phosg::StringReader r(data);
 
   DecodedShap3D ret;

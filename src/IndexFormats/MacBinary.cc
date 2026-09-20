@@ -126,7 +126,7 @@ struct MacBinaryHeader {
   }
 } __attribute__((packed));
 
-std::pair<phosg::StringReader, phosg::StringReader> parse_macbinary(const std::string& data) {
+std::pair<phosg::StringReader, phosg::StringReader> parse_macbinary(std::string_view data) {
   phosg::StringReader r(data);
 
   const auto& header = r.get<MacBinaryHeader>();
@@ -152,7 +152,7 @@ std::pair<phosg::StringReader, phosg::StringReader> parse_macbinary(const std::s
   return std::make_pair(data_r, resource_r);
 }
 
-ResourceFile parse_macbinary_resource_fork(const std::string& data) {
+ResourceFile parse_macbinary_resource_fork(std::string_view data) {
   auto r = parse_macbinary(data).second;
   return parse_resource_fork(r);
 }

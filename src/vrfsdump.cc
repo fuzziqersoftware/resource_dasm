@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
           entry.num_directories_remaining--;
         }
         const auto& header = r.get<DirectoryBlock>();
-        std::string name = r.read(header.name_length);
+        std::string_view name = r.read(header.name_length);
         phosg::fwrite_fmt(stderr, "(dir) {} ({} subdirectories, {} files)\n",
             name, header.num_subdirectories, header.num_files);
         dir_stack.emplace_back(DirectoryStackEntry{header.num_subdirectories, header.num_files});
@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
           entry.num_files_remaining--;
         }
         const auto& header = r.get<FileBlock>();
-        std::string name = r.read(header.name_length);
+        std::string_view name = r.read(header.name_length);
         phosg::save_file(name, r.read(header.size));
         phosg::fwrite_fmt(stderr, "(file) {} (0x{:X} bytes)\n", name, header.size);
         clear_dir_stack();

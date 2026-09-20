@@ -17,16 +17,20 @@
 namespace ResourceDASM {
 
 ELFFile::ELFFile(const std::string& filename) : ELFFile(filename, phosg::load_file(filename)) {}
-
-ELFFile::ELFFile(const std::string& filename, const std::string& data) : ELFFile(filename, data.data(), data.size()) {}
-
-ELFFile::ELFFile(const std::string& filename, const void* data, size_t size) : filename(filename) {
-  this->parse(data, size);
+ELFFile::ELFFile(const std::string& filename, std::string&& data) : filename(filename), data(std::move(data)) {
+  this->parse();
+}
+ELFFile::ELFFile(const std::string& filename, const std::string& data) : filename(filename), data(data) {
+  this->parse();
+}
+ELFFile::ELFFile(const std::string& filename, const void* data, size_t size)
+    : filename(filename), data(reinterpret_cast<const char*>(data), size) {
+  this->parse();
 }
 
-void ELFFile::parse(const void* data, size_t size) {
-  phosg::StringReader r(data, size);
-  this->identifier = r.get<ELFIdentifier>();
+void ELFFile::parse() {
+  phosg::StringReader r(this->data);
+  this->identifier = r.get<Identifier>();
   if (this->identifier.magic != 0x7F454C46) { // '\x7FELF'
     throw std::runtime_error("incorrect signature");
   }
@@ -37,17 +41,17 @@ void ELFFile::parse(const void* data, size_t size) {
 
   if (this->identifier.width == 1) {
     if (this->identifier.endianness == 1) {
-      this->parse_t<phosg::le_uint16_t, phosg::le_uint32_t, phosg::le_uint32_t>(r);
+      this->parse_t<false, false>(r);
     } else if (this->identifier.endianness == 2) {
-      this->parse_t<phosg::be_uint16_t, phosg::be_uint32_t, phosg::be_uint32_t>(r);
+      this->parse_t<true, false>(r);
     } else {
       throw std::runtime_error("unsupported endianness");
     }
   } else if (this->identifier.width == 2) {
     if (this->identifier.endianness == 1) {
-      this->parse_t<phosg::le_uint16_t, phosg::le_uint32_t, phosg::le_uint64_t>(r);
+      this->parse_t<false, true>(r);
     } else if (this->identifier.endianness == 2) {
-      this->parse_t<phosg::be_uint16_t, phosg::be_uint32_t, phosg::be_uint64_t>(r);
+      this->parse_t<true, true>(r);
     } else {
       throw std::runtime_error("unsupported endianness");
     }
@@ -56,19 +60,35 @@ void ELFFile::parse(const void* data, size_t size) {
   }
 }
 
-template <typename U16T, typename U32T, typename LongT>
+template <bool IsBE, bool Is64>
 void ELFFile::parse_t(phosg::StringReader& r) {
-  const auto& header = r.get<ELFHeader<U16T, U32T, LongT>>();
+  const auto& header = r.get<Header<IsBE, Is64>>();
   this->type = header.type;
   this->architecture = header.architecture;
   this->entrypoint_addr = header.entrypoint_addr;
   this->flags = header.flags;
 
+  r.go(header.program_header_offset);
+  this->programs.clear();
+  while (this->programs.size() < header.program_header_entry_count) {
+    const auto& prog_entry = r.get<ProgramHeaderEntry<IsBE, Is64>>();
+    auto& prog = this->programs.emplace_back();
+    prog.type = prog_entry.type;
+    prog.offset = prog_entry.offset;
+    prog.virtual_addr = prog_entry.virtual_addr;
+    prog.physical_addr = prog_entry.physical_addr;
+    prog.physical_size = prog_entry.physical_size;
+    prog.loaded_size = prog_entry.loaded_size;
+    prog.flags = prog_entry.flags;
+    prog.alignment = prog_entry.alignment;
+    prog.data = r.pread(prog.offset, prog.physical_size);
+  }
+
   r.go(header.section_header_offset);
   this->sections.clear();
   std::vector<uint32_t> sec_name_offsets;
   while (this->sections.size() < header.section_header_entry_count) {
-    const auto& sec_entry = r.get<ELFSectionHeaderEntry<U32T, LongT>>();
+    const auto& sec_entry = r.get<SectionHeaderEntry<IsBE, Is64>>();
     sec_name_offsets.emplace_back(sec_entry.name_offset);
     auto& sec = this->sections.emplace_back();
     sec.type = sec_entry.type;
@@ -83,7 +103,7 @@ void ELFFile::parse_t(phosg::StringReader& r) {
     sec.data = r.pread(sec.offset, sec.physical_size);
   }
 
-  // Get the names from the names section (if possible)
+  // Get the section names from the names section (if possible)
   try {
     phosg::StringReader names_r(this->sections.at(header.names_section_index).data);
     for (size_t x = 0; x < this->sections.size(); x++) {
@@ -342,6 +362,121 @@ void ELFFile::print(
       }
     }
   }
+}
+
+std::string ELFFile::serialize(const SerializeInput& inp) {
+  if (inp.is_be && inp.is_64) {
+    return ELFFile::serialize_t<true, true>(inp);
+  } else if (inp.is_be) {
+    return ELFFile::serialize_t<true, false>(inp);
+  } else if (inp.is_64) {
+    return ELFFile::serialize_t<false, true>(inp);
+  } else {
+    return ELFFile::serialize_t<false, false>(inp);
+  }
+}
+
+template <bool IsBE, bool Is64>
+std::string ELFFile::serialize_t(const SerializeInput& inp) {
+  size_t alignment_mask = (1 << (inp.segment_file_alignment_bits - 1));
+  size_t program_header_offset = sizeof(Identifier) + sizeof(Header<IsBE, Is64>);
+  size_t program_header_bytes = sizeof(ProgramHeaderEntry<IsBE, Is64>) * inp.segments.size();
+  size_t section_header_offset = program_header_offset + program_header_bytes;
+  size_t section_header_bytes = sizeof(SectionHeaderEntry<IsBE, Is64>) * (inp.segments.size() + 1);
+  size_t data_start_offset = (section_header_offset + section_header_bytes + alignment_mask) & (~alignment_mask);
+
+  phosg::StringWriter program_headers_w;
+  phosg::StringWriter section_headers_w;
+  phosg::StringWriter names_section_w;
+  phosg::StringWriter data_w;
+
+  names_section_w.write(".shstrtab", 10);
+
+  for (const auto& seg : inp.segments) {
+    uint32_t name_offset = 9; // If no name is given, point to the \0 after the .shstrtab name (which is always first)
+    if (!seg.name.empty()) {
+      name_offset = names_section_w.size();
+      names_section_w.write(seg.name);
+      names_section_w.put_u8(0);
+    }
+
+    data_w.extend_to((data_w.size() + alignment_mask) & (~alignment_mask));
+
+    size_t file_data_offset = data_start_offset + data_w.size();
+
+    // Annoyingly, fields must be specified in declaration order (even though they're keyed by field name) and the 32
+    // and 64-bit field orders differ, so we can't just do program_headers_w.put(ProgramHeaderEntry<IsBE, Is64>{...})
+    ProgramHeaderEntry<IsBE, Is64> prog_header;
+    prog_header.type = seg.program_type,
+    prog_header.flags = seg.program_flags,
+    prog_header.offset = file_data_offset,
+    prog_header.virtual_addr = seg.virtual_addr,
+    prog_header.physical_addr = seg.physical_addr,
+    prog_header.physical_size = seg.data.size(),
+    prog_header.loaded_size = std::max<size_t>(seg.data.size(), seg.loaded_size),
+    prog_header.alignment = seg.alignment,
+    program_headers_w.put(prog_header);
+
+    section_headers_w.put(SectionHeaderEntry<IsBE, Is64>{
+        .name_offset = name_offset,
+        .type = seg.section_type,
+        .flags = seg.section_flags,
+        .virtual_addr = seg.virtual_addr,
+        .offset = file_data_offset,
+        .physical_size = seg.data.size(),
+        .linked_section_num = seg.linked_section_num,
+        .info = seg.section_info,
+        .alignment = seg.alignment,
+        .entry_size = seg.section_entry_size,
+    });
+
+    data_w.write(seg.data);
+  }
+
+  // Write names section (unlike the above sections, it does not get a program entry)
+  {
+    data_w.extend_to((data_w.size() + alignment_mask) & (~alignment_mask));
+    section_headers_w.put(SectionHeaderEntry<IsBE, Is64>{
+        .name_offset = 0, // We wrote ".shstrtab" to names_section_w first, so it's at offset 0
+        .type = 0x03, // SHT_STRTAB
+        .flags = 0x00000020, // SHF_STRINGS
+        .offset = data_start_offset + data_w.size(),
+        .physical_size = names_section_w.size(),
+    });
+    data_w.write(names_section_w.str());
+  }
+
+  if (program_headers_w.size() != program_header_bytes) {
+    throw std::logic_error("Generated incorrect program header size");
+  }
+  if (section_headers_w.size() != section_header_bytes) {
+    throw std::logic_error("Generated incorrect section header size");
+  }
+
+  phosg::StringWriter w;
+  w.put(Identifier{.width = Is64 ? 2 : 1, .endianness = IsBE ? 2 : 1, .os_abi = inp.os_abi});
+  w.put(Header<IsBE, Is64>{
+      .type = inp.type,
+      .architecture = inp.architecture,
+      .entrypoint_addr = inp.entrypoint_addr,
+      .program_header_offset = program_header_offset,
+      .section_header_offset = section_header_offset,
+      .flags = inp.flags,
+      .program_header_entry_count = inp.segments.size(),
+      .section_header_entry_count = inp.segments.size() + 1,
+      .names_section_index = inp.segments.size(),
+  });
+  if (w.size() != program_header_offset) {
+    throw std::logic_error("Generated incorrect ELF header size");
+  }
+  w.write(program_headers_w.str());
+  if (w.size() != section_header_offset) {
+    throw std::logic_error("Generated incorrect ELF header size");
+  }
+  w.write(section_headers_w.str());
+  w.extend_to(data_start_offset);
+  w.write(data_w.str());
+  return std::move(w.str());
 }
 
 } // namespace ResourceDASM

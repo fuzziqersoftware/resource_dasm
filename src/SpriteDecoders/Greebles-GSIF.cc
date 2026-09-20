@@ -17,7 +17,7 @@ struct GSIFHeader {
   phosg::be_uint16_t height;
 } __attribute__((packed));
 
-phosg::ImageRGB888 decode_GSIF(const std::string& gsif_data, const std::vector<ColorTableEntry>& pltt) {
+phosg::ImageRGB888 decode_GSIF(std::string_view gsif_data, const std::vector<ColorTableEntry>& pltt) {
   phosg::StringReader r(gsif_data);
   const auto& header = r.get<GSIFHeader>();
 

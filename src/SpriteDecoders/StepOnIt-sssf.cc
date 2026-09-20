@@ -56,7 +56,7 @@ phosg::ImageRGBA8888N decode_sssf_image(phosg::StringReader& r, const std::vecto
   return ret;
 }
 
-std::vector<phosg::ImageRGBA8888N> decode_sssf(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+std::vector<phosg::ImageRGBA8888N> decode_sssf(std::string_view data, const std::vector<ColorTableEntry>& clut) {
   phosg::StringReader r(data);
 
   uint32_t num_images = r.get_u32b();

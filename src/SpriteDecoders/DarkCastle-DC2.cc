@@ -24,7 +24,7 @@ struct DC2Header {
   uint8_t generate_transparency_map;
 } __attribute__((packed));
 
-phosg::ImageRGBA8888N decode_DC2(const std::string& data) {
+phosg::ImageRGBA8888N decode_DC2(std::string_view data) {
   phosg::StringReader sr(data);
   const auto& input = sr.get<DC2Header>();
   phosg::BitReader br = sr.subx_bits(sr.where());
@@ -150,7 +150,7 @@ phosg::ImageRGBA8888N decode_DC2(const std::string& data) {
     }
   }
 
-  const std::string& colorstream = w.str();
+  std::string_view colorstream = w.str();
   if (colorstream.size() > output_limit) {
     // Note: the original implementation logged this string and then returned anyway, even though it probably caused
     // memory corruption because it overstepped the bounds of the output buffer.

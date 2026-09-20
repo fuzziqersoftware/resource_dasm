@@ -49,6 +49,7 @@ add_library(resource_file
   src/Emulators/PPC32Emulator.cc
   src/Emulators/SH4Emulator.cc
   src/Emulators/X86Emulator.cc
+  src/ExecutableFormats/ClassicMacOSApplication.cc
   src/ExecutableFormats/DOLFile.cc
   src/ExecutableFormats/ELFFile.cc
   src/ExecutableFormats/PEFFile.cc

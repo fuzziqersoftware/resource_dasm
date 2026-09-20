@@ -10,7 +10,7 @@
 
 namespace ResourceDASM {
 
-std::string decompress_PPic_pixel_map_data(const std::string& data, size_t row_bytes, size_t height) {
+std::string decompress_PPic_pixel_map_data(std::string_view data, size_t row_bytes, size_t height) {
   // This algorithm was presumably written by Sean Callahan, who also wrote the SMC algorithm used in some PICT files
   // (see pict_decode_smc in QuickDrawEngine.cc). This algorithm appears to be a similar but simpler version of SMC;
   // perhaps this was its predecessor.
@@ -174,7 +174,7 @@ std::string decompress_PPic_pixel_map_data(const std::string& data, size_t row_b
   return w.str();
 }
 
-std::string decompress_PPic_bitmap_data(const std::string& data, size_t row_bytes, size_t height) {
+std::string decompress_PPic_bitmap_data(std::string_view data, size_t row_bytes, size_t height) {
   // This is a fairly simple per-byte compression algorithm. Commands:
   // 00 XYYY <data> - repeat <data> (X + 1 bytes) Y times
   // 01-7F <data> - (cmd) raw data bytes
@@ -187,7 +187,7 @@ std::string decompress_PPic_bitmap_data(const std::string& data, size_t row_byte
       uint16_t args = r.get_u16b();
       size_t bytes = ((args >> 12) & 0xF) + 1;
       size_t count = (args & 0x0FFF);
-      std::string data = r.read(bytes);
+      std::string_view data = r.read(bytes);
       for (size_t z = 0; z < count; z++) {
         w.write(data);
       }
@@ -210,7 +210,7 @@ std::string decompress_PPic_bitmap_data(const std::string& data, size_t row_byte
   // format. We instead decompress everything at once without doing this, so we need to transpose the data after
   // decompressing.
   phosg::StringWriter tw;
-  const std::string& ts = w.str();
+  std::string_view ts = w.str();
   for (size_t dest_y = 0; dest_y < height; dest_y++) {
     for (size_t dest_x = 0; dest_x < row_bytes; dest_x++) {
       size_t src_index = dest_x * height + dest_y;
@@ -221,7 +221,7 @@ std::string decompress_PPic_bitmap_data(const std::string& data, size_t row_byte
   return tw.str();
 }
 
-std::vector<phosg::ImageRGB888> decode_PPic(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+std::vector<phosg::ImageRGB888> decode_PPic(std::string_view data, const std::vector<ColorTableEntry>& clut) {
   phosg::StringReader r(data);
 
   uint16_t count = r.get_u16b();

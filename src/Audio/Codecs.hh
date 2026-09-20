@@ -81,13 +81,13 @@ std::vector<ToT> convert_samples(const std::vector<FromT>& samples) {
   return convert_samples<ToT, FromT>(samples.data(), samples.size());
 }
 template <typename ToT, typename FromT>
-std::vector<ToT> convert_samples(const std::string& data) {
+std::vector<ToT> convert_samples(std::string_view data) {
   return convert_samples<ToT, FromT>(reinterpret_cast<const FromT*>(data.data()), data.size() / sizeof(FromT));
 }
 
 std::vector<float> convert_samples_dynamic(const void* data, size_t size, size_t bits_per_sample);
 
-inline std::vector<float> convert_samples_dynamic(const std::string& data, size_t bits_per_sample) {
+inline std::vector<float> convert_samples_dynamic(std::string_view data, size_t bits_per_sample) {
   return convert_samples_dynamic(data.data(), data.size(), bits_per_sample);
 }
 

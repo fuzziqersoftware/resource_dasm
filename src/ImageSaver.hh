@@ -29,8 +29,9 @@ public:
 
   // Returns the filename *with* extension (e.g. for logging)
   template <phosg::PixelFormat Format>
-  [[nodiscard]] std::string save_image(const phosg::Image<Format>& img, const std::string& file_name_without_ext) const {
-    std::string file_name = file_name_without_ext + "." + file_extension_for_image_format(this->image_format);
+  [[nodiscard]] std::string save_image(const phosg::Image<Format>& img, std::string_view file_name_without_ext) const {
+    std::string file_name = std::format(
+        "{}.{}", file_name_without_ext, file_extension_for_image_format(this->image_format));
     phosg::save_file(file_name, img.serialize(this->image_format));
     return file_name;
   }

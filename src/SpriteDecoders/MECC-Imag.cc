@@ -120,7 +120,7 @@ std::string decode_from_const_table(
     uint8_t bits,
     bool is_delta,
     bool is_v2,
-    const std::string& const_table) {
+    std::string_view const_table) {
   // This function decodes a const-table-encoded sequence.
 
   // Input values are read as a sequence of (bits)-bit integers encoded in separate bytes (as produced by
@@ -884,7 +884,7 @@ phosg::ImageRGB888 decode_fraction_munchers_color_Imag_section(
 }
 
 std::vector<phosg::ImageRGB888> decode_Imag(
-    const std::string& data, const std::vector<ColorTableEntry>& clut, bool use_later_formats) {
+    std::string_view data, const std::vector<ColorTableEntry>& clut, bool use_later_formats) {
   phosg::StringReader r(data);
   std::vector<phosg::ImageRGB888> ret;
   size_t count = r.get_u16b();

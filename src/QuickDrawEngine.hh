@@ -112,7 +112,7 @@ protected:
 
 class pict_contains_undecodable_quicktime : public std::exception {
 public:
-  pict_contains_undecodable_quicktime(std::string&& ext, std::string&& data);
+  pict_contains_undecodable_quicktime(std::string&& ext, std::string_view data);
   ~pict_contains_undecodable_quicktime() = default;
 
   std::string extension;
@@ -212,7 +212,7 @@ protected:
   void pict_paint_last_rect(phosg::StringReader& r, uint16_t opcode);
   void pict_paint_rect(phosg::StringReader& r, uint16_t opcode);
 
-  void pict_render_text(const std::string& text);
+  void pict_render_text(std::string_view text);
   void pict_long_text(phosg::StringReader& r, uint16_t opcode);
   void pict_dh_text(phosg::StringReader& r, uint16_t opcode);
   void pict_dv_text(phosg::StringReader& r, uint16_t opcode);
@@ -226,8 +226,8 @@ protected:
   void pict_packed_copy_bits_direct_color(phosg::StringReader& r, uint16_t opcode);
 
   phosg::ImageRGBA8888N pict_decode_smc(
-      const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, const std::string& data);
-  phosg::ImageRGBA8888N pict_decode_rpza(const PictQuickTimeImageDescription& desc, const std::string& data);
+      const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, std::string_view data);
+  phosg::ImageRGBA8888N pict_decode_rpza(const PictQuickTimeImageDescription& desc, std::string_view data);
 
   void pict_write_quicktime_data(phosg::StringReader& r, uint16_t opcode);
 

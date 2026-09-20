@@ -43,7 +43,7 @@ struct PDImageMetaEntry {
   phosg::be_uint32_t unknown_a1[2];
 } __attribute__((packed));
 
-std::vector<phosg::ImageRGBA8888N> decode_pathways_256(const std::string& data) {
+std::vector<phosg::ImageRGBA8888N> decode_pathways_256(std::string_view data) {
   std::string decompressed_data = unpack_pathways(data);
 
   phosg::StringReader r(decompressed_data);
@@ -136,7 +136,7 @@ struct MImageHeader {
   // uint8_t pixels[width * height];
 } __attribute__((packed));
 
-std::vector<phosg::ImageRGBA8888N> decode_marathon_256(const std::string& data) {
+std::vector<phosg::ImageRGBA8888N> decode_marathon_256(std::string_view data) {
   phosg::StringReader r(data);
   const auto& header = r.get<MHeader>();
 

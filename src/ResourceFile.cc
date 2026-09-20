@@ -713,12 +713,12 @@ static void disassemble_from_template_inner(
     size_t indent_level);
 
 static std::string format_template_string(
-    ResourceFile::TemplateEntry::Format format, const std::string& str, bool has_name) {
+    ResourceFile::TemplateEntry::Format format, std::string_view str, bool has_name) {
   using Entry = ResourceFile::TemplateEntry;
   using Format = Entry::Format;
 
   if (format == Format::HEX) {
-    return phosg::format_data_string(str, nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
+    return phosg::format_data_string(str, phosg::FormatDataStringFlags::HEX_ONLY);
   } else if (format == Format::TEXT) {
     if (has_name) {
       return "'" + decode_mac_roman(str) + "'";
@@ -881,7 +881,7 @@ static void disassemble_from_template_inner(
       // Note: Type::VOID is already handled above
       case Type::ZERO_FILL:
         if ((entry->width != 1) && (entry->width != 2) && (entry->width != 4)) {
-          std::string data = r.readx(entry->width);
+          std::string_view data = r.readx(entry->width);
           if (data.find_first_not_of('\0') != std::string::npos) {
             lines.emplace_back(prefix + phosg::format_data_string(data) + " (type = zero fill in template)");
           }
@@ -999,7 +999,7 @@ static void disassemble_from_template_inner(
         break;
       }
       case Type::FIXED_CSTRING: {
-        std::string data = r.get_cstr();
+        std::string_view data = r.get_cstr();
         if (data.size() > static_cast<size_t>(entry->width + 1)) {
           throw std::runtime_error("c-string too long for field");
         }
@@ -1099,7 +1099,7 @@ std::string ResourceFile::disassemble_from_template(
   std::deque<std::string> lines;
   disassemble_from_template_inner(lines, r, tmpl, 0);
   if (!r.eof()) {
-    std::string extra_data = r.read(r.remaining());
+    std::string_view extra_data = r.read(r.remaining());
     lines.emplace_back("\nNote: template did not parse all data in resource; remaining data: " + phosg::format_data_string(extra_data));
   }
   return phosg::join(lines, "\n");
@@ -1182,11 +1182,10 @@ std::vector<ResourceFile::DecodedCodeFragmentEntry> ResourceFile::decode_cfrg(co
     size_t entry_start_offset = r.where();
 
     const auto& src_entry = r.get<CodeFragmentResourceEntry>();
-    std::string name = r.readx(r.get_u8());
 
     ret.emplace_back();
     auto& ret_entry = ret.back();
-
+    ret_entry.name = r.read(r.get_u8());
     ret_entry.architecture = src_entry.architecture;
     ret_entry.update_level = src_entry.update_level;
     ret_entry.current_version = src_entry.current_version;
@@ -1343,7 +1342,7 @@ ResourceFile::DecodedDriverResource ResourceFile::decode_DRVR(const void* data, 
   phosg::StringReader r(data, size);
 
   const auto& header = r.get<DriverResourceHeader>();
-  std::string name = r.readx(r.get_u8());
+  std::string_view name = r.readx(r.get_u8());
 
   // Code starts at the next word-aligned boundary after the name
   if (r.where() & 1) {
@@ -1570,9 +1569,9 @@ ResourceFile::DecodedPEFDriver ResourceFile::decode_expt(std::shared_ptr<const R
 ResourceFile::DecodedPEFDriver ResourceFile::decode_expt(const void* data, size_t size) {
   phosg::StringReader r(data, size);
   // TODO: Figure out the format (and actual size) of this header and parse it
-  std::string header_contents = r.read(0x20);
+  std::string_view header_contents = r.read(0x20);
   size_t pef_size = r.remaining();
-  return {std::move(header_contents), PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
+  return {std::string(header_contents), PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
 }
 
 ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(int16_t id, uint32_t type) const {
@@ -1586,9 +1585,9 @@ ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(std::shared_ptr<const R
 ResourceFile::DecodedPEFDriver ResourceFile::decode_nsrd(const void* data, size_t size) {
   phosg::StringReader r(data, size);
   // TODO: Figure out the format (and actual size) of this header and parse it
-  std::string header_contents = r.read(0x20);
+  std::string_view header_contents = r.read(0x20);
   size_t pef_size = r.remaining();
-  return {std::move(header_contents), PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
+  return {std::string(header_contents), PEFFile("__unnamed__", &r.get<char>(true, pef_size), pef_size)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3241,7 +3240,7 @@ ResourceFile::DecodedSoundResource ResourceFile::decode_snd_data(
         }
 
         if (!metadata_only) {
-          std::string samples_str = r.readx(num_samples * ret.num_channels * (bits_per_sample / 8));
+          std::string_view samples_str = r.readx(num_samples * ret.num_channels * (bits_per_sample / 8));
           if ((bits_per_sample == 0x10) && (compressed_buffer.format == 0x736F7774)) {
             // 'swot' is little-endian; all other formats should use default behavior
             ret.samples = Audio::convert_samples<float, phosg::le_int16_t>(samples_str);
@@ -3804,7 +3803,7 @@ ResourceFile::DecodedStringSequence ResourceFile::decode_STRN(const void* vdata,
     ret.emplace_back(decode_mac_roman(r.readx(r.get_u8())));
   }
 
-  return {ret, r.read(r.remaining())};
+  return {ret, std::string{r.read(r.remaining())}};
 }
 
 std::string ResourceFile::decode_STRN_entry(int16_t id, size_t index, uint32_t type) const {
@@ -3873,7 +3872,7 @@ ResourceFile::DecodedString ResourceFile::decode_STR(const void* vdata, size_t s
 
   phosg::StringReader r(vdata, size);
   std::string s = decode_mac_roman(r.readx(r.get_u8()));
-  return {std::move(s), r.read(r.remaining())};
+  return {std::move(s), std::string{r.read(r.remaining())}};
 }
 
 std::string ResourceFile::decode_card(int16_t id, uint32_t type) const {
@@ -4139,7 +4138,7 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
     ret.color_table = rf->decode_fctb(res_id);
   }
 
-  std::string bitmap_data = r.readx(header.bitmap_row_width * header.rect_height * 2);
+  std::string_view bitmap_data = r.readx(header.bitmap_row_width * header.rect_height * 2);
   if (ret.source_bit_depth == 1) {
     ret.full_bitmap = decode_monochrome_image(
         bitmap_data.data(), bitmap_data.size(), header.bitmap_row_width * 16, header.rect_height);

@@ -12,9 +12,9 @@
 #include "DataCodecs/Codecs.hh"
 #include "ImageSaver.hh"
 
-phosg::ImageRGB888 render_Blev(const std::string& data, const phosg::ImageRGB888& tile_sheet) {
+phosg::ImageRGB888 render_Blev(std::string_view data, const phosg::ImageRGB888& tile_sheet) {
   phosg::StringReader r(data);
-  std::string header_data = r.read(0x0E); // Format unknown
+  r.skip(0x0E); // Format unknown
   uint16_t key = r.get_u16b();
 
   std::string decoded;

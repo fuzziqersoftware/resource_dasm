@@ -109,8 +109,8 @@ static std::vector<ResourceEntry> load_index(phosg::StringReader& r) {
 
   uint32_t file_table_offset = h.resource_dir_offset + h.file_table_offset;
   uint32_t file_table_count = r.pget_u32b(file_table_offset);
-  std::string file_table_data = r.pread(file_table_offset, ResourceFileTable::size_for_count(file_table_count));
-  const ResourceFileTable* file_table = reinterpret_cast<ResourceFileTable*>(file_table_data.data());
+  std::string_view file_table_data = r.pread(file_table_offset, ResourceFileTable::size_for_count(file_table_count));
+  const ResourceFileTable* file_table = reinterpret_cast<const ResourceFileTable*>(file_table_data.data());
 
   std::vector<ResourceEntry> ret;
   for (size_t type_index = 0; type_index < type_table.count; type_index++) {
@@ -139,7 +139,7 @@ struct ResourceDataHeader {
   phosg::be_uint32_t type;
 } __attribute__((packed));
 
-std::string get_resource_data(phosg::StringReader& r, const ResourceEntry& e) {
+std::string_view get_resource_data(phosg::StringReader& r, const ResourceEntry& e) {
   const auto& h = r.pget<ResourceDataHeader>(e.offset);
   if (h.signature != 0x4D48574B) {
     throw std::runtime_error("Mohawk resource entry signature is incorrect");
@@ -147,7 +147,7 @@ std::string get_resource_data(phosg::StringReader& r, const ResourceEntry& e) {
   return r.pread(e.offset + sizeof(ResourceDataHeader), h.size - 4);
 }
 
-ResourceFile parse_mohawk(const std::string& data) {
+ResourceFile parse_mohawk(std::string_view data) {
   phosg::StringReader r(data.data(), data.size());
 
   ResourceFile ret(IndexFormat::MOHAWK);
@@ -156,7 +156,7 @@ ResourceFile parse_mohawk(const std::string& data) {
     // TODO: Some Mohawk versions apparently need just r.pread(e.offset, e.size) here instead of get_resource_data.
     // (Prince of Persia 2 needs get_resource_data, for example.) Figure out which versions need what, and whether this
     // is controlled by some header / format flag.
-    ret.add(ResourceFile::Resource{e.type, e.id, get_resource_data(r, e)});
+    ret.add(ResourceFile::Resource{e.type, e.id, std::string(get_resource_data(r, e))});
   }
 
   return ret;

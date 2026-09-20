@@ -49,7 +49,7 @@ static uint16_t checksum(const void* data, size_t size, uint16_t crc = 0) {
   return crc;
 }
 
-DecodedBinHex parse_binhex(const std::string& data) {
+DecodedBinHex parse_binhex(std::string_view data) {
   size_t sentinel_offset = data.find("(This file must be converted with BinHex ");
   if (sentinel_offset == std::string_view::npos) {
     throw std::runtime_error("Input is not BinHex-encoded");
@@ -163,7 +163,7 @@ DecodedBinHex parse_binhex(const std::string& data) {
   return ret;
 }
 
-ResourceFile parse_binhex_resource_fork(const std::string& data) {
+ResourceFile parse_binhex_resource_fork(std::string_view data) {
   auto decoded = parse_binhex(data);
   return parse_resource_fork(decoded.resource_fork);
 }

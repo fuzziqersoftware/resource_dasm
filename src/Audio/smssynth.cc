@@ -12,6 +12,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "../TextCodecs.hh"
 #include "Constants.hh"
 #include "Resample.hh"
 #include "SoundEnvironment.hh"
@@ -57,7 +58,7 @@ bool is_binary(const char* s, size_t size) {
   return false;
 }
 
-bool is_binary(const std::string& s) {
+bool is_binary(std::string_view s) {
   return is_binary(s.data(), s.size());
 }
 
@@ -479,7 +480,7 @@ void disassemble_bms(phosg::StringReader& r, int32_t default_bank = -1) {
     }
 
     size_t opcode_size = r.where() - opcode_offset;
-    std::string data = r.pread(opcode_offset, opcode_size);
+    std::string_view data = r.pread(opcode_offset, opcode_size);
     std::string data_str;
     for (char ch : data) {
       data_str += std::format("{:02X} ", static_cast<uint8_t>(ch));
@@ -612,7 +613,7 @@ void disassemble_midi(phosg::StringReader& r) {
         if ((type == 0x00) && (size == 0x02)) {
           phosg::fwrite_fmt(stdout, "seq_number   {}\n", r.get_u16b());
         } else if (type == 0x01) {
-          std::string data = r.read(size);
+          auto data = r.read(size);
           if (is_binary(data)) {
             std::string data_str = phosg::format_data_string(data);
             phosg::fwrite_fmt(stdout, "text         0x{}\n", data_str);
@@ -620,23 +621,17 @@ void disassemble_midi(phosg::StringReader& r) {
             phosg::fwrite_fmt(stdout, "text         \"{}\"\n", data);
           }
         } else if (type == 0x02) {
-          std::string data = r.read(size);
-          phosg::fwrite_fmt(stdout, "copyright    \"{}\"\n", data);
+          phosg::fwrite_fmt(stdout, "copyright    \"{}\"\n", ResourceDASM::decode_mac_roman(r.read(size)));
         } else if (type == 0x03) {
-          std::string data = r.read(size);
-          phosg::fwrite_fmt(stdout, "name         \"{}\"\n", data);
+          phosg::fwrite_fmt(stdout, "name         \"{}\"\n", ResourceDASM::decode_mac_roman(r.read(size)));
         } else if (type == 0x04) {
-          std::string data = r.read(size);
-          phosg::fwrite_fmt(stdout, "ins_name     \"{}\"\n", data);
+          phosg::fwrite_fmt(stdout, "ins_name     \"{}\"\n", ResourceDASM::decode_mac_roman(r.read(size)));
         } else if (type == 0x05) {
-          std::string data = r.read(size);
-          phosg::fwrite_fmt(stdout, "lyric        \"{}\"\n", data);
+          phosg::fwrite_fmt(stdout, "lyric        \"{}\"\n", ResourceDASM::decode_mac_roman(r.read(size)));
         } else if (type == 0x06) {
-          std::string data = r.read(size);
-          phosg::fwrite_fmt(stdout, "marker       \"{}\"\n", data);
+          phosg::fwrite_fmt(stdout, "marker       \"{}\"\n", ResourceDASM::decode_mac_roman(r.read(size)));
         } else if (type == 0x07) {
-          std::string data = r.read(size);
-          phosg::fwrite_fmt(stdout, "cue_point    \"{}\"\n", data);
+          phosg::fwrite_fmt(stdout, "cue_point    \"{}\"\n", ResourceDASM::decode_mac_roman(r.read(size)));
         } else if ((type == 0x20) && (size == 1)) {
           uint8_t channel = r.get_u8();
           phosg::fwrite_fmt(stdout, "channel_pfx  channel{}\n", channel);
@@ -1076,7 +1071,7 @@ public:
 
     // If there are voices waiting to produce sound, we can continue rendering
     for (const auto& t : this->tracks) {
-      if (!t->voices.empty() || !t->voices_off.empty()) {
+      if (!t->voices.empty() || !t->voices_delayed_off.empty() || !t->voices_off.empty()) {
         return true;
       }
     }
@@ -1128,6 +1123,9 @@ public:
       std::unordered_set<Voice*> all_voices;
       for (auto& it : t->voices) {
         all_voices.insert(it.second.get());
+      }
+      for (auto& it : t->voices_delayed_off) {
+        all_voices.insert(it.get());
       }
       for (auto& it : t->voices_off) {
         all_voices.insert(it.get());
@@ -1284,8 +1282,10 @@ struct BaseTrack {
   float freq_mult = 1.0;
   int32_t bank = -1; // Technically uint16, but uninitialized as -1
   int32_t instrument = -1; // Technically uint16, but uninitialized as -1
+  bool sustain_enabled = false;
 
   std::unordered_map<size_t, std::shared_ptr<Voice>> voices;
+  std::unordered_set<std::shared_ptr<Voice>> voices_delayed_off;
   std::unordered_set<std::shared_ptr<Voice>> voices_off;
 
   BaseTrack(int16_t id, int32_t bank = -1) : id(id), bank(bank) {}
@@ -1296,12 +1296,28 @@ struct BaseTrack {
     }
   }
 
+  void set_sustain(bool sustain) {
+    this->sustain_enabled = sustain;
+    if (!this->sustain_enabled) {
+      for (auto it = this->voices_delayed_off.begin();
+          it != this->voices_delayed_off.end();
+          it = this->voices_delayed_off.erase(it)) {
+        (*it)->off();
+        this->voices_off.emplace(std::move(*it));
+      }
+    }
+  }
+
   void voice_off(size_t voice_id) {
     // Some tracks do voice_off for nonexistent voices because of bad looping; just do nothing in that case
     auto v_it = this->voices.find(voice_id);
     if (v_it != this->voices.end()) {
-      v_it->second->off();
-      this->voices_off.emplace(std::move(v_it->second));
+      if (this->sustain_enabled) {
+        this->voices_delayed_off.emplace(std::move(v_it->second));
+      } else {
+        v_it->second->off();
+        this->voices_off.emplace(std::move(v_it->second));
+      }
       this->voices.erase(v_it);
     }
   }
@@ -2012,16 +2028,21 @@ protected:
       t->voice_off(voice_id);
 
     } else if (auto ev = dynamic_cast<const T::ControllerEvent*>(generic_ev)) {
+      using CID = ResourceDASM::QuickTime::QTMAControllerID;
       switch (ev->message) {
-        case 0x07: // Volume
+        case CID::kControllerVolume:
           t->channel(0)->volume.set(static_cast<float>(ev->value) / 0x7FFF);
           break;
-        case 0x0A: // Panning
+        case CID::kControllerPan:
           // Values are 256-512 apparently. Why...?
           t->channel(0)->panning.set(static_cast<float>(ev->value - 0x100) / 0x100);
           break;
-        case 0x20: // Pitch bend; value is 8.8 fixed (or equivalently, 0x100 = 1 semitone)
+        case CID::kControllerPitchBend:
+          // Value is 8.8 fixed (or equivalently, 0x100 = 1 semitone)
           t->channel(0)->pitch_bend.set(static_cast<float>(ev->value) / 0x100);
+          break;
+        case CID::kControllerSustain:
+          t->set_sustain(ev->value != 0);
           break;
         default:
           // TODO: implement more controller messages

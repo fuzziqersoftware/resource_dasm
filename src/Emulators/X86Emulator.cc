@@ -72,7 +72,7 @@ std::string X86Emulator::DisassemblyState::annotation_for_rm_ea(
           } else if (operand_size == 64) {
             value_str = std::format("0x{:016X}", this->emu->mem->read_u64l(addr));
           } else {
-            value_str = "DATA:" + phosg::format_data_string(this->emu->mem->read(addr, operand_size >> 8), nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
+            value_str = "DATA:" + phosg::format_data_string(this->emu->mem->read(addr, operand_size >> 8), phosg::FormatDataStringFlags::HEX_ONLY);
           }
         } catch (const std::exception& e) {
           value_str = std::format("(unreadable: {})", e.what());
@@ -4223,7 +4223,7 @@ std::string X86Emulator::disassemble_one(DisassemblyState& s) {
   if (s.include_hex) {
     size_t num_bytes = s.r.where() - start_offset;
     std::string data_str = phosg::format_data_string(
-        s.r.preadx(start_offset, num_bytes), nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
+        s.r.preadx(start_offset, num_bytes), phosg::FormatDataStringFlags::HEX_ONLY);
     data_str.resize(std::max<size_t>(data_str.size() + 3, 23), ' ');
     return data_str + dasm;
   } else {
@@ -7485,7 +7485,7 @@ struct OpcodeIterator {
 
 bool X86Emulator::test_assembler(const std::string& start_opcode, bool stop_on_failure, bool verbose) {
   auto hex_str = [](const std::string& data) -> std::string {
-    return phosg::format_data_string(data, nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
+    return phosg::format_data_string(data, phosg::FormatDataStringFlags::HEX_ONLY);
   };
   OpcodeIterator it(start_opcode);
   auto should_print = [&]() -> bool {

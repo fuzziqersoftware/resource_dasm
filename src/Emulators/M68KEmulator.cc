@@ -137,7 +137,7 @@ static std::string estimate_pstring(const phosg::StringReader& r, uint32_t addr)
       return "";
     }
 
-    std::string data = r.pread(addr + 1, len);
+    std::string_view data = r.pread(addr + 1, len);
     std::string formatted_data = "\"";
     for (char ch : data) {
       if (ch == '\r') {

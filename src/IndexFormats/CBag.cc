@@ -20,7 +20,7 @@ struct CBagEntry {
   char name[0x3F];
 } __attribute__((packed));
 
-ResourceFile parse_cbag(const std::string& data) {
+ResourceFile parse_cbag(std::string_view data) {
   phosg::StringReader r(data);
 
   uint32_t count = r.get_u32b();
@@ -29,8 +29,8 @@ ResourceFile parse_cbag(const std::string& data) {
   for (size_t z = 0; z < count; z++) {
     const auto& entry = r.get<CBagEntry>();
     std::string name(entry.name, std::min<size_t>(sizeof(entry.name), entry.name_length));
-    std::string data = r.pread(entry.data_offset, entry.data_size);
-    ResourceFile::Resource res(entry.type, entry.id, 0, std::move(name), std::move(data));
+    std::string_view data = r.pread(entry.data_offset, entry.data_size);
+    ResourceFile::Resource res(entry.type, entry.id, 0, std::move(name), std::string(data));
     ret.add(std::move(res));
   }
   return ret;

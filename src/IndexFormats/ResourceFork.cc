@@ -96,14 +96,14 @@ ResourceFile parse_resource_fork(phosg::StringReader& r) {
           ref_entry.resource_id,
           static_cast<uint16_t>((ref_entry.attributes_and_offset >> 24) & 0xFF),
           name,
-          r.preadx(data_offset + 4, data_size)});
+          std::string(r.preadx(data_offset + 4, data_size))});
     }
   }
 
   return ret;
 }
 
-ResourceFile parse_resource_fork(const std::string& data) {
+ResourceFile parse_resource_fork(std::string_view data) {
   phosg::StringReader r(data.data(), data.size());
   return parse_resource_fork(r);
 }

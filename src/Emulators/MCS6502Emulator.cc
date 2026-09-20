@@ -1069,7 +1069,7 @@ std::string MCS6502Emulator::disassemble_one(DisassemblyState& s) {
     throw std::logic_error(std::format("disassembly did not advance; used {:X}/{:X} bytes", s.r.where(), s.r.size()));
   }
   std::string hex_data = phosg::format_data_string(
-      s.r.pread(opcode_offset, end_offset - opcode_offset), nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
+      s.r.pread(opcode_offset, end_offset - opcode_offset), phosg::FormatDataStringFlags::HEX_ONLY);
   if (hex_data.size() < 10) {
     hex_data.resize(10, ' ');
   }

@@ -23,14 +23,14 @@ struct ResourceEntry {
   phosg::be_int16_t id;
 } __attribute__((packed));
 
-ResourceFile parse_dc_data(const std::string& data) {
+ResourceFile parse_dc_data(std::string_view data) {
   phosg::StringReader r(data);
   const auto& h = r.get<ResourceHeader>();
 
   ResourceFile ret(IndexFormat::DC_DATA);
   for (size_t x = 0; x < h.resource_count; x++) {
     const auto& e = r.get<ResourceEntry>();
-    ret.add(ResourceFile::Resource(e.type, e.id, r.preadx(e.offset, e.size)));
+    ret.add(ResourceFile::Resource(e.type, e.id, std::string(r.preadx(e.offset, e.size))));
   }
 
   return ret;

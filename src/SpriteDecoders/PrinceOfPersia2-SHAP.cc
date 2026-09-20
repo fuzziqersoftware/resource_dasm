@@ -31,7 +31,7 @@ struct SHAPHeader {
   uint8_t data[0];
 } __attribute__((packed));
 
-std::string decompress_SHAP_lz(const std::string& data) {
+std::string decompress_SHAP_lz(std::string_view data) {
   phosg::StringReader r(data);
   size_t decompressed_size = r.get_u32b() - 0x0C;
 
@@ -76,7 +76,7 @@ std::string decompress_SHAP_lz(const std::string& data) {
   return w.str();
 }
 
-std::string decompress_SHAP_standard_rle(const std::string& data) {
+std::string decompress_SHAP_standard_rle(std::string_view data) {
   phosg::StringReader r(data);
   phosg::StringWriter w;
 
@@ -95,7 +95,7 @@ std::string decompress_SHAP_standard_rle(const std::string& data) {
   return w.str();
 }
 
-std::string decompress_SHAP_rows_rle(const std::string& data, size_t num_rows, size_t row_bytes) {
+std::string decompress_SHAP_rows_rle(std::string_view data, size_t num_rows, size_t row_bytes) {
   phosg::StringReader r(data);
   phosg::StringWriter w;
 
@@ -126,24 +126,28 @@ std::string decompress_SHAP_rows_rle(const std::string& data, size_t num_rows, s
   return w.str();
 }
 
-phosg::ImageRGBA8888N decode_SHAP(const std::string& data_with_header, const std::vector<ColorTableEntry>& ctbl) {
+phosg::ImageRGBA8888N decode_SHAP(std::string_view data_with_header, const std::vector<ColorTableEntry>& ctbl) {
   phosg::StringReader r(data_with_header);
 
   const auto& header = r.get<SHAPHeader>();
-  std::string data = r.read(r.remaining());
+  std::string_view data = r.read(r.remaining());
 
   uint16_t effective_row_bytes = header.row_bytes;
   uint8_t compression_type = (header.flags & 0x0F00) >> 8;
+  std::string decompressed_data;
   if (compression_type & 4) {
-    data = decompress_SHAP_lz(data);
+    decompressed_data = decompress_SHAP_lz(data);
+    data = decompressed_data;
   }
   if (compression_type & 2) {
-    data = decompress_SHAP_standard_rle(data);
+    decompressed_data = decompress_SHAP_standard_rle(data);
+    data = decompressed_data;
   }
   if (compression_type & 1) {
     // There appears to be a bug (?) where the game uses row_bytes instead of width if it's RLE-compressed. It's likely
     // this only occurs for 8-bit SHAPs, but (TODO) we should check the code for the others - there are no examples
-    data = decompress_SHAP_rows_rle(data, header.height, header.width);
+    decompressed_data = decompress_SHAP_rows_rle(data, header.height, header.width);
+    data = decompressed_data;
     effective_row_bytes = header.width;
   }
 

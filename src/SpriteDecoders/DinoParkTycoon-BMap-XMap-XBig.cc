@@ -12,7 +12,7 @@
 
 namespace ResourceDASM {
 
-phosg::ImageGA11 decode_BMap(const std::string& data) {
+phosg::ImageGA11 decode_BMap(std::string_view data) {
   // A BMap is really just a BitMapHeader and the associated data, stuffed into an uncompressed resource, with a couple
   // of extra header fields.
 
@@ -58,7 +58,7 @@ phosg::ImageGA11 decode_BMap(const std::string& data) {
   return ret;
 }
 
-std::vector<phosg::ImageG1> decode_XBig(const std::string& data) {
+std::vector<phosg::ImageG1> decode_XBig(std::string_view data) {
   // An XBig is a sequence of 4 bitmaps (similar to BMap) stuffed into a resource. The number of images is not
   // specified anywhere; some of them may be missing (headers will all be zero). We don't check for this, and just
   // return an empty Image for the bitmaps that are absent.
@@ -101,7 +101,7 @@ std::vector<phosg::ImageG1> decode_XBig(const std::string& data) {
   return images;
 }
 
-phosg::ImageRGBA8888N decode_XMap(const std::string& data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGBA8888N decode_XMap(std::string_view data, const std::vector<ColorTableEntry>& clut) {
   // XMap is the color analogue of BMap; it consists of a PixMapHeader and the corresponding data, but also optionally
   // includes to Regions. One of these is the clipping region, but it's not clear what the other is for.
 

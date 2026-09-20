@@ -10,14 +10,14 @@ namespace ResourceDASM {
 
 // PackBits.cc
 std::string unpack_bits(const void* data, size_t size);
-std::string unpack_bits(const std::string& data);
+std::string unpack_bits(std::string_view data);
 void unpack_bits_into(phosg::StringReader& in, void* uncompressed_data, uint32_t uncompressed_size);
 
 std::string pack_bits(const void* data, size_t size);
-std::string pack_bits(const std::string& data);
+std::string pack_bits(std::string_view data);
 
 std::string decompress_packed_icns_data(const void* data, size_t size);
-std::string decompress_packed_icns_data(const std::string& data);
+std::string decompress_packed_icns_data(std::string_view data);
 
 // Returns the number of bytes written to `out`
 uint32_t compress_strided_icns_data(
@@ -25,36 +25,36 @@ uint32_t compress_strided_icns_data(
 
 // Bungie.cc
 std::string unpack_pathways(const void* data, size_t size);
-std::string unpack_pathways(const std::string& data);
-std::string decrypt_encrypt_odyssey(const std::string& data);
+std::string unpack_pathways(std::string_view data);
+std::string decrypt_encrypt_odyssey(std::string_view data);
 
 // DinoParkTycoon-LZSS-RLE.cc
 std::string decompress_dinopark_tycoon_lzss(const void* data, size_t size);
-std::string decompress_dinopark_tycoon_lzss(const std::string& data);
+std::string decompress_dinopark_tycoon_lzss(std::string_view data);
 std::string decompress_dinopark_tycoon_rle(const void* data, size_t size);
-std::string decompress_dinopark_tycoon_rle(const std::string& data);
+std::string decompress_dinopark_tycoon_rle(std::string_view data);
 std::string decompress_dinopark_tycoon_data(const void* data, size_t size);
-std::string decompress_dinopark_tycoon_data(const std::string& data);
+std::string decompress_dinopark_tycoon_data(std::string_view data);
 
 // Nintendo-Yaz0.cc
 std::string decompress_Yaz0(const void* data, size_t size);
-std::string decompress_Yaz0(const std::string& data);
+std::string decompress_Yaz0(std::string_view data);
 
 // Presage-LZSS.cc
 std::string decompress_presage_lzss(phosg::StringReader& r, size_t max_output_bytes = 0);
 std::string decompress_presage_lzss(const void* data, size_t size, size_t max_output_bytes = 0);
-std::string decompress_presage_lzss(const std::string& data, size_t max_output_bytes = 0);
+std::string decompress_presage_lzss(std::string_view data, size_t max_output_bytes = 0);
 
 // MacSki-RUN4-COOK-CO2K.cc
 std::string decompress_macski_RUN4(const void* data, size_t size);
-std::string decompress_macski_RUN4(const std::string& data);
+std::string decompress_macski_RUN4(std::string_view data);
 std::string decompress_macski_COOK_CO2K(const void* data, size_t size);
-std::string decompress_macski_COOK_CO2K(const std::string& data);
+std::string decompress_macski_COOK_CO2K(std::string_view data);
 std::string decompress_macski_multi(const void* data, size_t size);
-std::string decompress_macski_multi(const std::string& data);
+std::string decompress_macski_multi(std::string_view data);
 
 // SoundMusicSys-LZSS.cc
 std::string decompress_soundmusicsys_lzss(const void* vsrc, size_t size);
-std::string decompress_soundmusicsys_lzss(const std::string& data);
+std::string decompress_soundmusicsys_lzss(std::string_view data);
 
 } // namespace ResourceDASM

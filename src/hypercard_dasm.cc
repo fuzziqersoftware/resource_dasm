@@ -25,7 +25,7 @@ void print_extra_data(phosg::StringReader& r, size_t end_offset, const char* wha
   if (offset > end_offset) {
     throw std::runtime_error(std::format("{} parsing extended beyond end", what));
   } else if (offset < end_offset) {
-    std::string extra_data = r.read(end_offset - offset);
+    std::string_view extra_data = r.read(end_offset - offset);
     if (extra_data.find_first_not_of('\0') != std::string::npos) {
       phosg::fwrite_fmt(stderr, "Warning: extra data after {} ignored:\n", what);
       phosg::print_data(stderr, extra_data, offset);
@@ -33,18 +33,18 @@ void print_extra_data(phosg::StringReader& r, size_t end_offset, const char* wha
   }
 }
 
-std::string get_cstr_pad(phosg::StringReader& r) {
+std::string_view get_cstr_pad(phosg::StringReader& r) {
   bool initial_parity = r.where() & 1;
-  std::string ret = r.get_cstr();
+  std::string_view ret = r.get_cstr();
   if (initial_parity != (r.where() & 1)) {
     r.get_u8();
   }
   return ret;
 }
 
-std::string trim_and_decode(const std::string& src) {
+std::string trim_and_decode(std::string_view src) {
   size_t zero_pos = src.find('\0');
-  std::string ret = (zero_pos != std::string::npos) ? src.substr(0, zero_pos) : src;
+  std::string_view ret = (zero_pos != std::string::npos) ? src.substr(0, zero_pos) : src;
   return ResourceDASM::decode_mac_roman(ret);
 }
 
@@ -54,7 +54,7 @@ bool format_is_v2(uint32_t format) {
   return (format >= 9);
 }
 
-std::string autoformat_hypertalk(const std::string& src) {
+std::string autoformat_hypertalk(std::string_view src) {
   std::vector<std::string> lines = phosg::split(src, '\n');
 
   // First, eliminate all continuation characters by combining lines
@@ -197,7 +197,7 @@ struct OSAScriptData {
   }
 };
 
-void print_formatted_script(FILE* f, const std::string& script, const OSAScriptData& osa_script_data) {
+void print_formatted_script(FILE* f, std::string_view script, const OSAScriptData& osa_script_data) {
   std::string extra_header_data;
   if (script.empty()) {
     if (!osa_script_data.extra_header_data.empty()) {
@@ -485,7 +485,7 @@ struct FontTableBlock {
     for (size_t x = 0; x < font_count; x++) {
       int16_t font_id = r.get_s16b();
       uint8_t name_length = r.get_u8();
-      std::string name = r.read(name_length);
+      std::string_view name = r.read(name_length);
       if (!(name_length & 1)) {
         r.get_u8(); // end of entry is always word-aligned
       }
@@ -762,7 +762,7 @@ struct CardOrBackgroundBlock {
   }
 };
 
-static void operator^=(std::string& a, const std::string& b) {
+static void operator^=(std::string& a, std::string_view b) {
   if (a.size() != b.size()) {
     throw std::invalid_argument("strings must be the same length");
   }
@@ -847,8 +847,8 @@ struct BitmapBlock {
     r.skip(8);
     uint32_t mask_data_size = r.get_u32b();
     uint32_t image_data_size = r.get_u32b();
-    std::string mask_data = r.read(mask_data_size);
-    std::string image_data = r.read(image_data_size);
+    std::string_view mask_data = r.read(mask_data_size);
+    std::string_view image_data = r.read(image_data_size);
     if (!mask_data.empty()) {
       this->mask_mode = MaskMode::PRESENT;
       this->mask = this->decode_bitmap(mask_data, this->mask_rect);
@@ -860,7 +860,7 @@ struct BitmapBlock {
     this->image = this->decode_bitmap(image_data, this->image_rect);
   }
 
-  static phosg::ImageG1 decode_bitmap(const std::string& compressed_data, const ResourceDASM::Rect& bounds) {
+  static phosg::ImageG1 decode_bitmap(std::string_view compressed_data, const ResourceDASM::Rect& bounds) {
     size_t expanded_bounds_left = bounds.x1 & (~31);
     size_t expanded_bounds_right = ((bounds.x2 + 31) & (~31));
     size_t row_length_bits = expanded_bounds_right - expanded_bounds_left;
@@ -1171,7 +1171,7 @@ int main(int argc, char** argv) {
 
     if (dump_raw_blocks) {
       std::string type_str = ResourceDASM::string_for_resource_type(header.type);
-      std::string data = r.read(header.size);
+      std::string_view data = r.read(header.size);
       std::string output_filename = std::format("{}/{}_{}_{:X}.bin", out_dir, type_str, block_id, block_offset);
       phosg::save_file(output_filename, data);
       phosg::fwrite_fmt(stderr, "... {}\n", output_filename);

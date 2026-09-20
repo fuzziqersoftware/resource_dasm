@@ -64,7 +64,7 @@ static phosg::ImageRGBA8888N decode_sprite_entry(
   }
 }
 
-std::vector<phosg::ImageRGBA8888N> decode_SPRT(const std::string& data, const std::vector<ColorTableEntry>& pltt) {
+std::vector<phosg::ImageRGBA8888N> decode_SPRT(std::string_view data, const std::vector<ColorTableEntry>& pltt) {
   phosg::StringReader r(data);
   uint16_t count = r.get_u16b();
 

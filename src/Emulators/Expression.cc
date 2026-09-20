@@ -58,7 +58,7 @@ std::string Value::str(bool hex) const {
     return std::format("{}", this->as_float());
   } else if (this->is_string()) {
     return hex
-        ? phosg::format_data_string(this->as_string(), nullptr, phosg::FormatDataStringFlags::HEX_ONLY)
+        ? phosg::format_data_string(this->as_string(), phosg::FormatDataStringFlags::HEX_ONLY)
         : std::format("\"{}\"", phosg::escape_quotes(this->as_string()));
   } else {
     throw std::logic_error("Unknown value type");

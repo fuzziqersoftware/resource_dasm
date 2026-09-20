@@ -34,11 +34,11 @@ std::string unpack_pathways(const void* data, size_t size) {
   return std::move(w.str());
 }
 
-std::string unpack_pathways(const std::string& data) {
+std::string unpack_pathways(std::string_view data) {
   return unpack_pathways(data.data(), data.size());
 }
 
-std::string decrypt_encrypt_odyssey(const std::string& data) {
+std::string decrypt_encrypt_odyssey(std::string_view data) {
   std::string ret;
   ret.reserve(data.size());
   for (size_t z = 0; z < data.size(); z++) {
