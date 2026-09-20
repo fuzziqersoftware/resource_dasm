@@ -525,7 +525,6 @@ QTMASequence::QTMASequence(const void* data, size_t size, bool expect_header) {
     r.skip(sizeof(AtomBase));
   }
 
-  std::unordered_map<uint16_t, uint8_t> partition_id_to_channel;
   uint64_t current_time = 0;
 
   auto add_event = [&](std::unique_ptr<Event> event, size_t start_offset) -> void {
@@ -568,11 +567,7 @@ QTMASequence::QTMASequence(const void* data, size_t size, bool expect_header) {
           ev->vel = (event >> 11) & 0x7F;
           ev->duration = event & 0x7FF;
         }
-        try {
-          ev->channel = partition_id_to_channel.at(partition_id);
-        } catch (const std::out_of_range&) {
-          throw std::runtime_error("notes produced on uninitialized partition");
-        }
+        ev->channel = partition_id;
 
         auto off_ev = std::make_unique<NoteOffEvent>();
         off_ev->when = current_time + ev->duration;
@@ -604,7 +599,7 @@ QTMASequence::QTMASequence(const void* data, size_t size, bool expect_header) {
 
         // Controller messages can create channels
         auto ev = std::make_unique<ControllerEvent>();
-        ev->channel = partition_id_to_channel.emplace(partition_id, partition_id_to_channel.size()).first->second;
+        ev->channel = partition_id;
         ev->message = message;
         ev->value = value;
         add_event(std::move(ev), start_offset);
@@ -623,9 +618,6 @@ QTMASequence::QTMASequence(const void* data, size_t size, bool expect_header) {
         // The second-to-last word contains the message type
         uint16_t message_type = msg_r.pget_u16b(msg_r.size() - 4) & 0x3FFF;
 
-        // Meta messages can create channels
-        uint8_t channel = partition_id_to_channel.emplace(partition_id, partition_id_to_channel.size()).first->second;
-
         switch (message_type) {
           case 1: { // Instrument definition
             if (msg_r.remaining() != sizeof(TuneInstrumentDefinition)) {
@@ -635,7 +627,7 @@ QTMASequence::QTMASequence(const void* data, size_t size, bool expect_header) {
             }
             const auto& inst = msg_r.get<TuneInstrumentDefinition>();
             auto ev = std::make_unique<ChannelSetupEvent>();
-            ev->channel = channel;
+            ev->channel = partition_id;
             ev->instrument_number = inst.desc.instrument_number;
             ev->midi_instrument_number = inst.desc.midi_instrument_number;
             ev->collection_name = decode_pstring<0x20>(inst.desc.collection_name);
@@ -655,7 +647,7 @@ QTMASequence::QTMASequence(const void* data, size_t size, bool expect_header) {
               throw std::runtime_error("Extended instrument definition format is unrecognized");
             }
             auto ev = std::make_unique<ChannelSetupEvent>();
-            ev->channel = channel;
+            ev->channel = partition_id;
             ev->instrument_number = inst.instrument_number;
             ev->midi_instrument_number = inst.midi_instrument_number;
             ev->collection_name = decode_pstring<0x20>(inst.collection_name);
