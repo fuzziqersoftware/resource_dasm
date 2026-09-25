@@ -629,9 +629,15 @@ Run dupe_finder without any options for usage information.
 
 ### Decompressors/dearchivers for specific formats
 
-* For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
 * For Alessandro Levi Montalcini's Icon Archiver: `icon_dearchiver archive_file [output_dir]` unpacks the icons to .icns files.
-* For VRFS files: `vrfsdump VRFS_file [output_dir]`
+* For AppleSingle/AppleDouble: `appledouble_decode [--separate] filename [output_path]` (`--separate` will save the data and resource forks to separate files; you'll need this if not running on macOS)
+* For BinHex: `binhex_decode [--separate] filename [output_path]` (`--separate` will save the data and resource forks to separate files; you'll need this if not running on macOS)
+* For GameCube images (GCM/TGC): `gcmdump [--gcm|--tgc] filename` (saves output files to the current directory)
+* For GVM or GVR textures: `gvmdump filename [color_table.gvp]`
+* For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
+* For Nintendo RARC or SZS archives: `rarcdump [--szs] filename [output_dir]`
+* For Radcore Cement (RCF) archives: `rcfdump filename`
+* For VRFS archives: `vrfsdump filename [output_dir]`
 
 ### decode_data
 
