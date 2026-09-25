@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include <bitset>
 #include <map>
 #include <memory>
 #include <phosg/Encoding.hh>
@@ -18,7 +19,7 @@ namespace ResourceDASM {
 
 class MemoryContext {
 public:
-  MemoryContext();
+  explicit MemoryContext(bool strict = false);
   MemoryContext(const MemoryContext&) = delete;
   MemoryContext(MemoryContext&&);
   MemoryContext& operator=(const MemoryContext&) = delete;
@@ -30,47 +31,84 @@ public:
   MemoryContext duplicate() const;
 
   template <typename T>
-  T* at(uint32_t addr, size_t size = sizeof(T), bool skip_strict = false) {
-    // This breaks if addr == 0 and size == 0. This was originally unintentional, but it turns out to be useful to
-    // detect accidental usage of memcpy() and the like on empty handles, so we keep this failure mode.
-    size_t start_page_num = this->page_number_for_addr(addr);
-    size_t end_page_num = this->page_number_for_addr(addr + size - 1);
-    auto arena = this->arena_for_page_number[start_page_num];
-    if (!arena) {
-      throw std::out_of_range(std::format("address {:08X} (size=0x{:X}) not within any arena", addr, size));
+  struct Ptr {
+    uint32_t addr;
+
+    constexpr Ptr() : addr(0) {}
+    constexpr Ptr(nullptr_t) : addr(0) {}
+    constexpr explicit Ptr(uint32_t addr) : addr(addr) {}
+    constexpr Ptr(const Ptr<T>&) = default;
+    constexpr Ptr(Ptr<T>&&) = default;
+    constexpr Ptr<T>& operator=(const Ptr<T>&) = default;
+    constexpr Ptr<T>& operator=(Ptr<T>&&) = default;
+    constexpr bool operator==(const Ptr<T>&) const = default;
+    constexpr bool operator!=(const Ptr<T>&) const = default;
+
+    template <typename U>
+      requires(std::is_convertible_v<T, U>)
+    constexpr Ptr(Ptr<U> other) : addr(other.addr()) {}
+
+    constexpr operator uint32_t() const {
+      return this->addr;
     }
-    for (size_t z = start_page_num + 1; z <= end_page_num; z++) {
-      if (this->arena_for_page_number[z] != arena) {
-        if (addr == 0 && size == 0) {
-          throw std::out_of_range("MemoryContext::at(0, 0)");
-        }
-        throw std::out_of_range("data not entirely contained within one arena");
-      }
+    constexpr operator Ptr<void>() const {
+      return Ptr<void>(this->addr);
     }
-    if (this->strict && !skip_strict && !arena->is_within_allocated_block(addr, size)) {
-      throw std::out_of_range("data is not within an allocated block");
+
+    template <typename U>
+    constexpr Ptr<U> cast() const {
+      return Ptr<U>{this->addr};
     }
-    return reinterpret_cast<T*>(
-        reinterpret_cast<uint8_t*>(arena->host_addr) + (addr - arena->addr));
+
+    constexpr Ptr<T> operator+(ssize_t count) const {
+      return Ptr<T>{this->addr + (count * sizeof(T))};
+    }
+    constexpr Ptr<T> operator-(ssize_t count) const {
+      return Ptr<T>{this->addr + (count * sizeof(T))};
+    }
+    constexpr Ptr<T>& operator+=(ssize_t count) const {
+      this->addr += (count * sizeof(T));
+      return *this;
+    }
+    constexpr Ptr<T>& operator-=(ssize_t count) const {
+      this->addr -= (count * sizeof(T));
+      return *this;
+    }
+
+    constexpr operator bool() const {
+      return (this->addr != 0);
+    }
+  };
+  static_assert(sizeof(Ptr<void>) == 4, "MemoryContext::Ptr<void> size is incorrect");
+
+  template <typename T = void, size_t DefaultSize = sizeof(std::conditional_t<std::is_same_v<T, void>, uint8_t, T>)>
+  T* at(uint32_t addr, size_t size = DefaultSize, bool skip_strict = false) {
+    if (!this->exists(addr, size, skip_strict)) {
+      throw std::runtime_error("Address range is not allocated");
+    }
+    return reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(this->base) + addr);
   }
-  template <typename T>
-  const T* at(uint32_t addr, size_t size = sizeof(T), bool skip_strict = false) const {
+  template <typename T = void, size_t DefaultSize = sizeof(std::conditional_t<std::is_same_v<T, void>, uint8_t, T>)>
+  const T* at(uint32_t addr, size_t size = DefaultSize, bool skip_strict = false) const {
     return const_cast<MemoryContext*>(this)->at<T>(addr, size, skip_strict);
   }
+  template <typename T = void, size_t DefaultSize = sizeof(std::conditional_t<std::is_same_v<T, void>, uint8_t, T>)>
+  T* at(Ptr<T> addr, bool skip_strict = false) {
+    return const_cast<MemoryContext*>(this)->at<T>(addr, DefaultSize, skip_strict);
+  }
+  template <typename T = void, size_t DefaultSize = sizeof(std::conditional_t<std::is_same_v<T, void>, uint8_t, T>)>
+  const T* at(Ptr<T> addr, bool skip_strict = false) const {
+    return const_cast<MemoryContext*>(this)->at<T>(addr, DefaultSize, skip_strict);
+  }
 
-  inline uint32_t at(const void* host_addr, size_t size = 1) const {
-    auto arena_it = this->arenas_by_host_addr.upper_bound(host_addr);
-    if (arena_it == this->arenas_by_host_addr.begin()) {
-      throw std::out_of_range("address before any arena");
+  template <typename T = void, size_t DefaultSize = sizeof(std::conditional_t<std::is_same_v<T, void>, uint8_t, T>)>
+  uint32_t at(const T* host_addr, size_t size = DefaultSize, bool skip_strict = false) const {
+    ptrdiff_t addr = reinterpret_cast<const uint8_t*>(host_addr) - reinterpret_cast<const uint8_t*>(this->base);
+    if ((addr < 0) || (addr > 0x100000000)) {
+      throw std::out_of_range("Host address is not within context space");
     }
-    arena_it--;
-    const auto& arena = arena_it->second;
-    if (host_addr >= reinterpret_cast<const uint8_t*>(arena->host_addr) + arena->size) {
-      throw std::out_of_range("address not within any arena");
-    }
-    uint32_t addr = arena->addr + (reinterpret_cast<const uint8_t*>(host_addr) - reinterpret_cast<const uint8_t*>(arena->host_addr));
-    if (this->strict && !arena->is_within_allocated_block(addr, size)) {
-      throw std::out_of_range("data is not within an allocated block");
+    if (!this->exists(addr, size, skip_strict)) {
+      throw std::runtime_error("Address range is not allocated");
     }
     return addr;
   }
@@ -254,24 +292,144 @@ public:
     ::memset(this->at<void>(addr, size), v, size);
   }
 
-  uint32_t allocate(size_t size);
-  void allocate_at(uint32_t addr, size_t size);
-  uint32_t allocate_within(uint32_t addr_low, uint32_t addr_high, size_t size);
-  void free(uint32_t addr);
-  bool resize(uint32_t addr, size_t new_size); // true if resized, false if not enough space
-  size_t get_block_size(uint32_t addr) const;
+  class Allocator {
+  public:
+    Allocator() = delete;
+    Allocator(uint32_t addr_low, uint64_t addr_high);
+    Allocator(const Allocator&) = delete;
+    Allocator(Allocator&&) = default;
+    Allocator& operator=(const Allocator&) = delete;
+    Allocator& operator=(Allocator&&) = default;
 
-  // Returns true if ALL of the <size> bytes starting at <addr> are accessible.
+    // Restricts this Allocator to addresses below addr; returns a new Allocator that covers the rest
+    Allocator split(uint32_t addr);
+
+    struct Block {
+      uint32_t addr;
+      uint64_t requested_size;
+      uint64_t actual_size;
+    };
+
+    uint32_t allocate(size_t size);
+    bool allocate_at(uint32_t addr, size_t size);
+    bool free(uint32_t addr);
+
+    // Resizes a block by changing its end address; returns true if resized, false if not enough space
+    bool resize(uint32_t addr, size_t new_size);
+    // Resizes a block by changing its start address; returns {success, new_address}
+    std::pair<bool, uint32_t> resize_reverse(uint32_t addr, size_t new_size);
+
+    size_t get_block_size(uint32_t addr) const;
+    bool exists(uint32_t addr, size_t size = 1) const; // Returns true if entire range is allocated in the same region
+
+    inline std::pair<uint32_t, uint64_t> range() const {
+      return {this->addr_low, this->addr_high};
+    }
+    inline const std::map<uint32_t, Block>& all_blocks() const {
+      return this->allocated_blocks;
+    }
+
+    inline size_t total_allocated_bytes() const {
+      return this->allocated_bytes;
+    }
+    inline size_t total_free_bytes() const {
+      return (this->addr_high - this->addr_low) - this->allocated_bytes;
+    }
+    inline size_t max_contiguous_free_space() const {
+      auto it = this->free_blocks_by_size.rbegin();
+      return (it != this->free_blocks_by_size.rend()) ? it->first : 0;
+    }
+
+    static Allocator import_state(FILE* stream);
+    void export_state(FILE* stream) const;
+
+    void verify() const;
+
+  private:
+    uint32_t addr_low;
+    uint64_t addr_high;
+    size_t allocated_bytes = 0;
+    std::map<uint32_t, Block> allocated_blocks;
+    std::multimap<size_t, Block*> free_blocks_by_size; // References into free_blocks_by_addr; keyed on actual_size
+    std::map<uint32_t, Block> free_blocks_by_addr;
+
+    void add_free_block(uint32_t addr, size_t size);
+    std::map<uint32_t, Block>::iterator delete_free_block(std::map<uint32_t, Block>::iterator it);
+    std::multimap<size_t, Block*>::iterator delete_free_block(std::multimap<size_t, Block*>::iterator it);
+
+    void reconstruct_free_maps();
+  };
+
+  Allocator& get_or_split_allocator(uint32_t addr_low, uint32_t addr_high);
+  Allocator& get_allocator(uint32_t addr);
+  void split_allocators(uint32_t addr);
+  inline const std::map<uint32_t, Allocator>& all_allocators() const {
+    return this->allocators;
+  }
+
+  inline const Allocator& get_allocator(uint32_t addr) const {
+    return const_cast<MemoryContext*>(this)->get_allocator(addr);
+  }
+
+  inline uint32_t allocate(size_t size) {
+    uint32_t ret = this->get_allocator(0).allocate(size);
+    if (ret) {
+      this->make_pages_valid(ret, size);
+    }
+    return ret;
+  }
+  inline bool allocate_at(uint32_t addr, size_t size) {
+    bool ret = this->get_allocator(addr).allocate_at(addr, size);
+    if (ret) {
+      this->make_pages_valid(addr, size);
+    }
+    return ret;
+  }
+  inline bool free(uint32_t addr) {
+    return this->get_allocator(addr).free(addr);
+  }
+  inline bool resize(uint32_t addr, size_t new_size) {
+    if (this->get_allocator(addr).resize(addr, new_size)) {
+      this->make_pages_valid(addr, new_size);
+      return true;
+    } else {
+      return false;
+    }
+  }
+  inline std::pair<bool, uint32_t> resize_reverse(uint32_t addr, size_t new_size) {
+    auto ret = this->get_allocator(addr).resize_reverse(addr, new_size);
+    if (ret.first) {
+      this->make_pages_valid(ret.second, new_size);
+    }
+    return ret;
+  }
+  inline size_t get_block_size(uint32_t addr) const {
+    return this->get_allocator(addr).get_block_size(addr);
+  }
+  inline bool allocated(uint32_t addr, size_t size = 1) const {
+    return this->get_allocator(addr).exists(addr, size);
+  }
+
+  // Typed versions of the above functions
+  template <typename T>
+  Ptr<T> allocate() {
+    return Ptr<T>{this->allocate(sizeof(T))};
+  }
+  template <typename T>
+  bool allocate_at(Ptr<T> obj) {
+    return this->allocate_at(obj.addr, sizeof(T));
+  }
+  template <typename T>
+  void free(Ptr<T> addr) {
+    return this->free(addr.addr);
+  }
+  template <typename T>
+  void exists(Ptr<T> addr) {
+    return this->exists(addr.addr, sizeof(T));
+  }
+
+  // Returns true if ALL of the <size> bytes starting at <addr> are accessible
   bool exists(uint32_t addr, size_t size = 1, bool skip_strict = false) const;
-  // Returns the number of bytes in the same region after the given address.
-  size_t exists_after(uint32_t addr, bool skip_strict = false) const;
-
-  // Returns a list of (addr, size) pairs for every allocated region
-  std::vector<std::pair<uint32_t, uint32_t>> allocated_blocks() const;
-
-  uint32_t find_unallocated_arena_space(uint32_t addr_low, uint32_t addr_high, uint32_t size) const;
-
-  void preallocate_arena(uint32_t addr, size_t size);
 
   void set_symbol_addr(const std::string& name, uint32_t addr);
   void delete_symbol(const std::string& name);
@@ -280,90 +438,52 @@ public:
   const std::string& get_symbol_at_addr(uint32_t addr) const;
   const std::unordered_map<std::string, uint32_t> all_symbols() const;
 
-  size_t get_page_size() const;
-
-  inline void set_strict(bool strict) {
-    this->strict = strict;
-  }
-
-  void print_state(FILE* stream) const;
-  void print_contents(FILE* stream) const;
-
-  void import_state(FILE* stream);
+  static MemoryContext import_state(FILE* stream);
   void export_state(FILE* stream) const;
 
   void verify() const;
 
 private:
-  uint8_t page_bits;
-  size_t page_size;
-  size_t total_pages;
+  static constexpr size_t PAGE_BITS = 16; // 64KB pages, 65536 of them
+  static constexpr size_t PAGE_SIZE = (1ULL << PAGE_BITS);
+  static constexpr size_t PAGE_COUNT = (1ULL << (32 - PAGE_BITS));
+  static constexpr size_t TOTAL_SIZE = (1ULL << 32);
 
-  size_t size;
-  size_t allocated_bytes;
-  size_t free_bytes;
+  bool strict = false;
 
-  bool strict;
+  void* base;
+  std::array<uint8_t, (PAGE_COUNT >> 3)> pages_valid;
 
-  struct Arena {
-    uint32_t addr;
-    void* host_addr;
-    size_t size;
-    size_t allocated_bytes;
-    size_t free_bytes;
-    std::map<uint32_t, uint32_t> allocated_blocks;
-    std::map<uint32_t, uint32_t> free_blocks_by_addr;
-    std::multimap<uint32_t, uint32_t> free_blocks_by_size;
-
-    Arena(uint32_t addr, size_t size);
-    Arena(const Arena&) = delete;
-    Arena(Arena&&);
-    Arena& operator=(const Arena&) = delete;
-    Arena& operator=(Arena&&);
-    ~Arena();
-
-    Arena duplicate() const;
-
-    std::string str() const;
-    void verify() const;
-
-    bool is_within_allocated_block(uint32_t addr, size_t size) const;
-
-    void split_free_block(uint32_t free_block_addr, uint32_t allocate_addr, uint32_t allocate_size);
-    void delete_free_block(uint32_t addr, uint32_t size);
-  };
-
-  // TODO: We probably should have an index of {free block size: Arena ptr} to make allocations sub-linear time. I'm
-  // not going to implement this just yet.
-  std::map<uint32_t, Arena> arenas_by_addr; // This map owns the arenas; the following two reference these objects
-  std::map<const void*, Arena*> arenas_by_host_addr;
-  std::vector<Arena*> arena_for_page_number;
+  std::map<uint32_t, Allocator> allocators;
 
   std::unordered_map<std::string, uint32_t> symbol_addrs;
   std::unordered_map<uint32_t, std::string> addr_symbols;
 
+  inline bool page_is_valid(size_t page_num) const {
+    return this->pages_valid[page_num >> 3] & (0x80 >> (page_num & 7));
+  }
+  void make_pages_valid(uint32_t addr, uint32_t size);
+  bool check_pages_valid(uint32_t addr, uint32_t size) const;
+
   inline uint32_t page_base_for_addr(uint32_t addr) const {
-    return (addr & ~(this->page_size - 1));
+    return (addr & ~(this->PAGE_SIZE - 1));
   }
 
   inline uint32_t page_number_for_addr(uint32_t addr) const {
-    return this->page_base_for_addr(addr) >> this->page_bits;
+    return this->page_base_for_addr(addr) >> this->PAGE_BITS;
   }
 
   inline uint32_t addr_for_page_number(uint32_t page_num) const {
-    return page_num << this->page_bits;
+    return page_num << this->PAGE_BITS;
   }
 
   inline size_t page_size_for_size(size_t size) const {
-    return ((size + (this->page_size - 1)) & ~(this->page_size - 1));
+    return ((size + (this->PAGE_SIZE - 1)) & ~(this->PAGE_SIZE - 1));
   }
 
   inline size_t page_count_for_size(size_t size) const {
-    return this->page_size_for_size(size) >> this->page_bits;
+    return this->page_size_for_size(size) >> this->PAGE_BITS;
   }
-
-  Arena* create_arena(uint32_t addr, size_t min_size);
-  void delete_arena(Arena* arena);
 };
 
 } // namespace ResourceDASM

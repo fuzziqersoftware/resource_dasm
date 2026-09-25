@@ -23,29 +23,18 @@ PEFile::PEFile(const std::string& filename, const void* data, size_t size) : fil
 }
 
 uint32_t PEFile::load_into(std::shared_ptr<MemoryContext> mem) const {
-  // Since we may be loading on a system with a larger page size than the system the PE was compiled for, preallocate
-  // an arena for the entire thing because we may have to do fixed-address allocations across arena boundaries if we
-  // don't preallocate.
-  uint32_t min_addr = 0xFFFFFFFF, max_addr = 0x00000000;
-  for (const auto& section : this->sections) {
-    if (section.address < min_addr) {
-      min_addr = section.address;
-    }
-    uint32_t end_addr = section.address + section.size;
-    if (end_addr > max_addr) {
-      max_addr = end_addr;
-    }
-  }
-  // TODO: When we support relocations, and if the PE file can't load at its image base, use
-  // find_unallocated_arena_space to put it anywhere it fits, and run the relocations.
-  mem->preallocate_arena(min_addr, max_addr - min_addr);
+  // TODO: When we support relocations, and if the PE file can't load at its image base, put it somewhere else (don't
+  // use allocate_at) and run the relocations.
 
   for (const auto& section : this->sections) {
     if (section.size == 0) {
       continue;
     }
     size_t bytes_to_copy = std::min<size_t>(section.size, section.data.size());
-    mem->allocate_at(section.address, section.size);
+    if (!mem->allocate_at(section.address, section.size)) {
+      throw std::runtime_error(std::format(
+          "Failed to allocate section at {:08X}:{:08X}", section.address, section.size));
+    }
     void* section_mem = mem->at<void>(section.address, bytes_to_copy);
     memcpy(section_mem, section.data.data(), bytes_to_copy);
     memset(reinterpret_cast<uint8_t*>(section_mem) + bytes_to_copy, 0, section.size - bytes_to_copy);

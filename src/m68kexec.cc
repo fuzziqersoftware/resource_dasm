@@ -256,7 +256,7 @@ uint32_t load_pe(std::shared_ptr<ResourceDASM::MemoryContext> mem, const std::st
   if (!stubs_w.size()) {
     phosg::fwrite_fmt(stderr, "note: there are no import stubs\n");
   } else {
-    uint32_t stubs_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, stubs_w.size());
+    uint32_t stubs_addr = mem->allocate_at(0xF0000000, stubs_w.size());
     mem->memcpy(stubs_addr, stubs_w.str().data(), stubs_w.size());
     for (const auto& it : addr_addr_to_stub_offset) {
       uint32_t stub_addr = it.second + stubs_addr;
@@ -385,7 +385,7 @@ void create_syscall_handler_t<ResourceDASM::X86Emulator>(
   //   ret
   static const std::string load_library_stub_data = "\x85\xC0\x74\x02\x58\xC3\x83\xC4\x04\xC3";
   auto mem = emu.memory();
-  uint32_t load_library_return_stub_addr = mem->allocate_within(0xF0000000, 0xFFFFFFFF, load_library_stub_data.size());
+  uint32_t load_library_return_stub_addr = mem->allocate_at(0xF0000000, load_library_stub_data.size());
   mem->memcpy(load_library_return_stub_addr, load_library_stub_data.data(), load_library_stub_data.size());
 
   emu.set_syscall_handler([load_library_return_stub_addr](ResourceDASM::X86Emulator& emu, uint8_t int_num) {
@@ -475,7 +475,7 @@ void create_syscall_handler_t<ResourceDASM::SH4Emulator>(
 
 template <typename EmuT>
 int main_t(phosg::Arguments& args) {
-  auto mem = std::make_shared<ResourceDASM::MemoryContext>();
+  auto mem = std::make_shared<ResourceDASM::MemoryContext>(args.get<bool>("strict-memory"));
   EmuT emu(mem);
   auto& regs = emu.registers();
 
@@ -489,16 +489,6 @@ int main_t(phosg::Arguments& args) {
     }
     uint32_t addr = stoull(it.substr(0, equals_pos), nullptr, 16);
     mem->set_symbol_addr(it.substr(equals_pos + 1), addr);
-  }
-
-  for (const auto& it : args.get_multi<std::string>("arena")) {
-    auto tokens = phosg::split(it, ':');
-    if (tokens.size() != 2) {
-      throw std::invalid_argument("invalid arena definition");
-    }
-    uint32_t addr = stoul(tokens[0], nullptr, 16);
-    uint32_t size = stoul(tokens[1], nullptr, 16);
-    mem->preallocate_arena(addr, size);
   }
 
   std::string state_filename = args.get<std::string>("load-state");
@@ -558,7 +548,9 @@ int main_t(phosg::Arguments& args) {
         }
       }
     }
-    mem->allocate_at(def.addr, def.size);
+    if (!mem->allocate_at(def.addr, def.size)) {
+      throw std::runtime_error(std::format("Cannot allocate memory at {:08X}", def.addr));
+    }
     if (def.size <= def.data.size()) {
       mem->memcpy(def.addr, def.data.data(), def.size);
     } else {
@@ -639,7 +631,6 @@ int main_t(phosg::Arguments& args) {
   for (const auto& it : args.get_multi<std::string>("behavior")) {
     emu.set_behavior_by_name(it);
   }
-  mem->set_strict(args.get<bool>("strict-memory"));
   size_t trace_period = args.get<size_t>("periodic-trace", 0);
   if (args.get<bool>("trace")) {
     debugger->state.mode = ResourceDASM::DebuggerMode::TRACE;

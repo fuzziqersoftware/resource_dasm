@@ -500,9 +500,12 @@ void PEFFile::load_into(const std::string& lib_name, std::shared_ptr<MemoryConte
       section_addr = mem->allocate(section.total_size);
     } else {
       section_addr = base_addr;
-      mem->allocate_at(section_addr, section.total_size);
-      size_t page_size = mem->get_page_size();
-      base_addr = (base_addr + section.total_size + (page_size - 1)) & (~(page_size - 1));
+      if (!mem->allocate_at(section_addr, section.total_size)) {
+        throw std::runtime_error(std::format(
+            "Failed to allocate section at {:08X}:{:08X}", section_addr, section.total_size));
+      }
+      static constexpr size_t alignment = 0x1000;
+      base_addr = (base_addr + section.total_size + (alignment - 1)) & (~(alignment - 1));
     }
     if (section_addr == 0) {
       throw std::runtime_error("cannot allocate memory for section");

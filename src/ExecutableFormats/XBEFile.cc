@@ -73,18 +73,12 @@ uint32_t XBEFile::kernel_thunk_table_addr() const {
 }
 
 void XBEFile::load_into(std::shared_ptr<MemoryContext> mem) const {
-  uint32_t min_addr = 0xFFFFFFFF;
-  uint32_t max_addr = 0x00000000;
-  for (const auto& sec : this->sections) {
-    min_addr = std::min<uint32_t>(min_addr, sec.addr);
-    max_addr = std::max<uint32_t>(max_addr, sec.addr + sec.size);
-  }
-  mem->preallocate_arena(min_addr, max_addr - min_addr);
-
   phosg::StringReader r(this->data);
   for (const auto& sec : this->sections) {
     r.go(sec.file_offset);
-    mem->allocate_at(sec.addr, sec.size);
+    if (!mem->allocate_at(sec.addr, sec.size)) {
+      throw std::runtime_error(std::format("Failed to allocate section at {:08X}:{:08X}", sec.addr, sec.size));
+    }
     mem->memcpy(sec.addr, r.getv(sec.file_size), sec.file_size);
   }
 }

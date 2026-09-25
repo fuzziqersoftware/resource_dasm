@@ -45,7 +45,6 @@ void DOLFile::load_into(std::shared_ptr<MemoryContext> mem) const {
     min_addr = std::min<uint32_t>(min_addr, sec.address);
     max_addr = std::max<uint32_t>(max_addr, sec.address + sec.data.size());
   }
-  mem->preallocate_arena(min_addr, max_addr - min_addr);
 
   // Sometimes the BSS overlaps other sections, so we trim it down as needed
   std::vector<std::pair<uint32_t, uint32_t>> bss_sections;
@@ -66,13 +65,18 @@ void DOLFile::load_into(std::shared_ptr<MemoryContext> mem) const {
         bss_sections[z].first = sec_end;
       }
     }
-    mem->allocate_at(sec.address, sec.data.size());
+    if (!mem->allocate_at(sec.address, sec.data.size())) {
+      throw std::runtime_error(std::format(
+          "Failed to allocate program section at {:08X}:{:08X}", sec.address, sec.data.size()));
+    }
     mem->memcpy(sec.address, sec.data.data(), sec.data.size());
   }
   for (const auto& bss_section : bss_sections) {
     uint32_t bss_start = bss_section.first;
     size_t bss_size = bss_section.second - bss_section.first;
-    mem->allocate_at(bss_start, bss_size);
+    if (!mem->allocate_at(bss_start, bss_size)) {
+      throw std::runtime_error(std::format("Failed to allocate BSS section at {:08X}:{:08X}", bss_start, bss_size));
+    }
     mem->memset(bss_start, 0, bss_size);
   }
 }

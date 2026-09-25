@@ -308,7 +308,7 @@ public:
     int32_t first_jump_table_entry_index;
     uint16_t num_jump_table_entries;
 
-    // If far model, entry_offset is < 0 and these will all be initialized:
+    // If far model, first_jump_table_entry_index is < 0 and these will all be initialized:
     uint32_t near_entry_start_a5_offset; // Offset from A5, so subtract 0x20 to get offset into jump table
     uint32_t near_entry_count;
     uint32_t far_entry_start_a5_offset; // Offset from A5, so subtract 0x20 to get offset into jump table

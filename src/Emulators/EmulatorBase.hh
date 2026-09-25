@@ -492,32 +492,45 @@ private:
         } else if ((cmd == "a") || (cmd == "alloc") || (cmd == "allocate")) {
           auto tokens = phosg::split(args, ' ');
           uint32_t addr, size;
+          bool success;
           if (tokens.size() < 2) {
             size = stoul(tokens.at(0), nullptr, 16);
             addr = mem->allocate(size);
+            success = (addr != 0);
           } else {
             addr = stoul(tokens.at(0), nullptr, 16);
             size = stoul(tokens.at(1), nullptr, 16);
-            mem->allocate_at(addr, size);
+            success = mem->allocate_at(addr, size);
           }
-          phosg::fwrite_fmt(stderr, "allocated memory at {:08X}:{:X}\n", addr, size);
+          if (success) {
+            phosg::fwrite_fmt(stderr, "failed to allocate memory at {:08X}:{:X}\n", addr, size);
+          } else {
+            phosg::fwrite_fmt(stderr, "allocated memory at {:08X}:{:X}\n", addr, size);
+          }
 
         } else if ((cmd == "g") || (cmd == "regions") || (cmd == "list-regions")) {
-          for (const auto& it : mem->allocated_blocks()) {
-            phosg::fwrite_fmt(stderr, "region: {:08X}-{:08X} ({})\n",
-                it.first, it.first + it.second, phosg::format_size(it.second));
+          for (const auto& [_, allocator] : mem->all_allocators()) {
+            auto [addr_low, addr_high] = allocator.range();
+            phosg::fwrite_fmt(stderr, "allocator: {:08X}-{:08X} ({})\n",
+                addr_low, addr_high - 1, phosg::format_size(addr_high - addr_low));
+            for (const auto& [_, block] : allocator.all_blocks()) {
+              phosg::fwrite_fmt(stderr, "  region: {:08X}-{:08X} ({})\n",
+                  block.addr, block.addr + block.actual_size - 1, phosg::format_size(block.actual_size));
+            }
           }
 
         } else if ((cmd == "f") || (cmd == "find")) {
           std::string search_data = phosg::parse_data_string(args);
-          for (const auto& it : mem->allocated_blocks()) {
-            if (it.second < search_data.size()) {
-              continue;
-            }
-            auto* mem_data = mem->template at<const char>(it.first, it.second);
-            for (size_t z = 0; z <= it.second - search_data.size(); z++) {
-              if (!memcmp(&mem_data[z], search_data.data(), search_data.size())) {
-                phosg::fwrite_fmt(stderr, "found at {:08X}\n", static_cast<uint32_t>(it.first + z));
+          for (const auto& [_, allocator] : mem->all_allocators()) {
+            for (const auto& [_, block] : allocator.all_blocks()) {
+              if (block.actual_size < search_data.size()) {
+                continue;
+              }
+              auto* mem_data = mem->template at<const char>(block.addr, block.actual_size);
+              for (size_t z = 0; z <= block.actual_size - search_data.size(); z++) {
+                if (!memcmp(&mem_data[z], search_data.data(), search_data.size())) {
+                  phosg::fwrite_fmt(stderr, "found at {:08X}\n", static_cast<uint32_t>(block.addr + z));
+                }
               }
             }
           }

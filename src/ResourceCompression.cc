@@ -224,10 +224,7 @@ std::shared_ptr<Resource> decompress_resource(
         // This is an emulated decompressor. We'll set up memory appropriately, then use either M68KEmulator or
         // PPC32Emulator to run the code contained in the dcmp or ncmp resource.
 
-        auto mem = std::make_shared<MemoryContext>();
-        if (decompress_flags & DecompressionFlag::STRICT_MEMORY) {
-          mem->set_strict(true);
-        }
+        auto mem = std::make_shared<MemoryContext>(decompress_flags & DecompressionFlag::STRICT_MEMORY);
 
         uint32_t entry_pc = 0;
         uint32_t entry_r2 = 0;
