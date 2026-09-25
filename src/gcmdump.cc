@@ -108,7 +108,6 @@ enum Format {
 };
 
 int main(int argc, char** argv) {
-
   if (argc < 2) {
     phosg::fwrite_fmt(stderr, "Usage: {} [--gcm|--tgc] <filename> [files_to_extract]\n", argv[0]);
     return -1;

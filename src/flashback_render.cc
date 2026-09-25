@@ -194,6 +194,7 @@ Options:\n\
   const std::string& flashback_path = args.get<std::string>(0);
   bool show_object_annotations = !args.get<bool>("hide-object-annotations");
   uint32_t default_collision_alpha = args.get<uint8_t>("collision-alpha", 0);
+  args.assert_none_unused();
 
   auto rf = ResourceDASM::parse_resource_fork(phosg::load_file(std::format("{}/..namedfork/rsrc", flashback_path)));
   auto base_clut = rf.decode_clut(1000);
