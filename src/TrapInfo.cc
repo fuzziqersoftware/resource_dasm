@@ -9,9 +9,11 @@
 
 namespace ResourceDASM {
 
-std::string TrapInfo::Argument::str() const {
+std::string TrapInfo::Argument::str(bool include_location) const {
   std::string cc_def = this->name ? std::format("{} {}", this->type_name, this->name) : this->type_name;
-  if (this->a_reg != 0xFF) {
+  if (!include_location) {
+    return cc_def;
+  } else if (this->a_reg != 0xFF) {
     return std::format("{} @ A{}", cc_def, this->a_reg);
   } else if (this->d_reg != 0xFF) {
     std::string size_suffix;
@@ -49,48 +51,52 @@ std::string TrapInfo::Condition::str() const {
   }
 }
 
-std::string TrapInfo::str(bool args_only) const {
-  std::string sig_str;
+std::string TrapInfo::str(bool args_only, bool include_locations) const {
+  std::string args_str;
+  std::string ret_str;
   if (this->signature_known) {
-    sig_str = "(";
     for (const auto& a : this->args) {
-      if (sig_str.size() > 1) {
-        sig_str += ", ";
+      if (!args_str.empty()) {
+        args_str += ", ";
       }
-      sig_str += a.str();
+      args_str += a.str(include_locations);
     }
-    sig_str += ") -> ";
+
     if (this->return_values.empty()) {
-      sig_str += "void";
+      ret_str += "void";
     } else if (this->return_values.size() == 1) {
-      sig_str += this->return_values[0].str();
+      ret_str += this->return_values[0].str(include_locations);
     } else {
+      ret_str.push_back('(');
       for (size_t z = 0; z < this->return_values.size(); z++) {
         if (z) {
-          sig_str += ", ";
+          ret_str += ", ";
         }
-        sig_str += this->return_values[z].str();
+        ret_str += this->return_values[z].str(include_locations);
       }
+      ret_str.push_back(')');
     }
   } else {
-    sig_str = "(?) -> ?";
+    args_str = "?";
+    ret_str = "?";
   }
 
   if (args_only) {
-    return sig_str;
+    return std::format("({}) -> {}", args_str, ret_str);
   } else {
     std::string conds_str;
-    for (const auto& c : this->conditions) {
-      if (!conds_str.empty()) {
-        conds_str += ", ";
+    if (!this->conditions.empty()) {
+      conds_str = " [";
+      for (const auto& c : this->conditions) {
+        if (conds_str.size() > 2) {
+          conds_str += ", ";
+        }
+        conds_str += c.str();
       }
-      conds_str += c.str();
+      conds_str.push_back(']');
     }
-    if (!conds_str.empty()) {
-      return std::format("0x{:03X}/{} [{}]: {}{}", this->trap_num, this->flags, conds_str, this->name, sig_str);
-    } else {
-      return std::format("0x{:03X}/{}: {}{}", this->trap_num, this->flags, this->name, sig_str);
-    }
+    std::string flags_str = this->flags ? std::format("/{}", this->flags) : "";
+    return std::format("{} {}({}) /* 0x{:03X}{}{} */", ret_str, this->name, args_str, this->trap_num, flags_str, conds_str);
   }
 }
 
@@ -121,7 +127,7 @@ using C = TI::Condition;
 
 static const std::vector<TrapInfo> trap_info{
     TI{0x000, {}, 0, "PBOpenSync", {P::a(0, "ParmBlkPtr", "paramBlock")}, {P::d(0, "OSErr")}},
-    TI{0x000, {}, 2, "OpenSlotSync/PBHOpenSync/PBOpenImmed", {P::a(0, "ParmBlkPtr", "paramBlock")}, {P::d(0, "OSErr")}},
+    TI{0x000, {}, 2, "OpenSlotSync/PBHOpenSync/PBOpenImmed", {P::a(0, "HParmBlkPtr", "paramBlock")}, {P::d(0, "OSErr")}},
     TI{0x000, {}, 4, "PBOpenAsync", {P::a(0, "ParmBlkPtr", "paramBlock")}, {P::d(0, "OSErr")}},
     TI{0x000, {}, 6, "OpenSlotAsync/PBHOpenAsync", {P::a(0, "HParmBlkPtr", "paramBlock")}, {P::d(0, "OSErr")}},
     TI{0x001, {}, 0, "PBCloseSync", {P::a(0, "ParmBlkPtr", "paramBlock")}, {P::d(0, "OSErr")}},
@@ -5397,7 +5403,8 @@ void assert_trap_infos_ordered() {
   }
 }
 
-const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags) {
+const TrapInfo* info_for_68k_trap(
+    uint16_t trap_num, uint8_t flags, std::function<bool(const TrapInfo::Condition&)> check_condition) {
   auto it = std::lower_bound(trap_info.begin(), trap_info.end(), trap_num,
       [](const TrapInfo& ti, uint16_t trap_num) {
         return ti.trap_num < trap_num;
@@ -5409,9 +5416,17 @@ const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags) {
   for (; (it != trap_info.end()) && (it->trap_num == trap_num); it++) {
     if (!flag_match && (it->flags == flags)) {
       flag_match = &*it;
-      break;
     }
-    // TODO: Implement conditions here (and delete break from the above condition)
+    bool matches_conditions = true;
+    for (const auto& c : it->conditions) {
+      if (check_condition && !check_condition(c)) {
+        matches_conditions = false;
+        break;
+      }
+    }
+    if (matches_conditions) {
+      condition_match = &*it;
+    }
   }
 
   if (condition_match) {
@@ -5421,6 +5436,10 @@ const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags) {
   } else {
     return base_match;
   }
+}
+
+const std::vector<TrapInfo>& all_68k_traps() {
+  return trap_info;
 }
 
 } // namespace ResourceDASM

@@ -30,9 +30,10 @@ public:
   // caller to do it accidentally.
   MemoryContext duplicate() const;
 
-  template <typename T>
+  template <typename T, typename AddrT = uint32_t>
+    requires(std::is_convertible_v<AddrT, uint32_t> && std::is_convertible_v<uint32_t, AddrT>)
   struct Ptr {
-    uint32_t addr;
+    AddrT addr;
 
     constexpr Ptr() : addr(0) {}
     constexpr Ptr(nullptr_t) : addr(0) {}
@@ -84,7 +85,7 @@ public:
   template <typename T = void, size_t DefaultSize = sizeof(std::conditional_t<std::is_same_v<T, void>, uint8_t, T>)>
   T* at(uint32_t addr, size_t size = DefaultSize, bool skip_strict = false) {
     if (!this->exists(addr, size, skip_strict)) {
-      throw std::runtime_error("Address range is not allocated");
+      throw std::runtime_error("Attempted to access unallocated memory");
     }
     return reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(this->base) + addr);
   }
@@ -108,7 +109,7 @@ public:
       throw std::out_of_range("Host address is not within context space");
     }
     if (!this->exists(addr, size, skip_strict)) {
-      throw std::runtime_error("Address range is not allocated");
+      throw std::runtime_error("Attempted to access unallocated memory");
     }
     return addr;
   }
@@ -292,10 +293,9 @@ public:
     ::memset(this->at<void>(addr, size), v, size);
   }
 
-  class Allocator {
-  public:
+  struct Allocator {
     Allocator() = delete;
-    Allocator(uint32_t addr_low, uint64_t addr_high);
+    Allocator(MemoryContext* mem, uint32_t addr_low, uint64_t addr_high);
     Allocator(const Allocator&) = delete;
     Allocator(Allocator&&) = default;
     Allocator& operator=(const Allocator&) = delete;
@@ -308,6 +308,7 @@ public:
       uint32_t addr;
       uint64_t requested_size;
       uint64_t actual_size;
+      std::string str() const;
     };
 
     uint32_t allocate(size_t size);
@@ -340,24 +341,26 @@ public:
       return (it != this->free_blocks_by_size.rend()) ? it->first : 0;
     }
 
-    static Allocator import_state(FILE* stream);
+    static Allocator import_state(MemoryContext* mem, FILE* stream);
     void export_state(FILE* stream) const;
 
+    void print_state(FILE* stream) const;
     void verify() const;
-
-  private:
-    uint32_t addr_low;
-    uint64_t addr_high;
-    size_t allocated_bytes = 0;
-    std::map<uint32_t, Block> allocated_blocks;
-    std::multimap<size_t, Block*> free_blocks_by_size; // References into free_blocks_by_addr; keyed on actual_size
-    std::map<uint32_t, Block> free_blocks_by_addr;
+    [[noreturn]] void verify_failed(const std::string& what) const;
 
     void add_free_block(uint32_t addr, size_t size);
     std::map<uint32_t, Block>::iterator delete_free_block(std::map<uint32_t, Block>::iterator it);
     std::multimap<size_t, Block*>::iterator delete_free_block(std::multimap<size_t, Block*>::iterator it);
 
     void reconstruct_free_maps();
+
+    MemoryContext* mem;
+    uint32_t addr_low;
+    uint64_t addr_high;
+    size_t allocated_bytes = 0;
+    std::map<uint32_t, Block> allocated_blocks;
+    std::multimap<size_t, Block*> free_blocks_by_size; // References into free_blocks_by_addr; keyed on actual_size
+    std::map<uint32_t, Block> free_blocks_by_addr;
   };
 
   Allocator& get_or_split_allocator(uint32_t addr_low, uint32_t addr_high);
@@ -373,33 +376,36 @@ public:
 
   inline uint32_t allocate(size_t size) {
     uint32_t ret = this->get_allocator(0).allocate(size);
-    if (ret) {
-      this->make_pages_valid(ret, size);
+    if constexpr (VERIFY_OPERATIONS) {
+      this->verify();
     }
     return ret;
   }
   inline bool allocate_at(uint32_t addr, size_t size) {
     bool ret = this->get_allocator(addr).allocate_at(addr, size);
-    if (ret) {
-      this->make_pages_valid(addr, size);
+    if constexpr (VERIFY_OPERATIONS) {
+      this->verify();
     }
     return ret;
   }
   inline bool free(uint32_t addr) {
-    return this->get_allocator(addr).free(addr);
+    bool ret = this->get_allocator(addr).free(addr);
+    if constexpr (VERIFY_OPERATIONS) {
+      this->verify();
+    }
+    return ret;
   }
   inline bool resize(uint32_t addr, size_t new_size) {
-    if (this->get_allocator(addr).resize(addr, new_size)) {
-      this->make_pages_valid(addr, new_size);
-      return true;
-    } else {
-      return false;
+    bool ret = this->get_allocator(addr).resize(addr, new_size);
+    if constexpr (VERIFY_OPERATIONS) {
+      this->verify();
     }
+    return ret;
   }
   inline std::pair<bool, uint32_t> resize_reverse(uint32_t addr, size_t new_size) {
     auto ret = this->get_allocator(addr).resize_reverse(addr, new_size);
-    if (ret.first) {
-      this->make_pages_valid(ret.second, new_size);
+    if constexpr (VERIFY_OPERATIONS) {
+      this->verify();
     }
     return ret;
   }
@@ -441,9 +447,12 @@ public:
   static MemoryContext import_state(FILE* stream);
   void export_state(FILE* stream) const;
 
+  void print_state(FILE* stream) const;
   void verify() const;
+  [[noreturn]] void verify_failed(const std::string& what) const;
 
 private:
+  static constexpr bool VERIFY_OPERATIONS = true; // NOCOMMIT: Set to false
   static constexpr size_t PAGE_BITS = 16; // 64KB pages, 65536 of them
   static constexpr size_t PAGE_SIZE = (1ULL << PAGE_BITS);
   static constexpr size_t PAGE_COUNT = (1ULL << (32 - PAGE_BITS));

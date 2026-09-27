@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -32,7 +33,7 @@ struct TrapInfo {
       return Argument{0xFF, 0xFF, offset, 8, type_name, name};
     }
 
-    std::string str() const;
+    std::string str(bool include_location = true) const;
   };
 
   struct Condition {
@@ -93,10 +94,12 @@ struct TrapInfo {
 
   bool operator<(const TrapInfo& other) const;
 
-  std::string str(bool args_only = false) const;
+  std::string str(bool args_only = false, bool include_locations = true) const;
 };
 
 void assert_trap_infos_ordered();
-const TrapInfo* info_for_68k_trap(uint16_t trap_num, uint8_t flags = 0);
+const TrapInfo* info_for_68k_trap(
+    uint16_t trap_num, uint8_t flags = 0, std::function<bool(const TrapInfo::Condition&)> check_condition = nullptr);
+const std::vector<TrapInfo>& all_68k_traps();
 
 } // namespace ResourceDASM

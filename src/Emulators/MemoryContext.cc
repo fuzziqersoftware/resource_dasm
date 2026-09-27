@@ -17,12 +17,6 @@
 
 namespace ResourceDASM {
 
-#ifdef ENABLE_MEMORY_CONTEXT_DEBUG
-constexpr bool verify_operations = true;
-#else
-constexpr bool verify_operations = false;
-#endif
-
 static void* reserve_mem(size_t size) {
 #ifdef PHOSG_WINDOWS
   void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_NOACCESS);
@@ -63,8 +57,8 @@ static void alloc_reserved_mem(void* base, size_t size) {
 }
 
 MemoryContext::MemoryContext(bool strict) : strict(strict), base(reserve_mem(this->TOTAL_SIZE)) {
-  this->allocators.emplace(0x00000000, Allocator{0x00000000, this->TOTAL_SIZE});
-  if constexpr (verify_operations) {
+  this->allocators.emplace(0x00000000, Allocator{this, 0x00000000, this->TOTAL_SIZE});
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
 }
@@ -77,7 +71,10 @@ MemoryContext::MemoryContext(MemoryContext&& other)
       symbol_addrs(std::move(other.symbol_addrs)),
       addr_symbols(std::move(other.addr_symbols)) {
   other.base = nullptr;
-  if constexpr (verify_operations) {
+  for (auto& [_, allocator] : this->allocators) {
+    allocator.mem = this;
+  }
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
 }
@@ -93,7 +90,10 @@ MemoryContext& MemoryContext::operator=(MemoryContext&& other) {
   this->allocators = std::move(other.allocators);
   this->symbol_addrs = std::move(other.symbol_addrs);
   this->addr_symbols = std::move(other.addr_symbols);
-  if constexpr (verify_operations) {
+  for (auto& [_, allocator] : this->allocators) {
+    allocator.mem = this;
+  }
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
   return *this;
@@ -114,20 +114,28 @@ MemoryContext MemoryContext::duplicate() const {
   }
   ret.symbol_addrs = this->symbol_addrs;
   ret.addr_symbols = this->addr_symbols;
-  if (verify_operations) {
+  if (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
   return ret;
 }
 
-MemoryContext::Allocator::Allocator(uint32_t addr_low, uint64_t addr_high) : addr_low{addr_low}, addr_high{addr_high} {
+MemoryContext::Allocator::Allocator(MemoryContext* mem, uint32_t addr_low, uint64_t addr_high)
+    : mem(mem), addr_low{addr_low}, addr_high{addr_high} {
   this->reconstruct_free_maps();
-  if constexpr (verify_operations) {
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
 }
 
 MemoryContext::Allocator MemoryContext::Allocator::split(uint32_t split_addr) {
+  if (split_addr <= this->addr_low) {
+    throw std::logic_error("Allocator split address is at or before range start");
+  }
+  if (split_addr >= this->addr_high) {
+    throw std::logic_error("Allocator split address is at or after range end");
+  }
+
   auto it = this->allocated_blocks.lower_bound(split_addr);
   if (it != this->allocated_blocks.end() && it != this->allocated_blocks.begin()) {
     auto prev_block_it = it;
@@ -138,8 +146,8 @@ MemoryContext::Allocator MemoryContext::Allocator::split(uint32_t split_addr) {
     }
   }
 
+  Allocator ret{this->mem, split_addr, this->addr_high};
   this->addr_high = split_addr;
-  Allocator ret{split_addr, this->addr_high};
 
   // Move all allocated blocks after the split address into ret
   while (it != this->allocated_blocks.end()) {
@@ -154,14 +162,19 @@ MemoryContext::Allocator MemoryContext::Allocator::split(uint32_t split_addr) {
   this->reconstruct_free_maps();
   ret.reconstruct_free_maps();
 
-  if constexpr (verify_operations) {
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
-  if (verify_operations) {
+  if (MemoryContext::VERIFY_OPERATIONS) {
     ret.verify();
   }
 
   return ret;
+}
+
+std::string MemoryContext::Allocator::Block::str() const {
+  return std::format("Block({:08X}-{:08X}, req_size={:08X}, actual_size={:08X})",
+      this->addr, this->addr + this->actual_size, this->requested_size, this->actual_size);
 }
 
 uint32_t MemoryContext::Allocator::allocate(size_t requested_size) {
@@ -188,7 +201,8 @@ uint32_t MemoryContext::Allocator::allocate(size_t requested_size) {
   }
   this->allocated_bytes += actual_size;
 
-  if constexpr (verify_operations) {
+  this->mem->make_pages_valid(allocated_block.addr, allocated_block.actual_size);
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
   return allocated_block.addr;
@@ -227,7 +241,8 @@ bool MemoryContext::Allocator::allocate_at(uint32_t addr, size_t requested_size)
       addr, Block{.addr = addr, .requested_size = requested_size, .actual_size = actual_size});
   this->allocated_bytes += actual_size;
 
-  if constexpr (verify_operations) {
+  this->mem->make_pages_valid(addr, actual_size);
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
   return true;
@@ -246,10 +261,10 @@ bool MemoryContext::Allocator::free(uint32_t addr) {
 
   // Delete the free blocks immediately before and after the deallocated block, so they can be merged into the new
   // free block
-  auto it = this->free_blocks_by_addr.find(block.addr + block.actual_size);
+  auto it = this->free_blocks_by_addr.upper_bound(block.addr);
   if (it != this->free_blocks_by_addr.end()) {
     if (it->second.addr < block_end_addr) {
-      throw std::logic_error("Later free block overlaps allocated block");
+      throw std::logic_error(std::format("Later free block {} overlaps allocated block {}", it->second.str(), block.str()));
     } else if (it->second.addr == block_end_addr) {
       free_block_size += it->second.actual_size;
       it = this->delete_free_block(it);
@@ -258,7 +273,7 @@ bool MemoryContext::Allocator::free(uint32_t addr) {
   if (it != this->free_blocks_by_addr.begin()) {
     it--;
     if (it->second.addr + it->second.actual_size > block.addr) {
-      throw std::logic_error("Earlier free block overlaps allocated block");
+      throw std::logic_error(std::format("Earlier free block {} overlaps allocated block {}", it->second.str(), block.str()));
     } else if (it->second.addr + it->second.actual_size == block.addr) {
       free_block_addr = it->second.addr;
       free_block_size += it->second.actual_size;
@@ -267,8 +282,9 @@ bool MemoryContext::Allocator::free(uint32_t addr) {
   }
 
   this->add_free_block(free_block_addr, free_block_size);
+  this->allocated_bytes -= block.actual_size;
 
-  if constexpr (verify_operations) {
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
   return true;
@@ -316,7 +332,8 @@ bool MemoryContext::Allocator::resize(uint32_t addr, size_t new_requested_size) 
   block.requested_size = new_requested_size;
   block.actual_size = new_actual_size;
 
-  if constexpr (verify_operations) {
+  this->mem->make_pages_valid(block.addr, block.actual_size);
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
   return true;
@@ -379,7 +396,8 @@ std::pair<bool, uint32_t> MemoryContext::Allocator::resize_reverse(uint32_t addr
   this->allocated_blocks.emplace(block.addr, block);
   this->allocated_blocks.erase(block_it);
 
-  if constexpr (verify_operations) {
+  this->mem->make_pages_valid(block.addr, block.actual_size);
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
   return {true, block.addr};
@@ -400,17 +418,17 @@ bool MemoryContext::Allocator::exists(uint32_t addr, size_t size) const {
   return ((block.addr <= addr) && (block.addr + block.actual_size >= addr + size));
 }
 
-MemoryContext::Allocator MemoryContext::Allocator::import_state(FILE* stream) {
+MemoryContext::Allocator MemoryContext::Allocator::import_state(MemoryContext* mem, FILE* stream) {
   uint32_t addr_low = phosg::freadx<phosg::le_uint32_t>(stream);
   uint64_t addr_high = phosg::freadx<phosg::le_uint64_t>(stream);
-  Allocator ret(addr_low, addr_high);
+  Allocator ret(mem, addr_low, addr_high);
   uint32_t num_blocks = phosg::freadx<phosg::le_uint32_t>(stream);
   for (size_t z = 0; z < num_blocks; z++) {
     uint32_t addr = phosg::freadx<phosg::le_uint32_t>(stream);
     uint64_t size = phosg::freadx<phosg::le_uint64_t>(stream);
     ret.allocate_at(addr, size);
   }
-  if (verify_operations) {
+  if (MemoryContext::VERIFY_OPERATIONS) {
     ret.verify();
   }
   return ret;
@@ -426,31 +444,46 @@ void MemoryContext::Allocator::export_state(FILE* stream) const {
   }
 }
 
+void MemoryContext::Allocator::print_state(FILE* stream) const {
+  phosg::fwrite_fmt(stream, "  Allocator: {:08X}-{:08X} with {:X} bytes allocated ({})\n",
+      this->addr_low, this->addr_high, this->allocated_bytes, phosg::format_size(this->allocated_bytes));
+  for (const auto& [_, block] : this->allocated_blocks) {
+    phosg::fwrite_fmt(stream, "    Allocated block: {:08X}-{:08X} (size {:08X} ({}); requested {:08X} ({}))\n",
+        block.addr, block.addr + block.actual_size, block.actual_size, phosg::format_size(block.actual_size),
+        block.requested_size, phosg::format_size(block.requested_size));
+  }
+  for (const auto& [_, block] : this->free_blocks_by_addr) {
+    phosg::fwrite_fmt(stream, "    Free block: {:08X}-{:08X} (size {:08X} ({}); requested {:08X} ({}))\n",
+        block.addr, block.addr + block.actual_size, block.actual_size, phosg::format_size(block.actual_size),
+        block.requested_size, phosg::format_size(block.requested_size));
+  }
+}
+
 void MemoryContext::Allocator::verify() const {
   if (this->allocated_bytes > (this->addr_high - this->addr_low)) {
-    throw std::logic_error("Too many allocated bytes");
+    this->verify_failed("Too many allocated bytes");
   }
 
   // Check index sizes. There can be at most one more free block than there are allocated blocks, since we should have
   // merged them as soon as possible
   if (this->free_blocks_by_addr.size() > this->allocated_blocks.size() + 1) {
-    throw std::logic_error("There are too many free blocks");
+    this->verify_failed("There are too many free blocks");
   }
 
   // Check index keys
   for (const auto& [k, block] : this->allocated_blocks) {
     if (block.addr != k) {
-      throw std::logic_error("Allocated block key is incorrect");
+      this->verify_failed("Allocated block key is incorrect");
     }
   }
   for (const auto& [k, block] : this->free_blocks_by_addr) {
     if (block.addr != k) {
-      throw std::logic_error("Free block address key is incorrect");
+      this->verify_failed("Free block address key is incorrect");
     }
   }
   for (const auto& [k, block] : this->free_blocks_by_size) {
     if (block->actual_size != k) {
-      throw std::logic_error("Free block size key is incorrect");
+      this->verify_failed("Free block size key is incorrect");
     }
   }
 
@@ -463,18 +496,18 @@ void MemoryContext::Allocator::verify() const {
     bool is_block = false, is_free = false;
     if (block_it != this->allocated_blocks.end()) {
       if (block_it->second.addr < addr) {
-        throw std::logic_error("Allocated block overlaps with previous block");
+        this->verify_failed("Allocated block overlaps with previous block");
       }
       is_block = (block_it->second.addr == addr);
     }
     if (free_it != this->free_blocks_by_addr.end()) {
       if (free_it->second.addr < addr) {
-        throw std::logic_error("Free block overlaps with previous block");
+        this->verify_failed("Free block overlaps with previous block");
       }
       is_free = (free_it->second.addr == addr);
     }
     if (is_block && is_free) {
-      throw std::logic_error("Memory block is both allocated and free");
+      this->verify_failed("Memory block is both allocated and free");
     } else if (is_block) {
       last_block_free = false;
       addr += block_it->second.actual_size;
@@ -482,28 +515,28 @@ void MemoryContext::Allocator::verify() const {
       block_it++;
     } else if (is_free) {
       if (last_block_free) {
-        throw std::logic_error("Adjacent free blocks were not merged");
+        this->verify_failed("Adjacent free blocks were not merged");
       }
       last_block_free = true;
       addr += free_it->second.actual_size;
       free_it++;
     } else {
-      throw std::logic_error("Memory block is neither allocated nor free");
+      this->verify_failed("Memory block is neither allocated nor free");
     }
   }
   if (block_it != this->allocated_blocks.end()) {
-    throw std::logic_error("Not all allocated blocks are within the allocator\'s range");
+    this->verify_failed("Not all allocated blocks are within the allocator\'s range");
   }
   if (free_it != this->free_blocks_by_addr.end()) {
-    throw std::logic_error("Not all free blocks are within the allocator\'s range");
+    this->verify_failed("Not all free blocks are within the allocator\'s range");
   }
   if (this->allocated_bytes != computed_allocated_bytes) {
-    throw std::logic_error("Allocated byte count is incorrect");
+    this->verify_failed("Allocated byte count is incorrect");
   }
 
   // Check the size-keyed index
   if (this->free_blocks_by_addr.size() != this->free_blocks_by_size.size()) {
-    throw std::logic_error("Free block indexes do not match");
+    this->verify_failed("Free block indexes do not match");
   }
   std::set<uint32_t> remaining_addrs;
   for (const auto& [addr, _] : this->free_blocks_by_addr) {
@@ -512,16 +545,21 @@ void MemoryContext::Allocator::verify() const {
   for (const auto& [size, block] : this->free_blocks_by_size) {
     auto it = this->free_blocks_by_addr.find(block->addr);
     if (it == this->free_blocks_by_addr.end()) {
-      throw std::logic_error("Free block size index contains entry for nonexistent block");
+      this->verify_failed("Free block size index contains entry for nonexistent block");
     }
     if (block != &it->second) {
-      throw std::logic_error("Free block size index contains entry for incorrect block");
+      this->verify_failed("Free block size index contains entry for incorrect block");
     }
     remaining_addrs.erase(it->second.addr);
   }
   if (!remaining_addrs.empty()) {
-    throw std::logic_error("Free block size index contains duplicate entry");
+    this->verify_failed("Free block size index contains duplicate entry");
   }
+}
+
+[[noreturn]] void MemoryContext::Allocator::verify_failed(const std::string& what) const {
+  this->print_state(stderr);
+  throw std::logic_error(what);
 }
 
 void MemoryContext::Allocator::add_free_block(uint32_t addr, size_t size) {
@@ -567,6 +605,7 @@ void MemoryContext::Allocator::reconstruct_free_maps() {
     } else {
       free_block_size = block_it->second.addr - addr;
       addr = block_it->second.addr + block_it->second.actual_size;
+      block_it++;
     }
     if (free_block_size > 0) {
       this->add_free_block(free_block_addr, free_block_size);
@@ -609,7 +648,7 @@ MemoryContext::Allocator& MemoryContext::get_allocator(uint32_t addr) {
 
 void MemoryContext::split_allocators(uint32_t addr) {
   this->allocators.emplace(addr, this->get_allocator(addr).split(addr));
-  if constexpr (verify_operations) {
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
 }
@@ -628,7 +667,7 @@ void MemoryContext::set_symbol_addr(const std::string& name, uint32_t addr) {
   // Multiple symbols can share the same address (C++ aliases, vtables, TVectors); keep the first name for the reverse
   // index only
   this->addr_symbols.emplace(addr, name);
-  if constexpr (verify_operations) {
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
 }
@@ -639,7 +678,7 @@ void MemoryContext::delete_symbol(const std::string& name) {
     this->addr_symbols.erase(it->second);
     this->symbol_addrs.erase(it);
   }
-  if constexpr (verify_operations) {
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
 }
@@ -650,7 +689,7 @@ void MemoryContext::delete_symbol(uint32_t addr) {
     this->symbol_addrs.erase(it->second);
     this->addr_symbols.erase(it);
   }
-  if constexpr (verify_operations) {
+  if constexpr (MemoryContext::VERIFY_OPERATIONS) {
     this->verify();
   }
 }
@@ -688,7 +727,7 @@ MemoryContext MemoryContext::import_state(FILE* stream) {
 
   uint32_t num_allocators = phosg::freadx<phosg::le_uint32_t>(stream);
   while (ret.allocators.size() < num_allocators) {
-    auto allocator = Allocator::import_state(stream);
+    auto allocator = Allocator::import_state(&ret, stream);
     uint32_t key = allocator.range().first;
     ret.allocators.emplace(key, std::move(allocator));
   }
@@ -702,7 +741,7 @@ MemoryContext MemoryContext::import_state(FILE* stream) {
     ret.addr_symbols.emplace(addr, std::move(name));
   }
 
-  if (verify_operations) {
+  if (MemoryContext::VERIFY_OPERATIONS) {
     ret.verify();
   }
   return ret;
@@ -732,42 +771,79 @@ void MemoryContext::export_state(FILE* stream) const {
   }
 }
 
+void MemoryContext::print_state(FILE* stream) const {
+  phosg::fwrite_fmt(stream, "MemoryContext base={:p}\n", this->base);
+
+  // Pages
+  ssize_t last_invalid_page = -1;
+  auto print_page_range_if_valid = [&](ssize_t z) -> void {
+    if (last_invalid_page == z - 2) {
+      phosg::fwrite_fmt(stream, "  Page: {:08X}\n", (z - 1) << this->PAGE_BITS);
+    } else if (last_invalid_page != z - 1) {
+      phosg::fwrite_fmt(stream, "  Page range: {:08X}-{:08X}\n", (last_invalid_page + 1) << this->PAGE_BITS, (z - 1) << this->PAGE_BITS);
+    }
+  };
+  for (size_t z = 0; z < this->PAGE_COUNT; z++) {
+    if (!this->page_is_valid(z)) {
+      print_page_range_if_valid(z);
+      last_invalid_page = z;
+    }
+  }
+  print_page_range_if_valid(this->PAGE_COUNT);
+
+  // Allocators
+  for (const auto& [key, allocator] : this->allocators) {
+    allocator.print_state(stream);
+  }
+
+  // Symbols
+  for (const auto& [name, addr] : this->symbol_addrs) {
+    phosg::fwrite_fmt(stream, "  Symbol: {} = {:08X}\n", name, addr);
+  }
+}
+
 void MemoryContext::verify() const {
   // Check allocators' internal consistency, and check that all allocated regions are in valid pages
   uint32_t addr = 0x00000000;
   for (const auto& [k, allocator] : this->allocators) {
     auto [addr_low, addr_high] = allocator.range();
     if (addr_low != addr) {
-      throw std::logic_error("Part of the context is not covered by any allocator");
+      this->verify_failed("Part of the context is not covered by any allocator");
     }
     if (addr_low >= addr_high) {
-      throw std::logic_error("Allocator range is empty or inverted");
+      this->verify_failed("Allocator range is empty or inverted");
     }
     if (k != addr_low) {
-      throw std::logic_error("Allocator key is incorrect");
+      this->verify_failed("Allocator key is incorrect");
     }
     allocator.verify();
     for (const auto& [_, block] : allocator.all_blocks()) {
       if (!this->check_pages_valid(block.addr, block.actual_size)) {
-        throw std::logic_error("Allocated region spans invalid page");
+        this->verify_failed("Allocated region spans invalid page");
       }
     }
+    addr = addr_high;
   }
 
   // Symbols do not have to be in allocated memory, but the indexes must be inverses of each other. It suffices to
   // check the sizes and only one direction of the mapping since both name and address must be separately unique
   if (this->addr_symbols.size() != this->symbol_addrs.size()) {
-    throw std::logic_error("Symbol indexes are not the same size");
+    this->verify_failed("Symbol indexes are not the same size");
   }
   for (const auto& [name, addr] : this->symbol_addrs) {
     auto it = this->addr_symbols.find(addr);
     if (it == this->addr_symbols.end()) {
-      throw std::logic_error("Symbol is missing from reverse index");
+      this->verify_failed("Symbol is missing from reverse index");
     }
     if (it->second != name) {
-      throw std::logic_error("Symbol has incorrect name in reverse index");
+      this->verify_failed("Symbol has incorrect name in reverse index");
     }
   }
+}
+
+[[noreturn]] void MemoryContext::verify_failed(const std::string& what) const {
+  this->print_state(stderr);
+  throw std::logic_error(what);
 }
 
 void MemoryContext::make_pages_valid(uint32_t addr, uint32_t size) {
