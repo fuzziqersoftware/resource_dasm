@@ -10,7 +10,7 @@
 
 namespace ResourceDASM {
 
-phosg::ImageRGBA8888N decode_sssf_image(phosg::StringReader& r, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGBA8888N decode_sssf_image(phosg::StringReader& r, const std::vector<ColorSpec>& clut) {
   uint16_t width = r.get_u16b();
   uint16_t height = r.get_u16b();
   r.skip(4); // Apparently unused; the PPC and the 68K decoders both ignore this
@@ -56,7 +56,7 @@ phosg::ImageRGBA8888N decode_sssf_image(phosg::StringReader& r, const std::vecto
   return ret;
 }
 
-std::vector<phosg::ImageRGBA8888N> decode_sssf(std::string_view data, const std::vector<ColorTableEntry>& clut) {
+std::vector<phosg::ImageRGBA8888N> decode_sssf(std::string_view data, const std::vector<ColorSpec>& clut) {
   phosg::StringReader r(data);
 
   uint32_t num_images = r.get_u32b();

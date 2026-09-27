@@ -13,12 +13,11 @@
 namespace ResourceDASM {
 
 phosg::ImageGA11 decode_BMap(std::string_view data) {
-  // A BMap is really just a BitMapHeader and the associated data, stuffed into an uncompressed resource, with a couple
-  // of extra header fields.
+  // A BMap is really just a BitMap and the associated data, stuffed into an uncompressed resource, with a couple of
+  // extra header fields.
 
   phosg::StringReader r(data);
-  r.skip(4); // Buffer pointer in memory, reserved in file
-  const auto& header = r.get<BitMapHeader>();
+  const auto& header = r.get<BitMap>();
   if (header.flags_row_bytes & 0xC000) {
     throw std::runtime_error("monochrome bitmap has flags set");
   }
@@ -77,10 +76,9 @@ std::vector<phosg::ImageG1> decode_XBig(std::string_view data) {
 
   // The headers are all at the beginning, and the image data for each bitmap follows the last header (in the same
   // order as the headers).
-  BitMapHeader headers[4];
+  BitMap headers[4];
   for (size_t x = 0; x < 4; x++) {
-    r.skip(4); // Buffer pointer in memory, reserved in file
-    headers[x] = r.get<BitMapHeader>();
+    headers[x] = r.get<BitMap>();
     if (headers[x].flags_row_bytes & 0xC000) {
       throw std::runtime_error("monochrome bitmap has flags set");
     }
@@ -101,9 +99,9 @@ std::vector<phosg::ImageG1> decode_XBig(std::string_view data) {
   return images;
 }
 
-phosg::ImageRGBA8888N decode_XMap(std::string_view data, const std::vector<ColorTableEntry>& clut) {
-  // XMap is the color analogue of BMap; it consists of a PixMapHeader and the corresponding data, but also optionally
-  // includes to Regions. One of these is the clipping region, but it's not clear what the other is for.
+phosg::ImageRGBA8888N decode_XMap(std::string_view data, const std::vector<ColorSpec>& clut) {
+  // XMap is the color analogue of BMap; it consists of a PixMap and the corresponding data, but also optionally
+  // includes two Regions. One of these is the clipping region, but it's not clear what the other is for.
 
   std::string decompressed_data;
 
@@ -117,8 +115,8 @@ phosg::ImageRGBA8888N decode_XMap(std::string_view data, const std::vector<Color
     r = phosg::StringReader(decompressed_data);
   }
 
-  r.skip(0x0C); // Unknown
-  const auto& header = r.get<PixelMapHeader>();
+  r.skip(0x08); // Unknown
+  const auto& header = r.get<PixMap>();
   if (!(header.flags_row_bytes & 0x8000)) {
     throw std::runtime_error("color pixel map is missing color flag");
   }
@@ -128,7 +126,7 @@ phosg::ImageRGBA8888N decode_XMap(std::string_view data, const std::vector<Color
   size_t pixel_data_size = r.get_u32b();
   size_t mask_region_size = r.get_u32b();
 
-  const PixelMapData& pixel_data = r.get<PixelMapData>(true, pixel_data_size);
+  const auto& pixel_data = r.get<PixMapData>(true, pixel_data_size);
 
   auto ctable = ColorTable::from_entries(clut);
   auto ret = decode_color_image(header, pixel_data, ctable.get()).change_pixel_format<phosg::PixelFormat::RGBA8888_NATIVE>();

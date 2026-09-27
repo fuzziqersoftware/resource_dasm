@@ -238,7 +238,7 @@ int main(int argc, char** argv) {
     in_data = in_data.substr(offset);
   }
 
-  std::vector<ResourceDASM::ColorTableEntry> clut;
+  std::vector<ResourceDASM::ColorSpec> clut;
   size_t pixel_bits;
   if (use_default_clut) {
     clut = ResourceDASM::create_default_clut();
@@ -254,7 +254,7 @@ int main(int argc, char** argv) {
       while (clut.size() & (clut.size() - 1)) {
         auto entry = clut.emplace_back();
         entry.color_num = clut.size() - 1;
-        entry.c = ResourceDASM::Color(0, 0, 0);
+        entry.c = ResourceDASM::RGBColor(0, 0, 0);
       }
     }
     for (pixel_bits = 0;
@@ -344,7 +344,7 @@ int main(int argc, char** argv) {
       }
 
       case ColorFormat::INDEXED: {
-        ResourceDASM::Color8 c = clut.at(br.read(pixel_bits)).c.as8();
+        ResourceDASM::RGBColor8 c = clut.at(br.read(pixel_bits)).c.as8();
         pixel_stream.emplace_back((c.r << 24) | (c.g << 16) | (c.b << 8) | 0xFF);
         break;
       }

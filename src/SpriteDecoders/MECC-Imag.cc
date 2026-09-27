@@ -19,9 +19,9 @@ namespace ResourceDASM {
 //     phosg::be_uint32_t size; // Total entry size, including this field
 //     phosg::be_uint32_t unused;
 //     // Test the high bit of flags_row_bytes (the first field in both of these header types) to determine which
-//     // header is present. If the bit is set, it's a PixelMapHeader.
-//     BitMapHeader OR PixelMapHeader header;
-//     // The color table is only present if header is a PixelMapHeader and header.color_table_offset != 0xFFFFFFFF.
+//     // header is present. If the bit is set, it's a PixMap.
+//     BitMap OR PixMap header;
+//     // The color table is only present if header is a PixMap and header.color_table_offset != 0xFFFFFFFF.
 //     ColorTable color_table;
 //     // Most of the color formats have an additional header within the compressed data here. See the various decoding
 //     // functions for details.
@@ -238,7 +238,7 @@ void render_direct_block(
     phosg::StringReader& r,
     size_t dest_x,
     size_t dest_y,
-    const std::vector<ColorTableEntry>& clut) {
+    const std::vector<ColorSpec>& clut) {
   // This function reads 0x40 bytes from the input, transforms them into colors with the given color table, and writes
   // them in natural (reading) order to an 8x8 square in the image.
   const uint8_t* data = &r.get<uint8_t>(true, 0x40);
@@ -257,7 +257,7 @@ void render_diagonalized_block(
     phosg::StringReader& r,
     size_t dest_x,
     size_t dest_y,
-    const std::vector<ColorTableEntry>& clut) {
+    const std::vector<ColorSpec>& clut) {
   // This function renders a diagonalized 8x8 block of pixels using the given color table, ordered as specified here.
   static const uint8_t indexes[8][8] = {
       {0x00, 0x01, 0x05, 0x06, 0x0E, 0x0F, 0x1B, 0x1C},
@@ -284,7 +284,7 @@ phosg::ImageRGB888 decode_color_Imag_blocks(
     size_t width,
     size_t height,
     uint16_t format_version,
-    const std::vector<ColorTableEntry>& clut) {
+    const std::vector<ColorSpec>& clut) {
   // This function decodes the MECC block-based color image formats (v1 and v2).
 
   // Blocks may overlap the edges of the image, but then those blocks may be copied into blocks that don't. To handle
@@ -579,11 +579,11 @@ phosg::ImageRGB888 decode_color_Imag_blocks(
 }
 
 phosg::ImageRGB888 decode_color_Imag_commands(
-    phosg::StringReader& r, const std::vector<ColorTableEntry>& external_clut) {
-  const std::vector<ColorTableEntry>* clut = &external_clut;
-  std::vector<ColorTableEntry> internal_clut;
+    phosg::StringReader& r, const std::vector<ColorSpec>& external_clut) {
+  const std::vector<ColorSpec>* clut = &external_clut;
+  std::vector<ColorSpec> internal_clut;
 
-  const auto& header = r.get<PixelMapHeader>();
+  const auto& header = r.get<PixMap>();
   size_t width = header.bounds.width();
   size_t height = header.bounds.height();
 
@@ -596,7 +596,7 @@ phosg::ImageRGB888 decode_color_Imag_commands(
     r.skip(6);
     size_t color_count = r.get_u16b() + 1;
     while (internal_clut.size() < color_count) {
-      internal_clut.emplace_back(r.get<ColorTableEntry>());
+      internal_clut.emplace_back(r.get<ColorSpec>());
     }
     clut = &internal_clut;
   }
@@ -814,7 +814,7 @@ std::string decompress_monochrome_Imag_data(phosg::StringReader& r) {
 }
 
 phosg::ImageG1 decode_monochrome_Imag_section(phosg::StringReader& r) {
-  const auto& header = r.get<BitMapHeader>();
+  const auto& header = r.get<BitMap>();
   size_t row_bytes = header.flags_row_bytes & 0x3FFF;
   size_t width = header.bounds.width();
   size_t height = header.bounds.height();
@@ -842,11 +842,11 @@ phosg::ImageG1 decode_monochrome_Imag_section(phosg::StringReader& r) {
 }
 
 phosg::ImageRGB888 decode_fraction_munchers_color_Imag_section(
-    phosg::StringReader& r, const std::vector<ColorTableEntry>& external_clut) {
-  const std::vector<ColorTableEntry>* clut = &external_clut;
-  std::vector<ColorTableEntry> internal_clut;
+    phosg::StringReader& r, const std::vector<ColorSpec>& external_clut) {
+  const std::vector<ColorSpec>* clut = &external_clut;
+  std::vector<ColorSpec> internal_clut;
 
-  const auto& header = r.get<PixelMapHeader>();
+  const auto& header = r.get<PixMap>();
   size_t row_bytes = header.flags_row_bytes & 0x3FFF;
   size_t width = header.bounds.width();
   size_t height = header.bounds.height();
@@ -860,7 +860,7 @@ phosg::ImageRGB888 decode_fraction_munchers_color_Imag_section(
     r.skip(6);
     size_t color_count = r.get_u16b() + 1;
     while (internal_clut.size() < color_count) {
-      internal_clut.emplace_back(r.get<ColorTableEntry>());
+      internal_clut.emplace_back(r.get<ColorSpec>());
     }
     clut = &internal_clut;
   }
@@ -884,18 +884,13 @@ phosg::ImageRGB888 decode_fraction_munchers_color_Imag_section(
 }
 
 std::vector<phosg::ImageRGB888> decode_Imag(
-    std::string_view data, const std::vector<ColorTableEntry>& clut, bool use_later_formats) {
+    std::string_view data, const std::vector<ColorSpec>& clut, bool use_later_formats) {
   phosg::StringReader r(data);
   std::vector<phosg::ImageRGB888> ret;
   size_t count = r.get_u16b();
   while (ret.size() < count) {
     size_t section_start_offset = r.where();
     size_t section_end_offset = section_start_offset + r.get_u32b();
-    // This field is probably completely unused - it's likely the result of MECC using the BitMap and PixMap structs
-    // directly in the resource format, which include pointers to the decompressed data when loaded in memory. These
-    // fields are unused in files and resources. We don't have these fields in the BitMapHeader and PixMapHeader
-    // structs here in resource_dasm, so we have to skip the field manually here.
-    r.skip(4);
     // Hack: If this is the last section, ignore the end offset and just use the rest of the data. This is needed
     // because some Imag resources have incorrect values in the frame header when only one image is present.
     phosg::StringReader section_r = (ret.size() == count - 1)
@@ -905,7 +900,7 @@ std::vector<phosg::ImageRGB888> decode_Imag(
 
     // As in many QuickDraw-compatible formats, the high bit of flags_row_bytes specifies whether the image is color or
     // monochrome.
-    if (section_r.get_u8(false) & 0x80) {
+    if (section_r.pget_u8(r.where() + 4) & 0x80) {
       if (use_later_formats) {
         ret.emplace_back(decode_color_Imag_commands(section_r, clut));
       } else {

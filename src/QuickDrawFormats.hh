@@ -16,8 +16,8 @@
 
 namespace ResourceDASM {
 
-extern const std::vector<Color8> DEFAULT_ICON_COLOR_TABLE_4BIT;
-extern const std::vector<Color8> DEFAULT_ICON_COLOR_TABLE_8BIT;
+extern const std::vector<RGBColor8> DEFAULT_ICON_COLOR_TABLE_4BIT;
+extern const std::vector<RGBColor8> DEFAULT_ICON_COLOR_TABLE_8BIT;
 
 enum TransferMode {
   SRC_COPY = 0,
@@ -107,7 +107,7 @@ phosg::ImageRGB888 decode_4bit_image(
     size_t size,
     size_t w,
     size_t h,
-    const std::vector<Color8>* color_table = &DEFAULT_ICON_COLOR_TABLE_4BIT);
+    const std::vector<RGBColor8>* color_table = &DEFAULT_ICON_COLOR_TABLE_4BIT);
 
 // Decodes an 8-bit color image, and applies the given color table to produce a full-color RGB image. If null is given
 // for color_table, returns a full-color RGB image in which all channels of each pixel contain the corresponding value
@@ -117,16 +117,15 @@ phosg::ImageRGB888 decode_8bit_image(
     size_t size,
     size_t w,
     size_t h,
-    const std::vector<Color8>* color_table = &DEFAULT_ICON_COLOR_TABLE_8BIT);
+    const std::vector<RGBColor8>* color_table = &DEFAULT_ICON_COLOR_TABLE_8BIT);
 
 // Decodes a color pixel map, optionally with a mask bitmap.
-phosg::ImageRGB888 decode_color_image(
-    const PixelMapHeader& header, const PixelMapData& pixel_map, const ColorTable* ctable);
+phosg::ImageRGB888 decode_color_image(const PixMap& header, const PixMapData& pixel_map, const ColorTable* ctable);
 phosg::ImageRGBA8888N decode_color_image_masked(
-    const PixelMapHeader& header,
-    const PixelMapData& pixel_map,
+    const PixMap& header,
+    const PixMapData& pixel_map,
     const ColorTable* ctable,
-    const PixelMapData& mask_map,
+    const PixMapData& mask_map,
     size_t mask_row_bytes);
 
 template <phosg::PixelFormat SourceFormat, phosg::PixelFormat MaskFormat>
@@ -145,8 +144,8 @@ phosg::ImageRGBA8888N apply_alpha_from_mask(
   return ret;
 }
 
-std::vector<Color8> to_color8(const std::vector<Color>& cs);
-std::vector<Color8> to_color8(const std::vector<ColorTableEntry>& cs);
-std::vector<Color8> to_color8(const std::vector<PaletteEntry>& cs);
+std::vector<RGBColor8> to_color8(const std::vector<RGBColor>& cs);
+std::vector<RGBColor8> to_color8(const std::vector<ColorSpec>& cs);
+std::vector<RGBColor8> to_color8(const std::vector<PaletteEntry>& cs);
 
 } // namespace ResourceDASM

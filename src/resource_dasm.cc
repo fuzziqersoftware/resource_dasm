@@ -304,7 +304,7 @@ private:
   void write_decoded_data(
       const std::string& base_filename,
       std::shared_ptr<const ResourceDASM::ResourceFile::Resource> res,
-      const std::vector<ResourceDASM::ColorTableEntry>& decoded,
+      const std::vector<ResourceDASM::ColorSpec>& decoded,
       const std::unordered_map<uint16_t, std::string>* index_names = nullptr) {
     if (decoded.size() == 0) {
       phosg::ImageRGB888 img(122, 16);
@@ -392,7 +392,7 @@ private:
 
     auto decoded = this->current_rf->decode_pltt(res);
     // Add appropriate color IDs to ths pltt so we can render it as if it were a clut
-    std::vector<ResourceDASM::ColorTableEntry> entries;
+    std::vector<ResourceDASM::ColorSpec> entries;
     entries.reserve(decoded.size());
     for (const auto& c : decoded) {
       auto& entry = entries.emplace_back();

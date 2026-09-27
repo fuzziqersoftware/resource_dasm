@@ -268,7 +268,7 @@ std::map<size_t, IndexedPPSSEntry> decode_PPSS_indexed(std::string_view data) {
   return ret;
 }
 
-std::map<size_t, ColorPPSSEntry> decode_PPSS(std::string_view data, const std::vector<ColorTableEntry>& clut) {
+std::map<size_t, ColorPPSSEntry> decode_PPSS(std::string_view data, const std::vector<ColorSpec>& clut) {
   std::map<size_t, ColorPPSSEntry> ret;
   for (const auto& [image_index, entry] : decode_PPSS_indexed(data)) {
     ret.emplace(image_index, entry.apply_clut(clut));
@@ -276,7 +276,7 @@ std::map<size_t, ColorPPSSEntry> decode_PPSS(std::string_view data, const std::v
   return ret;
 }
 
-std::vector<phosg::ImageRGBA8888N> decode_Pak(std::string_view data, const std::vector<ColorTableEntry>& clut) {
+std::vector<phosg::ImageRGBA8888N> decode_Pak(std::string_view data, const std::vector<ColorSpec>& clut) {
   phosg::StringReader r(data);
 
   uint16_t format = r.get_u16b();

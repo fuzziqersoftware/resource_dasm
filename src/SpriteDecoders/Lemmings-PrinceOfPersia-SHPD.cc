@@ -21,7 +21,7 @@ struct SHPDResource {
 } __attribute__((packed));
 
 static phosg::ImageRGBA8888N decode_lemmings_color_image(
-    phosg::StringReader& r, size_t width, size_t height, const std::vector<ColorTableEntry>& clut) {
+    phosg::StringReader& r, size_t width, size_t height, const std::vector<ColorSpec>& clut) {
   // Lemmings color images are encoded in a fairly simple format: each command is a single byte. If the high bit is
   // set, then (cmd & 0x7F) + 1 pixels are skipped (transparent). If the high bit is not set, then (cmd + 1) pixels
   // (bytes) are written directly from the input stream.
@@ -54,7 +54,7 @@ std::map<size_t, DecodedSHPDImage> decode_SHPD_images(
     ResourceFile& rf,
     int16_t shpd_id,
     std::string_view data,
-    const std::vector<ColorTableEntry>& clut,
+    const std::vector<ColorSpec>& clut,
     SHPDVersion version) {
   phosg::StringReader r(data);
   std::map<size_t, DecodedSHPDImage> ret;
@@ -132,7 +132,7 @@ std::unordered_map<size_t, DecodedSHPDImage> decode_SHPD(
     ResourceFile& rf,
     std::string_view data_fork_contents,
     int16_t res_id,
-    const std::vector<ColorTableEntry>& clut,
+    const std::vector<ColorSpec>& clut,
     SHPDVersion version) {
   phosg::StringReader r(data_fork_contents);
   std::unordered_map<size_t, DecodedSHPDImage> ret;

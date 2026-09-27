@@ -49,10 +49,10 @@ std::vector<phosg::ImageRGBA8888N> decode_pathways_256(std::string_view data) {
   phosg::StringReader r(decompressed_data);
   const auto& header = r.get<PDHeader>();
 
-  std::unordered_map<uint16_t, Color> color_table;
+  std::unordered_map<uint16_t, RGBColor> color_table;
   for (size_t z = 0; z < header.num_color_table_entries; z++) {
     uint16_t id = r.get_u16b();
-    if (!color_table.emplace(id, r.get<Color>()).second) {
+    if (!color_table.emplace(id, r.get<RGBColor>()).second) {
       throw std::runtime_error(std::format("duplicate color table entry: {:04X}", id));
     }
   }
@@ -140,11 +140,11 @@ std::vector<phosg::ImageRGBA8888N> decode_marathon_256(std::string_view data) {
   phosg::StringReader r(data);
   const auto& header = r.get<MHeader>();
 
-  std::unordered_map<uint16_t, Color> color_table;
+  std::unordered_map<uint16_t, RGBColor> color_table;
   r.go(header.color_table_offset);
   for (size_t z = 0; z < header.num_color_table_entries; z++) {
     uint16_t id = r.get_u16b();
-    if (!color_table.emplace(id, r.get<Color>()).second) {
+    if (!color_table.emplace(id, r.get<RGBColor>()).second) {
       throw std::runtime_error(std::format("duplicate color table entry: {:04X}", id));
     }
   }

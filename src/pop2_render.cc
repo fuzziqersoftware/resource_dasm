@@ -1051,7 +1051,7 @@ public:
   std::unique_ptr<const ResourceDASM::ResourceFile> resource_file;
   std::unordered_map<int16_t, int16_t> ctbl_id_for_shap_id;
   std::vector<PieceDefinition> pieces;
-  std::unordered_map<int16_t, const std::vector<ResourceDASM::ColorTableEntry>> decoded_color_tables;
+  std::unordered_map<int16_t, const std::vector<ResourceDASM::ColorSpec>> decoded_color_tables;
   std::unordered_map<int16_t, const phosg::ImageRGBA8888N> decoded_shapes;
   std::unordered_map<int16_t, const CustomRoomDefinition> decoded_custom_rooms;
 
@@ -1068,7 +1068,7 @@ public:
     return *this->resource_file;
   }
 
-  const std::vector<ResourceDASM::ColorTableEntry>& get_CTBL(int16_t id) {
+  const std::vector<ResourceDASM::ColorSpec>& get_CTBL(int16_t id) {
     try {
       return this->decoded_color_tables.at(id);
     } catch (const std::out_of_range&) {

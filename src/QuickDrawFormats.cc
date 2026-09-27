@@ -237,7 +237,7 @@ phosg::ImageGA11 decode_monochrome_image_masked(const void* vdata, size_t size, 
 }
 
 phosg::ImageRGB888 decode_4bit_image(
-    const void* vdata, size_t size, size_t w, size_t h, const std::vector<Color8>* clut) {
+    const void* vdata, size_t size, size_t w, size_t h, const std::vector<RGBColor8>* clut) {
   if (w & 1) {
     throw std::runtime_error("width is not even");
   }
@@ -252,8 +252,8 @@ phosg::ImageRGB888 decode_4bit_image(
     for (size_t x = 0; x < w; x += 2) {
       uint8_t indexes = data[y * w / 2 + x / 2];
       if (clut) {
-        const Color8& left_c = clut->at((indexes >> 4) & 0x0F);
-        const Color8& right_c = clut->at(indexes & 0x0F);
+        const RGBColor8& left_c = clut->at((indexes >> 4) & 0x0F);
+        const RGBColor8& right_c = clut->at(indexes & 0x0F);
         result.write(x, y, left_c.rgba8888());
         result.write(x + 1, y, right_c.rgba8888());
       } else {
@@ -269,7 +269,7 @@ phosg::ImageRGB888 decode_4bit_image(
 }
 
 phosg::ImageRGB888 decode_8bit_image(
-    const void* vdata, size_t size, size_t w, size_t h, const std::vector<Color8>* clut) {
+    const void* vdata, size_t size, size_t w, size_t h, const std::vector<RGBColor8>* clut) {
   if (size != w * h) {
     throw std::runtime_error(std::format("incorrect data size: expected {} bytes, got {} bytes", w * h, size));
   }
@@ -289,7 +289,7 @@ phosg::ImageRGB888 decode_8bit_image(
   return result;
 }
 
-uint32_t PixelMapData::lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const {
+uint32_t PixMapData::lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const {
   switch (pixel_size) {
     case 1:
       return (this->data[(y * row_bytes) + (x / 8)] >> (7 - (x & 7))) & 1;
@@ -308,17 +308,16 @@ uint32_t PixelMapData::lookup_entry(uint16_t pixel_size, size_t row_bytes, size_
   }
 }
 
-size_t PixelMapData::size(uint16_t row_bytes, size_t h) {
+size_t PixMapData::size(uint16_t row_bytes, size_t h) {
   return row_bytes * h;
 }
 
-std::shared_ptr<ColorTable> ColorTable::from_entries(
-    const std::vector<ColorTableEntry>& entries) {
+std::shared_ptr<ColorTable> ColorTable::from_entries(const std::vector<ColorSpec>& entries) {
   if (entries.empty()) {
     throw std::logic_error("cannot construct an empty color table");
   }
 
-  size_t size = sizeof(ColorTable) + entries.size() * sizeof(ColorTableEntry);
+  size_t size = sizeof(ColorTable) + entries.size() * sizeof(ColorSpec);
   std::shared_ptr<ColorTable> ret(reinterpret_cast<ColorTable*>(malloc(size)), free);
   ret->seed = 0;
   ret->flags = 0;
@@ -330,14 +329,14 @@ std::shared_ptr<ColorTable> ColorTable::from_entries(
 }
 
 size_t ColorTable::size() const {
-  return sizeof(ColorTable) + (this->num_entries + 1) * sizeof(ColorTableEntry);
+  return sizeof(ColorTable) + (this->num_entries + 1) * sizeof(ColorSpec);
 }
 
 uint32_t ColorTable::get_num_entries() const {
   return this->num_entries + 1;
 }
 
-const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
+const ColorSpec* ColorTable::get_entry(int16_t id) const {
   // It looks like if the highest flag is set (8000) then id is just the index, not the color number, and we should
   // ignore the color_num field
   if (this->flags & 0x8000) {
@@ -356,10 +355,10 @@ const ColorTableEntry* ColorTable::get_entry(int16_t id) const {
 
 template <phosg::PixelFormat Format>
 phosg::Image<Format> decode_color_image_t(
-    const PixelMapHeader& header,
-    const PixelMapData& pixel_map,
+    const PixMap& header,
+    const PixMapData& pixel_map,
     const ColorTable* ctable,
-    const PixelMapData* mask_map,
+    const PixMapData* mask_map,
     size_t mask_row_bytes) {
 
   // According to Apple's docs, pixel_type is 0 for indexed color and 0x0010 for direct color, even for 32-bit images
@@ -421,37 +420,37 @@ phosg::Image<Format> decode_color_image_t(
 }
 
 phosg::ImageRGB888 decode_color_image(
-    const PixelMapHeader& header, const PixelMapData& pixel_map, const ColorTable* ctable) {
+    const PixMap& header, const PixMapData& pixel_map, const ColorTable* ctable) {
   return decode_color_image_t<phosg::PixelFormat::RGB888>(header, pixel_map, ctable, nullptr, 0);
 }
 phosg::ImageRGBA8888N decode_color_image_masked(
-    const PixelMapHeader& header,
-    const PixelMapData& pixel_map,
+    const PixMap& header,
+    const PixMapData& pixel_map,
     const ColorTable* ctable,
-    const PixelMapData& mask_map,
+    const PixMapData& mask_map,
     size_t mask_row_bytes) {
   return decode_color_image_t<phosg::PixelFormat::RGBA8888_NATIVE>(
       header, pixel_map, ctable, &mask_map, mask_row_bytes);
 }
 
-std::vector<Color8> to_color8(const std::vector<Color>& cs) {
-  std::vector<Color8> ret;
+std::vector<RGBColor8> to_color8(const std::vector<RGBColor>& cs) {
+  std::vector<RGBColor8> ret;
   for (const auto& c : cs) {
     ret.emplace_back(c.as8());
   }
   return ret;
 }
 
-std::vector<Color8> to_color8(const std::vector<ColorTableEntry>& cs) {
-  std::vector<Color8> ret;
+std::vector<RGBColor8> to_color8(const std::vector<ColorSpec>& cs) {
+  std::vector<RGBColor8> ret;
   for (const auto& c : cs) {
     ret.emplace_back(c.c.as8());
   }
   return ret;
 }
 
-std::vector<Color8> to_color8(const std::vector<PaletteEntry>& cs) {
-  std::vector<Color8> ret;
+std::vector<RGBColor8> to_color8(const std::vector<PaletteEntry>& cs) {
+  std::vector<RGBColor8> ret;
   for (const auto& c : cs) {
     ret.emplace_back(c.c.as8());
   }

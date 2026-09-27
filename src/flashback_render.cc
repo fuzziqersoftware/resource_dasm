@@ -199,13 +199,13 @@ Options:\n\
   auto rf = ResourceDASM::parse_resource_fork(phosg::load_file(std::format("{}/..namedfork/rsrc", flashback_path)));
   auto base_clut = rf.decode_clut(1000);
 
-  auto build_clut_from_segments = [&](const std::array<uint8_t, 0x10>& segments) -> std::vector<ResourceDASM::ColorTableEntry> {
-    std::vector<ResourceDASM::ColorTableEntry> ret;
+  auto build_clut_from_segments = [&](const std::array<uint8_t, 0x10>& segments) -> std::vector<ResourceDASM::ColorSpec> {
+    std::vector<ResourceDASM::ColorSpec> ret;
     ret.reserve(0x100);
     for (size_t z = 0; z < 0x10; z++) {
       if (segments[z] == 0xFF) {
         for (size_t z = 0; z < 0x10; z++) {
-          ret.emplace_back(ResourceDASM::ColorTableEntry{0x0000, {0x0000, 0x0000, 0x0000}});
+          ret.emplace_back(ResourceDASM::ColorSpec{0x0000, {0x0000, 0x0000, 0x0000}});
         }
       } else {
         size_t base_clut_index = segments[z] << 4;
@@ -216,7 +216,7 @@ Options:\n\
     }
     return ret;
   };
-  auto build_single_segment_clut = [&](uint8_t index, uint8_t segment) -> std::vector<ResourceDASM::ColorTableEntry> {
+  auto build_single_segment_clut = [&](uint8_t index, uint8_t segment) -> std::vector<ResourceDASM::ColorSpec> {
     std::array<uint8_t, 0x10> segments{
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     segments[index] = segment;
@@ -230,7 +230,7 @@ Options:\n\
 
   // Render titles
   for (size_t title_num = 0; title_num < 6; title_num++) {
-    std::vector<ResourceDASM::ColorTableEntry> title_clut;
+    std::vector<ResourceDASM::ColorSpec> title_clut;
     if (title_num == 1) {
       title_clut = build_clut_from_segments(
           {0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x37, 0x38, 0xFF, 0xFF});
@@ -248,7 +248,7 @@ Options:\n\
     phosg::log_info_f("(Title {}) ... {}", title_num, filename);
   }
 
-  auto apply_clut_to_ppss = [](const std::map<size_t, ResourceDASM::IndexedPPSSEntry>& indexed, const std::vector<ResourceDASM::ColorTableEntry>& clut) -> std::map<size_t, ResourceDASM::ColorPPSSEntry> {
+  auto apply_clut_to_ppss = [](const std::map<size_t, ResourceDASM::IndexedPPSSEntry>& indexed, const std::vector<ResourceDASM::ColorSpec>& clut) -> std::map<size_t, ResourceDASM::ColorPPSSEntry> {
     std::map<size_t, ResourceDASM::ColorPPSSEntry> ret;
     for (const auto& [image_index, entry] : indexed) {
       ret.emplace(image_index, entry.apply_clut(clut));
@@ -480,7 +480,7 @@ Options:\n\
       int8_t xmax = 0;
       int8_t ymin = 0;
       int8_t ymax = 0;
-      std::vector<ResourceDASM::ColorTableEntry> override_clut;
+      std::vector<ResourceDASM::ColorSpec> override_clut;
       phosg::ImageRGBA8888N map;
       std::map<size_t, ResourceDASM::ColorPPSSEntry> override_objects_ppss;
 

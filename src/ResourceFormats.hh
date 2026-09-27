@@ -8,6 +8,38 @@ namespace ResourceDASM {
 ////////////////////////////////////////////////////////////////////////////////
 // Common structures
 
+template <uint8_t MaxLength>
+struct PascalString {
+  uint8_t length = 0;
+  char data[MaxLength] = {};
+
+  PascalString() = default;
+  inline PascalString(const std::string& s) {
+    if (s.size() > MaxLength) {
+      throw std::runtime_error("String too long for Pascal string structure");
+    }
+    this->length = s.size();
+    memcpy(this->data, s.data(), s.size());
+  }
+  inline operator std::string() const {
+    if (!this->valid()) {
+      throw std::runtime_error("Invalid Pascal string length");
+    }
+    return std::string{this->data, this->length};
+  }
+
+  constexpr bool valid() const {
+    return (this->length <= MaxLength);
+  }
+} __attribute__((packed));
+
+using Str15 = PascalString<15>;
+using Str27 = PascalString<27>;
+using Str31 = PascalString<31>;
+using Str32 = PascalString<32>;
+using Str63 = PascalString<63>;
+using Str255 = PascalString<255>;
+
 struct Point {
   phosg::be_int16_t y;
   phosg::be_int16_t x;
@@ -89,34 +121,37 @@ struct Polygon {
 ////////////////////////////////////////////////////////////////////////////////
 // Bitmaps and pixmaps (used in multiple QuickDraw resources)
 
-struct BitMapHeader {
-  phosg::be_uint16_t flags_row_bytes;
-  Rect bounds;
+struct BitMap {
+  /* 00 */ phosg::be_uint32_t data; // Data pointer when loaded in memory; present but unused in resource data
+  /* 04 */ phosg::be_uint16_t flags_row_bytes;
+  /* 06 */ Rect bounds;
+  /* 0E */
 
   inline size_t bytes() const {
     return (this->flags_row_bytes & 0x3FFF) * bounds.height();
   }
 } __attribute__((packed));
 
-struct PixelMapHeader {
-  /* 00 */ phosg::be_uint16_t flags_row_bytes;
-  /* 02 */ Rect bounds;
-  /* 0A */ phosg::be_uint16_t version;
-  /* 0C */ phosg::be_uint16_t pack_format;
-  /* 0E */ phosg::be_uint32_t pack_size;
-  /* 12 */ phosg::be_uint32_t h_res;
-  /* 16 */ phosg::be_uint32_t v_res;
-  /* 1A */ phosg::be_uint16_t pixel_type;
-  /* 1C */ phosg::be_uint16_t pixel_size; // bits per pixel
-  /* 1E */ phosg::be_uint16_t component_count;
-  /* 20 */ phosg::be_uint16_t component_size;
-  /* 22 */ phosg::be_uint32_t plane_offset;
-  /* 26 */ phosg::be_uint32_t color_table_offset; // when in memory, handle to color table
-  /* 2A */ phosg::be_uint32_t reserved;
-  /* 2E */
+struct PixMap {
+  /* 00 */ phosg::be_uint32_t data; // Data pointer when loaded in memory; present but unused in resource data
+  /* 04 */ phosg::be_uint16_t flags_row_bytes;
+  /* 06 */ Rect bounds;
+  /* 0E */ phosg::be_uint16_t version;
+  /* 10 */ phosg::be_uint16_t pack_format;
+  /* 12 */ phosg::be_uint32_t pack_size;
+  /* 16 */ Fixed h_res;
+  /* 1A */ Fixed v_res;
+  /* 1E */ phosg::be_uint16_t pixel_type;
+  /* 20 */ phosg::be_uint16_t pixel_size; // bits per pixel
+  /* 22 */ phosg::be_uint16_t component_count;
+  /* 24 */ phosg::be_uint16_t component_size;
+  /* 26 */ phosg::be_uint32_t plane_offset;
+  /* 2A */ phosg::be_uint32_t color_table_offset; // when in memory, handle to color table
+  /* 2E */ phosg::be_uint32_t reserved;
+  /* 32 */
 } __attribute__((packed));
 
-struct PixelMapData {
+struct PixMapData {
   uint8_t data[0];
 
   uint32_t lookup_entry(uint16_t pixel_size, size_t row_bytes, size_t x, size_t y) const;
@@ -126,19 +161,19 @@ struct PixelMapData {
 ////////////////////////////////////////////////////////////////////////////////
 // clut, pltt
 
-struct Color8 {
+struct RGBColor8 {
   uint8_t r;
   uint8_t g;
   uint8_t b;
 
-  constexpr Color8() = default;
-  constexpr Color8(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) {}
+  constexpr RGBColor8() = default;
+  constexpr RGBColor8(uint8_t r, uint8_t g, uint8_t b) : r(r), g(g), b(b) {}
 
-  constexpr static Color8 from_rgb888(uint32_t c) {
-    return Color8{static_cast<uint8_t>(c >> 16), static_cast<uint8_t>(c >> 8), static_cast<uint8_t>(c)};
+  constexpr static RGBColor8 from_rgb888(uint32_t c) {
+    return RGBColor8{static_cast<uint8_t>(c >> 16), static_cast<uint8_t>(c >> 8), static_cast<uint8_t>(c)};
   }
-  constexpr static Color8 from_rgbx8888(uint32_t c) {
-    return Color8{static_cast<uint8_t>(c >> 24), static_cast<uint8_t>(c >> 16), static_cast<uint8_t>(c >> 8)};
+  constexpr static RGBColor8 from_rgbx8888(uint32_t c) {
+    return RGBColor8{static_cast<uint8_t>(c >> 24), static_cast<uint8_t>(c >> 16), static_cast<uint8_t>(c >> 8)};
   }
 
   constexpr uint32_t rgba8888(uint8_t alpha = 0xFF) const {
@@ -146,29 +181,29 @@ struct Color8 {
   }
 } __attribute__((packed));
 
-struct Color {
+struct RGBColor {
   phosg::be_uint16_t r = 0;
   phosg::be_uint16_t g = 0;
   phosg::be_uint16_t b = 0;
 
-  Color() = default;
-  constexpr Color(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) {}
+  RGBColor() = default;
+  constexpr RGBColor(uint16_t r, uint16_t g, uint16_t b) : r(r), g(g), b(b) {}
 
-  static constexpr Color from_rgb888(uint32_t c) {
-    return Color{
+  static constexpr RGBColor from_rgb888(uint32_t c) {
+    return RGBColor{
         static_cast<uint16_t>(((c >> 16) & 0xFF) * 0x0101),
         static_cast<uint16_t>(((c >> 8) & 0xFF) * 0x0101),
         static_cast<uint16_t>((c & 0xFF) * 0x0101)};
   }
-  static constexpr Color from_rgbx8888(uint32_t c) {
-    return Color{
+  static constexpr RGBColor from_rgbx8888(uint32_t c) {
+    return RGBColor{
         static_cast<uint16_t>(((c >> 24) & 0xFF) * 0x0101),
         static_cast<uint16_t>(((c >> 16) & 0xFF) * 0x0101),
         static_cast<uint16_t>(((c >> 8) & 0xFF) * 0x0101)};
   }
 
-  constexpr Color8 as8() const {
-    return Color8{
+  constexpr RGBColor8 as8() const {
+    return RGBColor8{
         static_cast<uint8_t>(this->r / 0x101),
         static_cast<uint8_t>(this->g / 0x101),
         static_cast<uint8_t>(this->b / 0x101)};
@@ -185,26 +220,26 @@ struct Color {
   }
 } __attribute__((packed));
 
-struct ColorTableEntry {
+struct ColorSpec {
   phosg::be_uint16_t color_num;
-  Color c;
+  RGBColor c;
 } __attribute__((packed));
 
 struct ColorTable {
   phosg::be_uint32_t seed;
   phosg::be_uint16_t flags;
   phosg::be_int16_t num_entries; // actually num_entries - 1
-  ColorTableEntry entries[0];
+  ColorSpec entries[0];
 
-  static std::shared_ptr<ColorTable> from_entries(const std::vector<ColorTableEntry>& entries);
+  static std::shared_ptr<ColorTable> from_entries(const std::vector<ColorSpec>& entries);
 
   size_t size() const;
   uint32_t get_num_entries() const;
-  const ColorTableEntry* get_entry(int16_t id) const;
+  const ColorSpec* get_entry(int16_t id) const;
 } __attribute__((packed));
 
 struct PaletteEntry {
-  Color c;
+  RGBColor c;
   phosg::be_uint16_t usage;
   phosg::be_uint16_t tolerance;
   phosg::be_uint16_t private_flags;
@@ -399,20 +434,10 @@ struct ThngResourceMultiPlatform {
 // cicn
 
 struct ColorIconResourceHeader {
-  // pixMap fields
-  phosg::be_uint32_t pix_map_unused;
-  PixelMapHeader pix_map;
-
-  // mask bitmap fields
-  phosg::be_uint32_t mask_unused;
-  BitMapHeader mask_header;
-
-  // 1-bit icon bitmap fields
-  phosg::be_uint32_t bitmap_unused;
-  BitMapHeader bitmap_header;
-
-  // icon data fields
-  phosg::be_uint32_t icon_data; // ignored
+  PixMap pix_map;
+  BitMap mask_header;
+  BitMap bitmap_header;
+  phosg::be_uint32_t icon_data; // Ignored
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,18 +504,11 @@ union PictSubheader {
   PictSubheaderV2Extended v2e;
 } __attribute__((packed));
 
-struct PictCopyBitsMonochromeArgs {
-  BitMapHeader header;
-  Rect source_rect;
-  Rect dest_rect;
-  phosg::be_uint16_t mode;
-};
-
 /* There's no struct PictPackedCopyBitsIndexedColorArgs because the color table
  * is a variable size and comes early in the format. If there were such a struct
  * it would look like this:
  * struct PictPackedCopyBitsIndexedColorArgs {
- *   PixelMapHeader header;
+ *   PixMap header;
  *   ColorTable ctable; // variable size
  *   Rect source_rect;
  *   Rect dest_rect;
@@ -499,8 +517,7 @@ struct PictCopyBitsMonochromeArgs {
  */
 
 struct PictPackedCopyBitsDirectColorArgs {
-  phosg::be_uint32_t base_address; // unused
-  PixelMapHeader header;
+  PixMap header;
   Rect source_rect;
   Rect dest_rect;
   phosg::be_uint16_t mode;
@@ -802,7 +819,7 @@ struct StyleResourceCommand {
   phosg::be_uint16_t font_id;
   phosg::be_uint16_t style_flags;
   phosg::be_uint16_t size;
-  Color color;
+  RGBColor color;
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////////////

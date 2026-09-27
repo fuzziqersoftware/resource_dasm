@@ -38,7 +38,7 @@ struct SHPSHeader {
   /* 0016 */ phosg::be_uint32_t unknown_a1;
   /* 001A */ uint8_t unknown_a2[0x1E];
   /* 0038 */ phosg::be_uint16_t used_color_table_entries;
-  /* 003A */ ColorTableEntry color_table[0x100];
+  /* 003A */ ColorSpec color_table[0x100];
   /* 083A */ phosg::be_uint16_t unknown_a3;
   /* 083C (compressed pixel and mask RLE streams follow here, in that order) */
 } __attribute__((packed));

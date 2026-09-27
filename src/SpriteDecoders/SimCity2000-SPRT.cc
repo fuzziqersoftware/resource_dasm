@@ -21,7 +21,7 @@ struct SpriteEntry {
 } __attribute__((packed));
 
 static phosg::ImageRGBA8888N decode_sprite_entry(
-    phosg::StringReader& r, uint16_t width, uint16_t height, const std::vector<ColorTableEntry>& pltt) {
+    phosg::StringReader& r, uint16_t width, uint16_t height, const std::vector<ColorSpec>& pltt) {
   // SC2K sprites are encoded as byte streams. Opcodes are phosg::be_uint16_ts, where the low byte specifies the
   // command number and the high byte specifies a count (which is only used by some commands). Some opcodes are
   // followed by multiple data bytes (possibly an odd number), but opcodes are always word-aligned. There are only 5
@@ -64,7 +64,7 @@ static phosg::ImageRGBA8888N decode_sprite_entry(
   }
 }
 
-std::vector<phosg::ImageRGBA8888N> decode_SPRT(std::string_view data, const std::vector<ColorTableEntry>& pltt) {
+std::vector<phosg::ImageRGBA8888N> decode_SPRT(std::string_view data, const std::vector<ColorSpec>& pltt) {
   phosg::StringReader r(data);
   uint16_t count = r.get_u16b();
 

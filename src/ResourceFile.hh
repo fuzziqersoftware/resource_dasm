@@ -425,7 +425,7 @@ public:
   struct DecodedFontResource {
     // See Inside Macintosh: Text page 4-9 for descriptions of these terms
     uint8_t source_bit_depth; // 1, 2, 4, or 8 (TODO: we only support 1 for now)
-    std::vector<ColorTableEntry> color_table; // Unused (TODO)
+    std::vector<ColorSpec> color_table; // Unused (TODO)
     bool is_dynamic;
     bool has_non_black_colors; // Unused (TODO)
     bool fixed_width;
@@ -757,30 +757,30 @@ public:
   DecodedPICTResource decode_PICT(const void* data, size_t size, bool allow_external = true) const;
   static DecodedPICTResource decode_PICT_only(std::shared_ptr<const Resource> res, bool allow_external = true);
   static DecodedPICTResource decode_PICT_only(const void* data, size_t size, bool allow_external = true);
-  std::vector<Color> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt) const;
-  static std::vector<Color> decode_pltt(std::shared_ptr<const Resource> res);
-  static std::vector<Color> decode_pltt(const void* data, size_t size);
-  std::vector<ColorTableEntry> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut) const;
-  static std::vector<ColorTableEntry> decode_clut(std::shared_ptr<const Resource> res);
-  static std::vector<ColorTableEntry> decode_clut(const void* data, size_t size);
-  std::vector<ColorTableEntry> decode_actb(int16_t id, uint32_t type = RESOURCE_TYPE_actb) const;
-  static std::vector<ColorTableEntry> decode_actb(std::shared_ptr<const Resource> res);
-  static std::vector<ColorTableEntry> decode_actb(const void* data, size_t size);
-  std::vector<ColorTableEntry> decode_cctb(int16_t id, uint32_t type = RESOURCE_TYPE_cctb) const;
-  static std::vector<ColorTableEntry> decode_cctb(std::shared_ptr<const Resource> res);
-  static std::vector<ColorTableEntry> decode_cctb(const void* data, size_t size);
-  std::vector<ColorTableEntry> decode_dctb(int16_t id, uint32_t type = RESOURCE_TYPE_dctb) const;
-  static std::vector<ColorTableEntry> decode_dctb(std::shared_ptr<const Resource> res);
-  static std::vector<ColorTableEntry> decode_dctb(const void* data, size_t size);
-  std::vector<ColorTableEntry> decode_fctb(int16_t id, uint32_t type = RESOURCE_TYPE_fctb) const;
-  static std::vector<ColorTableEntry> decode_fctb(std::shared_ptr<const Resource> res);
-  static std::vector<ColorTableEntry> decode_fctb(const void* data, size_t size);
-  std::vector<ColorTableEntry> decode_wctb(int16_t id, uint32_t type = RESOURCE_TYPE_wctb) const;
-  static std::vector<ColorTableEntry> decode_wctb(std::shared_ptr<const Resource> res);
-  static std::vector<ColorTableEntry> decode_wctb(const void* data, size_t size);
-  std::vector<ColorTableEntry> decode_CTBL(int16_t id, uint32_t type = RESOURCE_TYPE_CTBL) const;
-  static std::vector<ColorTableEntry> decode_CTBL(std::shared_ptr<const Resource> res);
-  static std::vector<ColorTableEntry> decode_CTBL(const void* data, size_t size);
+  std::vector<RGBColor> decode_pltt(int16_t id, uint32_t type = RESOURCE_TYPE_pltt) const;
+  static std::vector<RGBColor> decode_pltt(std::shared_ptr<const Resource> res);
+  static std::vector<RGBColor> decode_pltt(const void* data, size_t size);
+  std::vector<ColorSpec> decode_clut(int16_t id, uint32_t type = RESOURCE_TYPE_clut) const;
+  static std::vector<ColorSpec> decode_clut(std::shared_ptr<const Resource> res);
+  static std::vector<ColorSpec> decode_clut(const void* data, size_t size);
+  std::vector<ColorSpec> decode_actb(int16_t id, uint32_t type = RESOURCE_TYPE_actb) const;
+  static std::vector<ColorSpec> decode_actb(std::shared_ptr<const Resource> res);
+  static std::vector<ColorSpec> decode_actb(const void* data, size_t size);
+  std::vector<ColorSpec> decode_cctb(int16_t id, uint32_t type = RESOURCE_TYPE_cctb) const;
+  static std::vector<ColorSpec> decode_cctb(std::shared_ptr<const Resource> res);
+  static std::vector<ColorSpec> decode_cctb(const void* data, size_t size);
+  std::vector<ColorSpec> decode_dctb(int16_t id, uint32_t type = RESOURCE_TYPE_dctb) const;
+  static std::vector<ColorSpec> decode_dctb(std::shared_ptr<const Resource> res);
+  static std::vector<ColorSpec> decode_dctb(const void* data, size_t size);
+  std::vector<ColorSpec> decode_fctb(int16_t id, uint32_t type = RESOURCE_TYPE_fctb) const;
+  static std::vector<ColorSpec> decode_fctb(std::shared_ptr<const Resource> res);
+  static std::vector<ColorSpec> decode_fctb(const void* data, size_t size);
+  std::vector<ColorSpec> decode_wctb(int16_t id, uint32_t type = RESOURCE_TYPE_wctb) const;
+  static std::vector<ColorSpec> decode_wctb(std::shared_ptr<const Resource> res);
+  static std::vector<ColorSpec> decode_wctb(const void* data, size_t size);
+  std::vector<ColorSpec> decode_CTBL(int16_t id, uint32_t type = RESOURCE_TYPE_CTBL) const;
+  static std::vector<ColorSpec> decode_CTBL(std::shared_ptr<const Resource> res);
+  static std::vector<ColorSpec> decode_CTBL(const void* data, size_t size);
 
   // Sound resources
   // Note: return types may change here in the future to improve structuring and to make it easier for callers of the

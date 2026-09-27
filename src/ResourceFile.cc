@@ -1028,7 +1028,7 @@ static void disassemble_from_template_inner(
         break;
       }
       case Type::COLOR: {
-        Color c = r.get<Color>();
+        const auto& c = r.get<RGBColor>();
         std::string r_str = format_template_integer(entry, c.r);
         std::string g_str = format_template_integer(entry, c.g);
         std::string b_str = format_template_integer(entry, c.b);
@@ -1620,11 +1620,11 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
     throw std::runtime_error("pixel bit depth is not 1, 2, 4, or 8");
   }
 
-  size_t mask_map_size = PixelMapData::size(header.mask_header.flags_row_bytes, header.mask_header.bounds.height());
-  const auto& mask_map = r.get<PixelMapData>(true, mask_map_size);
+  size_t mask_map_size = PixMapData::size(header.mask_header.flags_row_bytes, header.mask_header.bounds.height());
+  const auto& mask_map = r.get<PixMapData>(true, mask_map_size);
 
-  size_t bitmap_size = PixelMapData::size(header.bitmap_header.flags_row_bytes, header.bitmap_header.bounds.height());
-  const auto& bitmap = r.get<PixelMapData>(true, bitmap_size);
+  size_t bitmap_size = PixMapData::size(header.bitmap_header.flags_row_bytes, header.bitmap_header.bounds.height());
+  const auto& bitmap = r.get<PixMapData>(true, bitmap_size);
 
   // We can't know the color table's size until we've read the header, hence this non-advancing get() followed by a
   // size-overridden get()
@@ -1635,8 +1635,8 @@ ResourceFile::DecodedColorIconResource ResourceFile::decode_cicn(const void* vda
   r.get<ColorTable>(true, ctable.size());
 
   // Decode the image data
-  size_t pixel_map_size = PixelMapData::size(header.pix_map.flags_row_bytes & 0x3FFF, header.pix_map.bounds.height());
-  const auto& pixel_map = r.get<PixelMapData>(true, pixel_map_size);
+  size_t pixel_map_size = PixMapData::size(header.pix_map.flags_row_bytes & 0x3FFF, header.pix_map.bounds.height());
+  const auto& pixel_map = r.get<PixMapData>(true, pixel_map_size);
 
   auto img = decode_color_image_masked(
       header.pix_map, pixel_map, &ctable, mask_map, header.mask_header.flags_row_bytes);
@@ -1678,10 +1678,10 @@ ResourceFile::DecodedColorCursorResource ResourceFile::decode_crsr(const void* v
 
   auto bitmap = decode_monochrome_image_masked(&header.bitmap, 0x40, 16, 16);
 
-  const auto& pixmap_header = r.pget<PixelMapHeader>(header.pixel_map_offset + 4);
+  const auto& pixmap_header = r.pget<PixMap>(header.pixel_map_offset);
 
-  size_t pixel_map_size = PixelMapData::size(pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
-  const auto& pixmap_data = r.pget<PixelMapData>(header.pixel_data_offset, pixel_map_size);
+  size_t pixel_map_size = PixMapData::size(pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
+  const auto& pixmap_data = r.pget<PixMapData>(header.pixel_data_offset, pixel_map_size);
 
   const auto& ctable = r.pget<ColorTable>(pixmap_header.color_table_offset);
   if (ctable.num_entries & 0x8000) {
@@ -1716,11 +1716,11 @@ static ResourceFile::DecodedPattern decode_ppat_data(phosg::StringReader& r) {
   }
 
   // Get the pixel map header
-  const auto& pixmap_header = r.pget<PixelMapHeader>(header.pixel_map_offset + 4);
+  const auto& pixmap_header = r.pget<PixMap>(header.pixel_map_offset);
 
   // Get the pixel map data
-  size_t pixel_map_size = PixelMapData::size(pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
-  const auto& pixmap_data = r.pget<PixelMapData>(header.pixel_data_offset, pixel_map_size);
+  size_t pixel_map_size = PixMapData::size(pixmap_header.flags_row_bytes & 0x3FFF, pixmap_header.bounds.height());
+  const auto& pixmap_data = r.pget<PixMapData>(header.pixel_data_offset, pixel_map_size);
 
   // Get the color table
   const auto& ctable = r.pget<ColorTable>(pixmap_header.color_table_offset);
@@ -2511,7 +2511,7 @@ public:
   }
 
   // External resource data accessors
-  virtual std::vector<ColorTableEntry> read_clut(int16_t id) {
+  virtual std::vector<ColorSpec> read_clut(int16_t id) {
     if (!this->rf) {
       throw std::runtime_error("PICT references external clut but decode_PICT was called statically; cannot retrieve clut data");
     }
@@ -2543,35 +2543,35 @@ public:
     this->clip_region = std::move(z);
   }
 
-  Color foreground_color;
-  virtual Color get_foreground_color() const {
+  RGBColor foreground_color;
+  virtual RGBColor get_foreground_color() const {
     return this->foreground_color;
   }
-  virtual void set_foreground_color(Color z) {
+  virtual void set_foreground_color(RGBColor z) {
     this->foreground_color = z;
   }
 
-  Color background_color;
-  virtual Color get_background_color() const {
+  RGBColor background_color;
+  virtual RGBColor get_background_color() const {
     return this->background_color;
   }
-  virtual void set_background_color(Color z) {
+  virtual void set_background_color(RGBColor z) {
     this->background_color = z;
   }
 
-  Color highlight_color;
-  virtual Color get_highlight_color() const {
+  RGBColor highlight_color;
+  virtual RGBColor get_highlight_color() const {
     return this->highlight_color;
   }
-  virtual void set_highlight_color(Color z) {
+  virtual void set_highlight_color(RGBColor z) {
     this->highlight_color = z;
   }
 
-  Color op_color;
-  virtual Color get_op_color() const {
+  RGBColor op_color;
+  virtual RGBColor get_op_color() const {
     return this->op_color;
   }
-  virtual void set_op_color(Color z) {
+  virtual void set_op_color(RGBColor z) {
     this->op_color = z;
   }
 
@@ -2795,22 +2795,22 @@ ResourceFile::DecodedPICTResource ResourceFile::decode_PICT_data(
   }
 }
 
-std::vector<Color> ResourceFile::decode_pltt(int16_t id, uint32_t type) const {
+std::vector<RGBColor> ResourceFile::decode_pltt(int16_t id, uint32_t type) const {
   return this->decode_pltt(this->get_resource(type, id));
 }
 
-std::vector<Color> ResourceFile::decode_pltt(std::shared_ptr<const Resource> res) {
+std::vector<RGBColor> ResourceFile::decode_pltt(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_pltt(res->data.data(), res->data.size());
 }
 
-std::vector<Color> ResourceFile::decode_pltt(const void* vdata, size_t size) {
+std::vector<RGBColor> ResourceFile::decode_pltt(const void* vdata, size_t size) {
   // pltt resources have a 16-byte header, which is coincidentally also the size of each entry. I'm lazy so we'll just
   // load it all at once and use the first "entry" instead of manually making a header struct
   phosg::StringReader r(vdata, size);
   const auto& header = r.get<PaletteEntry>();
 
   // The first header word is the entry count; the rest of the header seemingly doesn't matter at all
-  std::vector<Color> ret;
+  std::vector<RGBColor> ret;
   ret.reserve(header.c.r);
   while (ret.size() < header.c.r) {
     ret.emplace_back(r.get<PaletteEntry>().c);
@@ -2818,110 +2818,110 @@ std::vector<Color> ResourceFile::decode_pltt(const void* vdata, size_t size) {
   return ret;
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_clut(int16_t id, uint32_t type) const {
+std::vector<ColorSpec> ResourceFile::decode_clut(int16_t id, uint32_t type) const {
   return this->decode_clut(this->get_resource(type, id));
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_clut(std::shared_ptr<const Resource> res) {
+std::vector<ColorSpec> ResourceFile::decode_clut(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res->data.data(), res->data.size());
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_clut(const void* data, size_t size) {
-  if (size < sizeof(ColorTableEntry)) {
+std::vector<ColorSpec> ResourceFile::decode_clut(const void* data, size_t size) {
+  if (size < sizeof(ColorSpec)) {
     throw std::runtime_error("color table too small for header");
   }
 
   // clut resources have an 8-byte header, which is coincidentally also the size of each entry. I'm lazy so we'll just
   // load it all at once and use the first "entry" instead of manually making a header struct
   phosg::StringReader r(data, size);
-  const auto& header = r.get<ColorTableEntry>();
+  const auto& header = r.get<ColorSpec>();
 
   // The last header word is the entry count; the rest of the header seemingly doesn't matter at all. Unlike for pltt
   // resources, clut counts are inclusive - there are actually (count + 1) colors.
   if (header.c.b == 0xFFFF) {
-    return std::vector<ColorTableEntry>();
+    return std::vector<ColorSpec>();
   }
 
-  std::vector<ColorTableEntry> ret;
+  std::vector<ColorSpec> ret;
   ret.reserve(header.c.b + 1);
   while (ret.size() <= header.c.b) {
-    ret.emplace_back(r.get<ColorTableEntry>());
+    ret.emplace_back(r.get<ColorSpec>());
   }
   return ret;
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_actb(int16_t id, uint32_t type) const {
+std::vector<ColorSpec> ResourceFile::decode_actb(int16_t id, uint32_t type) const {
   return this->decode_clut(id, type);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_actb(std::shared_ptr<const Resource> res) {
+std::vector<ColorSpec> ResourceFile::decode_actb(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_actb(const void* data, size_t size) {
+std::vector<ColorSpec> ResourceFile::decode_actb(const void* data, size_t size) {
   return ResourceFile::decode_clut(data, size);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_cctb(int16_t id, uint32_t type) const {
+std::vector<ColorSpec> ResourceFile::decode_cctb(int16_t id, uint32_t type) const {
   return this->decode_clut(id, type);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_cctb(std::shared_ptr<const Resource> res) {
+std::vector<ColorSpec> ResourceFile::decode_cctb(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_cctb(const void* data, size_t size) {
+std::vector<ColorSpec> ResourceFile::decode_cctb(const void* data, size_t size) {
   return ResourceFile::decode_clut(data, size);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_dctb(int16_t id, uint32_t type) const {
+std::vector<ColorSpec> ResourceFile::decode_dctb(int16_t id, uint32_t type) const {
   return this->decode_clut(id, type);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_dctb(std::shared_ptr<const Resource> res) {
+std::vector<ColorSpec> ResourceFile::decode_dctb(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_dctb(const void* data, size_t size) {
+std::vector<ColorSpec> ResourceFile::decode_dctb(const void* data, size_t size) {
   return ResourceFile::decode_clut(data, size);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_fctb(int16_t id, uint32_t type) const {
+std::vector<ColorSpec> ResourceFile::decode_fctb(int16_t id, uint32_t type) const {
   return this->decode_clut(id, type);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_fctb(std::shared_ptr<const Resource> res) {
+std::vector<ColorSpec> ResourceFile::decode_fctb(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_fctb(const void* data, size_t size) {
+std::vector<ColorSpec> ResourceFile::decode_fctb(const void* data, size_t size) {
   return ResourceFile::decode_clut(data, size);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_wctb(int16_t id, uint32_t type) const {
+std::vector<ColorSpec> ResourceFile::decode_wctb(int16_t id, uint32_t type) const {
   return this->decode_clut(id, type);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_wctb(std::shared_ptr<const Resource> res) {
+std::vector<ColorSpec> ResourceFile::decode_wctb(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_clut(res);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_wctb(const void* data, size_t size) {
+std::vector<ColorSpec> ResourceFile::decode_wctb(const void* data, size_t size) {
   return ResourceFile::decode_clut(data, size);
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_CTBL(int16_t id, uint32_t type) const {
+std::vector<ColorSpec> ResourceFile::decode_CTBL(int16_t id, uint32_t type) const {
   return this->decode_CTBL(this->get_resource(type, id));
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_CTBL(std::shared_ptr<const Resource> res) {
+std::vector<ColorSpec> ResourceFile::decode_CTBL(std::shared_ptr<const Resource> res) {
   return ResourceFile::decode_CTBL(res->data.data(), res->data.size());
 }
 
-std::vector<ColorTableEntry> ResourceFile::decode_CTBL(const void* data, size_t size) {
+std::vector<ColorSpec> ResourceFile::decode_CTBL(const void* data, size_t size) {
   phosg::StringReader r(data, size);
   uint16_t num_colors = r.get_u16b();
-  std::vector<ColorTableEntry> ret;
+  std::vector<ColorSpec> ret;
   for (size_t z = 0; z < num_colors; z++) {
     auto& e = ret.emplace_back();
     e.c.r = r.get_u8() * 0x101;

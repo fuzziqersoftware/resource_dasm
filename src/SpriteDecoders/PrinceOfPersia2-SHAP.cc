@@ -126,7 +126,7 @@ std::string decompress_SHAP_rows_rle(std::string_view data, size_t num_rows, siz
   return w.str();
 }
 
-phosg::ImageRGBA8888N decode_SHAP(std::string_view data_with_header, const std::vector<ColorTableEntry>& ctbl) {
+phosg::ImageRGBA8888N decode_SHAP(std::string_view data_with_header, const std::vector<ColorSpec>& ctbl) {
   phosg::StringReader r(data_with_header);
 
   const auto& header = r.get<SHAPHeader>();
@@ -152,7 +152,7 @@ phosg::ImageRGBA8888N decode_SHAP(std::string_view data_with_header, const std::
   }
 
   // Convert the ctbl array into a map, since they are often discontinuous and the color IDs matter
-  std::unordered_map<uint8_t, Color8> ctbl_map;
+  std::unordered_map<uint8_t, RGBColor8> ctbl_map;
   for (const auto& c : ctbl) {
     ctbl_map.emplace(c.color_num, c.c.as8());
   }

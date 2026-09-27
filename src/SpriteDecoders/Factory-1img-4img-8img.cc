@@ -20,12 +20,12 @@ phosg::ImageG1 decode_1img(std::string_view data) {
   return decode_monochrome_image(data.data(), data.size(), 32, 21);
 }
 
-phosg::ImageRGB888 decode_4img(std::string_view data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGB888 decode_4img(std::string_view data, const std::vector<ColorSpec>& clut) {
   auto clut8 = to_color8(clut);
   return decode_4bit_image(data.data(), data.size(), 32, 21, &clut8);
 }
 
-phosg::ImageRGB888 decode_8img(std::string_view data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGB888 decode_8img(std::string_view data, const std::vector<ColorSpec>& clut) {
   auto clut8 = to_color8(clut);
   return decode_8bit_image(data.data(), data.size(), 40, 21, &clut8);
 }

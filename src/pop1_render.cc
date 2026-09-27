@@ -336,7 +336,7 @@ struct Graphics {
 };
 
 struct Env {
-  const std::vector<ResourceDASM::ColorTableEntry>* clut;
+  const std::vector<ResourceDASM::ColorSpec>* clut;
   const Graphics* graphics;
   phosg::ImageRGBA8888N map;
   const PrinceOfPersiaLevel* orig_level = nullptr;
@@ -353,7 +353,7 @@ struct Env {
   static constexpr int16_t FLOOR_TOP_ANCHOR = -4;
   static constexpr int16_t FLOOR_BOTTOM_ANCHOR = -1;
 
-  Env(const std::vector<ResourceDASM::ColorTableEntry>* clut,
+  Env(const std::vector<ResourceDASM::ColorSpec>* clut,
       const Graphics* graphics,
       const PrinceOfPersiaLevel* orig_level,
       const PrinceOfPersiaLevel* preprocessed_level,
@@ -1120,7 +1120,7 @@ int main(int argc, char** argv) {
       "{}/{}/..namedfork/rsrc", data_dir, persia_filename)));
   auto data_fork_contents = phosg::load_file(std::format("{}/{}", data_dir, persia_filename));
 
-  std::vector<ResourceDASM::ColorTableEntry> base_clut;
+  std::vector<ResourceDASM::ColorSpec> base_clut;
   if (!use_bw_graphics) {
     base_clut = game_rf.decode_clut(2000);
   }

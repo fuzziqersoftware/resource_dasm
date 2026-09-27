@@ -887,7 +887,7 @@ struct HandlerReferenceAtom { // hdlr
 struct BaseMediaInfoAtom { // gmin
   /* 08 */ phosg::be_uint32_t version_and_flags; // High byte = version; low 3 bytes = flags
   /* 0C */ phosg::be_uint16_t graphics_mode; // https://developer.apple.com/documentation/quicktime-file-format/graphics_modes
-  /* 0E */ Color op_color;
+  /* 0E */ RGBColor op_color;
   /* 14 */ phosg::be_int16_t sound_balance;
   /* 16 */ phosg::be_uint16_t reserved;
   /* 18 */

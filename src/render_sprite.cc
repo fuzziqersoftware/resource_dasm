@@ -73,7 +73,7 @@ void write_output(std::string_view output_prefix, const ResourceDASM::DecodedSha
 std::unordered_map<std::string, phosg::ImageRGBA8888N> decode_SHPD_collection_images_only(
     ResourceDASM::ResourceFile& rf,
     std::string_view data_fork_contents,
-    const std::vector<ResourceDASM::ColorTableEntry>& clut,
+    const std::vector<ResourceDASM::ColorSpec>& clut,
     ResourceDASM::SHPDVersion version) {
   std::unordered_map<std::string, phosg::ImageRGBA8888N> ret;
   for (int16_t res_id : rf.all_resources_of_type(ResourceDASM::RESOURCE_TYPE_SHPD)) {
@@ -91,14 +91,14 @@ struct Format {
   using DecoderG1 = std::function<phosg::ImageG1(std::string_view)>;
   using DecoderG1Multi = std::function<std::vector<phosg::ImageG1>(std::string_view)>;
   using DecoderGA11 = std::function<phosg::ImageGA11(std::string_view)>;
-  using DecoderRGB888WithCLUT = std::function<phosg::ImageRGB888(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888WithCLUT = std::function<phosg::ImageRGBA8888N(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGB888MultiWithCLUT = std::function<std::vector<phosg::ImageRGB888>(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGB888WithCLUT = std::function<phosg::ImageRGB888(std::string_view, const std::vector<ResourceDASM::ColorSpec>&)>;
+  using DecoderRGBA8888WithCLUT = std::function<phosg::ImageRGBA8888N(std::string_view, const std::vector<ResourceDASM::ColorSpec>&)>;
+  using DecoderRGB888MultiWithCLUT = std::function<std::vector<phosg::ImageRGB888>(std::string_view, const std::vector<ResourceDASM::ColorSpec>&)>;
   using DecoderRGBA8888 = std::function<phosg::ImageRGBA8888N(std::string_view)>;
   using DecoderRGBA8888Multi = std::function<std::vector<phosg::ImageRGBA8888N>(std::string_view)>;
-  using DecoderRGBA8888MultiWithCLUT = std::function<std::vector<phosg::ImageRGBA8888N>(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888PPSSMapWithCLUT = std::function<std::map<size_t, ResourceDASM::ColorPPSSEntry>(std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
-  using DecoderRGBA8888MapFromResCollWithCLUT = std::function<std::unordered_map<std::string, phosg::ImageRGBA8888N>(ResourceDASM::ResourceFile&, std::string_view, const std::vector<ResourceDASM::ColorTableEntry>&)>;
+  using DecoderRGBA8888MultiWithCLUT = std::function<std::vector<phosg::ImageRGBA8888N>(std::string_view, const std::vector<ResourceDASM::ColorSpec>&)>;
+  using DecoderRGBA8888PPSSMapWithCLUT = std::function<std::map<size_t, ResourceDASM::ColorPPSSEntry>(std::string_view, const std::vector<ResourceDASM::ColorSpec>&)>;
+  using DecoderRGBA8888MapFromResCollWithCLUT = std::function<std::unordered_map<std::string, phosg::ImageRGBA8888N>(ResourceDASM::ResourceFile&, std::string_view, const std::vector<ResourceDASM::ColorSpec>&)>;
   using DecoderPICT = std::function<ResourceDASM::ResourceFile::DecodedPICTResource(std::string_view)>;
   using DecoderModelAndVectorImage = std::function<ResourceDASM::DecodedShap3D(std::string_view)>;
 
@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
   }
 
   ColorTableType color_table_type = ColorTableType::NONE;
-  std::vector<ResourceDASM::ColorTableEntry> immediate_clut;
+  std::vector<ResourceDASM::ColorSpec> immediate_clut;
   ssize_t color_id_offset = 0;
   const char* input_filename = nullptr;
   const char* color_table_filename = nullptr;
@@ -236,8 +236,8 @@ int main(int argc, char** argv) {
       } else if (!strncmp(argv[x], "--colors=", 9)) {
         color_table_type = ColorTableType::IMMEDIATE;
         for (const auto& token : phosg::split(&argv[x][9], ',')) {
-          immediate_clut.emplace_back(ResourceDASM::ColorTableEntry{
-              immediate_clut.size(), ResourceDASM::Color::from_rgbx8888(std::stoul(token, nullptr, 16))});
+          immediate_clut.emplace_back(ResourceDASM::ColorSpec{
+              immediate_clut.size(), ResourceDASM::RGBColor::from_rgbx8888(std::stoul(token, nullptr, 16))});
         }
       } else if (!strncmp(argv[x], "--color-id-offset=", 18)) {
         color_id_offset = std::stoll(&argv[x][18], nullptr, 0);
@@ -287,7 +287,7 @@ int main(int argc, char** argv) {
 
   auto sprite_data = phosg::load_file(input_filename);
 
-  std::vector<ResourceDASM::ColorTableEntry> color_table;
+  std::vector<ResourceDASM::ColorSpec> color_table;
   if (color_table_type != ColorTableType::NONE) {
     switch (color_table_type) {
       case ColorTableType::DEFAULT:
@@ -296,7 +296,7 @@ int main(int argc, char** argv) {
       case ColorTableType::GRAYSCALE:
         for (size_t z = 0; z < 0x100; z++) {
           uint16_t v = (z << 8) | z;
-          color_table.emplace_back(ResourceDASM::ColorTableEntry{.color_num = static_cast<uint16_t>(z), .c{v, v, v}});
+          color_table.emplace_back(ResourceDASM::ColorSpec{.color_num = static_cast<uint16_t>(z), .c{v, v, v}});
         }
         break;
       case ColorTableType::IMMEDIATE:

@@ -239,7 +239,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  std::vector<ResourceDASM::ColorTableEntry> clut;
+  std::vector<ResourceDASM::ColorSpec> clut;
   if (!clut_filename.empty()) {
     std::string data = phosg::load_file(clut_filename);
     clut = ResourceDASM::ResourceFile::decode_clut(data.data(), data.size());

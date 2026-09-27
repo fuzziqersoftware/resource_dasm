@@ -15,8 +15,7 @@ namespace ResourceDASM {
 
 phosg::ImageG1 decode_BTMP(std::string_view data) {
   phosg::StringReader r(data);
-  r.skip(4); // Buffer pointer in memory, reserved in file
-  const auto& header = r.get<BitMapHeader>();
+  const auto& header = r.get<BitMap>();
   if (header.flags_row_bytes & 0xC000) {
     throw std::runtime_error("monochrome bitmap has flags set");
   }
@@ -26,21 +25,20 @@ phosg::ImageG1 decode_BTMP(std::string_view data) {
       r.getv(data_bytes), data_bytes, header.bounds.width(), header.bounds.height(), header.flags_row_bytes & 0x3FFF);
 }
 
-phosg::ImageRGB888 decode_PMP8(std::string_view data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGB888 decode_PMP8(std::string_view data, const std::vector<ColorSpec>& clut) {
   auto ctable = ColorTable::from_entries(clut);
   // TODO: This is not always correct behavior. Refactor render_sprite (and probably also ResourceFile::decode_clut) to
   // preserve the flags from the input file.
   ctable->flags |= 0x8000;
 
   phosg::StringReader r(data);
-  r.skip(4); // Buffer pointer in memory, reserved in file
-  const auto& header = r.get<PixelMapHeader>();
+  const auto& header = r.get<PixMap>();
   if ((header.flags_row_bytes & 0x8000) == 0) {
     throw std::runtime_error("color pixel map is missing color flag");
   }
 
-  size_t image_bytes = PixelMapData::size(header.flags_row_bytes & 0x3FFF, header.bounds.height());
-  const auto& map = r.get<PixelMapData>(true, image_bytes);
+  size_t image_bytes = PixMapData::size(header.flags_row_bytes & 0x3FFF, header.bounds.height());
+  const auto& map = r.get<PixMapData>(true, image_bytes);
   return decode_color_image(header, map, ctable.get());
 }
 

@@ -23,7 +23,7 @@ struct SpriHeader {
   // uint8_t blitter_code[...EOF]
 } __attribute__((packed));
 
-phosg::ImageRGBA8888N decode_Spri(std::string_view spri_data, const std::vector<ColorTableEntry>& clut) {
+phosg::ImageRGBA8888N decode_Spri(std::string_view spri_data, const std::vector<ColorSpec>& clut) {
   phosg::StringReader r(spri_data);
 
   const auto& header = r.get<SpriHeader>();

@@ -287,7 +287,7 @@ struct Movie {
     // TODO: These are only used by base media (gmin); when we support video and sound, diversify this structure
     // appropriately
     uint16_t graphics_mode = 0;
-    Color op_color;
+    RGBColor op_color;
     int16_t sound_balance = 0;
 
     std::vector<DataReference> data_refs;

@@ -221,7 +221,7 @@ std::string decompress_PPic_bitmap_data(std::string_view data, size_t row_bytes,
   return tw.str();
 }
 
-std::vector<phosg::ImageRGB888> decode_PPic(std::string_view data, const std::vector<ColorTableEntry>& clut) {
+std::vector<phosg::ImageRGB888> decode_PPic(std::string_view data, const std::vector<ColorSpec>& clut) {
   phosg::StringReader r(data);
 
   uint16_t count = r.get_u16b();
@@ -229,9 +229,8 @@ std::vector<phosg::ImageRGB888> decode_PPic(std::string_view data, const std::ve
   while (ret.size() < count) {
     size_t block_start_offset = r.where();
     size_t block_end_offset = block_start_offset + r.get_u32b();
-    r.skip(4); // Unused (pixmap/bitmap data handle)
-    if (r.get_u16b(false) & 0x8000) { // Color (pixel map)
-      const auto& header = r.get<PixelMapHeader>();
+    if (r.pget_u16b(r.where() + 4) & 0x8000) { // Color (pixel map)
+      const auto& header = r.get<PixMap>();
 
       std::shared_ptr<ColorTable> external_clut;
       const ColorTable* effective_clut = nullptr;
@@ -258,18 +257,18 @@ std::vector<phosg::ImageRGB888> decode_PPic(std::string_view data, const std::ve
 
       std::string data = decompress_PPic_pixel_map_data(r.read(block_end_offset - r.where()), row_bytes, height);
 
-      size_t expected_size = PixelMapData::size(row_bytes, height);
+      size_t expected_size = PixMapData::size(row_bytes, height);
       if (data.size() != expected_size) {
         throw std::runtime_error(std::format(
             "decompressed pixel map data size is incorrect (expected 0x{:X} bytes, received 0x{:X} bytes)",
             expected_size, data.size()));
       }
-      const PixelMapData* pixmap_data = reinterpret_cast<const PixelMapData*>(data.data());
+      const auto* pixmap_data = reinterpret_cast<const PixMapData*>(data.data());
 
       ret.emplace_back(decode_color_image(header, *pixmap_data, effective_clut));
 
     } else { // Monochrome (bitmap)
-      const auto& header = r.get<BitMapHeader>();
+      const auto& header = r.get<BitMap>();
       std::string data = decompress_PPic_bitmap_data(
           r.read(block_end_offset - r.where()), header.flags_row_bytes, header.bounds.height());
       auto mono_image = decode_monochrome_image(

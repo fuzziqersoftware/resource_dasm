@@ -46,7 +46,7 @@ public:
       ssize_t mask_origin_y = 0) = 0;
 
   // External resource data accessors
-  virtual std::vector<ColorTableEntry> read_clut(int16_t id) = 0;
+  virtual std::vector<ColorSpec> read_clut(int16_t id) = 0;
 
   // QuickDraw state accessors
   virtual const Rect& get_bounds() const = 0;
@@ -54,14 +54,14 @@ public:
   virtual const Region& get_clip_region() const = 0;
   virtual void set_clip_region(Region&& z) = 0;
 
-  virtual Color get_foreground_color() const = 0;
-  virtual void set_foreground_color(Color z) = 0;
-  virtual Color get_background_color() const = 0;
-  virtual void set_background_color(Color z) = 0;
-  virtual Color get_highlight_color() const = 0;
-  virtual void set_highlight_color(Color z) = 0;
-  virtual Color get_op_color() const = 0;
-  virtual void set_op_color(Color z) = 0;
+  virtual RGBColor get_foreground_color() const = 0;
+  virtual void set_foreground_color(RGBColor z) = 0;
+  virtual RGBColor get_background_color() const = 0;
+  virtual void set_background_color(RGBColor z) = 0;
+  virtual RGBColor get_highlight_color() const = 0;
+  virtual void set_highlight_color(RGBColor z) = 0;
+  virtual RGBColor get_op_color() const = 0;
+  virtual void set_op_color(RGBColor z) = 0;
 
   virtual int16_t get_extra_space_nonspace() const = 0;
   virtual void set_extra_space_nonspace(int16_t z) = 0;
@@ -139,7 +139,7 @@ protected:
   QuickDrawPortInterface* port;
   FontHandler font_handler;
   static FontHandler default_font_handler;
-  Color default_highlight_color;
+  RGBColor default_highlight_color;
 
   Rect pict_bounds;
   Rect pict_header_bounds; // Original bounds from header, not modified by SetOrigin
@@ -226,7 +226,7 @@ protected:
   void pict_packed_copy_bits_direct_color(phosg::StringReader& r, uint16_t opcode);
 
   phosg::ImageRGBA8888N pict_decode_smc(
-      const PictQuickTimeImageDescription& desc, const std::vector<ColorTableEntry>& clut, std::string_view data);
+      const PictQuickTimeImageDescription& desc, const std::vector<ColorSpec>& clut, std::string_view data);
   phosg::ImageRGBA8888N pict_decode_rpza(const PictQuickTimeImageDescription& desc, std::string_view data);
 
   void pict_write_quicktime_data(phosg::StringReader& r, uint16_t opcode);
@@ -234,6 +234,6 @@ protected:
   static const std::vector<void (QuickDrawEngine::*)(phosg::StringReader&, uint16_t)> render_functions;
 };
 
-std::vector<ColorTableEntry> create_default_clut();
+std::vector<ColorSpec> create_default_clut();
 
 } // namespace ResourceDASM
