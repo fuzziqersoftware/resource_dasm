@@ -655,9 +655,9 @@ public:
   DecodedCode0Resource decode_CODE_0(int16_t id = 0, uint32_t type = RESOURCE_TYPE_CODE) const;
   static DecodedCode0Resource decode_CODE_0(std::shared_ptr<const Resource> res);
   static DecodedCode0Resource decode_CODE_0(const void* vdata, size_t size);
-  DecodedCodeResource decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE) const;
-  static DecodedCodeResource decode_CODE(std::shared_ptr<const Resource> res);
-  static DecodedCodeResource decode_CODE(const void* vdata, size_t size);
+  DecodedCodeResource decode_CODE(int16_t id, uint32_t type = RESOURCE_TYPE_CODE, bool header_only = false) const;
+  static DecodedCodeResource decode_CODE(std::shared_ptr<const Resource> res, bool header_only = false);
+  static DecodedCodeResource decode_CODE(const void* vdata, size_t size, bool header_only = false);
   DecodedDriverResource decode_DRVR(int16_t id, uint32_t type = RESOURCE_TYPE_DRVR) const;
   static DecodedDriverResource decode_DRVR(std::shared_ptr<const Resource> res);
   static DecodedDriverResource decode_DRVR(const void* vdata, size_t size);

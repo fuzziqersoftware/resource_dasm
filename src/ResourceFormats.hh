@@ -337,10 +337,10 @@ struct Code0ResourceHeader {
   phosg::be_uint32_t jump_table_a5_offset; // From A5, so subtract 0x10 to get offset within CODE 0
 
   struct MethodEntry {
-    phosg::be_uint16_t offset; // Need to add 4 to this apparently
-    phosg::be_uint16_t push_opcode;
-    phosg::be_int16_t resource_id; // id of target CODE resource
-    phosg::be_uint16_t trap_opcode; // Disassembles as `trap _LoadSeg`
+    phosg::be_uint16_t offset; // From beginning of code (e.g. add 4 to this for near-model CODE resources)
+    phosg::be_uint16_t push_opcode; // 0x3F3C
+    phosg::be_int16_t resource_id; // ID of target CODE resource
+    phosg::be_uint16_t trap_opcode; // 0xA9F0 (syscall LoadSeg)
   } __attribute__((packed));
 
   MethodEntry entries[0];

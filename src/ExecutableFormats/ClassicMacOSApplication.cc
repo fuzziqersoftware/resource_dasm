@@ -47,7 +47,7 @@ std::string elf_for_classic_mac_os_application(ResourceFile& rf) {
   for (int16_t res_id : rf.all_resources_of_type(RESOURCE_TYPE_CODE)) {
     if (res_id != 0) {
       auto res = rf.get_resource(RESOURCE_TYPE_CODE, res_id);
-      auto decoded = rf.decode_CODE(res);
+      auto decoded = rf.decode_CODE(res, true);
       uint32_t header_size = (decoded.first_jump_table_entry_index >= 0)
           ? sizeof(CodeResourceHeader)
           : sizeof(CodeResourceFarHeader);

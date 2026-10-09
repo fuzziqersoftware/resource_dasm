@@ -1283,15 +1283,15 @@ ResourceFile::DecodedCode0Resource ResourceFile::decode_CODE_0(const void* vdata
   return ret;
 }
 
-ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(int16_t id, uint32_t type) const {
-  return this->decode_CODE(this->get_resource(type, id));
+ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(int16_t id, uint32_t type, bool header_only) const {
+  return this->decode_CODE(this->get_resource(type, id), header_only);
 }
 
-ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(std::shared_ptr<const Resource> res) {
-  return ResourceFile::decode_CODE(res->data.data(), res->data.size());
+ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(std::shared_ptr<const Resource> res, bool header_only) {
+  return ResourceFile::decode_CODE(res->data.data(), res->data.size(), header_only);
 }
 
-ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(const void* vdata, size_t size) {
+ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(const void* vdata, size_t size, bool header_only) {
   phosg::StringReader r(vdata, size);
 
   const auto& header = r.get<CodeResourceHeader>(false);
@@ -1326,7 +1326,9 @@ ResourceFile::DecodedCodeResource ResourceFile::decode_CODE(const void* vdata, s
     ret.num_jump_table_entries = header.num_jump_table_entries;
   }
 
-  ret.code = r.read(r.remaining());
+  if (!header_only) {
+    ret.code = r.read(r.remaining());
+  }
   return ret;
 }
 
