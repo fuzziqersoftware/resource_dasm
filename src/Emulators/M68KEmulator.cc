@@ -2515,7 +2515,7 @@ std::string M68KEmulator::DisassemblyState::on_reset() {
   return "reset";
 }
 void M68KEmulator::on_reset() {
-  throw terminate_emulation();
+  this->exit_all();
 }
 
 std::string M68KEmulator::DisassemblyState::on_nop() {
@@ -4692,34 +4692,7 @@ std::string M68KEmulator::disassemble(
 }
 
 void M68KEmulator::execute_one() {
-  // Call debug hook if present
-  if (this->debug_hook) {
-    this->debug_hook(*this);
-  }
-
-  // Call any timer interrupt functions scheduled for this cycle
-  if (this->interrupt_manager) {
-    this->interrupt_manager->on_cycle_start();
-  }
-
-  // Execute a cycle
   M68KEmulator::decode_instruction(*this);
-
-  this->instructions_executed++;
-}
-
-void M68KEmulator::execute() {
-  if (!this->interrupt_manager.get()) {
-    this->interrupt_manager = std::make_shared<InterruptManager>();
-  }
-
-  for (;;) {
-    try {
-      this->execute_one();
-    } catch (const terminate_emulation&) {
-      break;
-    }
-  }
 }
 
 void M68KEmulator::import_state(FILE* stream) {

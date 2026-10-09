@@ -21,7 +21,7 @@
 
 namespace ResourceDASM {
 
-class X86Emulator : public EmulatorBase<X86Emulator> {
+class X86Emulator : public EmulatorBase<X86Emulator, std::function<void(X86Emulator&, uint8_t)>> {
 public:
   static constexpr bool is_little_endian = true;
 
@@ -370,7 +370,7 @@ public:
       uint32_t start_address = 0,
       const std::multimap<uint32_t, std::string>* labels = nullptr);
 
-  using EmulatorBase<X86Emulator>::assemble;
+  using EmulatorBase<X86Emulator, std::function<void(X86Emulator&, uint8_t)>>::assemble;
   static AssembleResult assemble(
       const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
@@ -402,16 +402,7 @@ public:
   virtual void set_time_base(uint64_t time_base);
   virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
 
-  inline void set_syscall_handler(std::function<void(X86Emulator&, uint8_t)> handler) {
-    this->syscall_handler = handler;
-  }
-
-  inline void set_debug_hook(std::function<void(X86Emulator&)> hook) {
-    this->debug_hook = hook;
-  }
-
   virtual void execute_one();
-  virtual void execute();
 
   template <typename T>
   void push(T value) {
@@ -435,13 +426,6 @@ protected:
   std::deque<uint64_t> tsc_overrides;
 
   Overrides overrides;
-  std::function<void(X86Emulator&, uint8_t)> syscall_handler;
-  std::function<void(X86Emulator&)> debug_hook;
-
-  mutable bool execution_labels_computed;
-  mutable std::multimap<uint32_t, std::string> execution_labels;
-
-  void compute_execution_labels() const;
 
   struct DecodedRM {
     int8_t non_ea_reg = 0;

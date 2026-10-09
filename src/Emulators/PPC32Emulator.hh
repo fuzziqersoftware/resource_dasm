@@ -142,20 +142,7 @@ public:
   virtual void set_time_base(uint64_t time_base);
   virtual void set_time_base(const std::vector<uint64_t>& time_overrides);
 
-  inline void set_syscall_handler(std::function<void(PPC32Emulator&)> handler) {
-    this->syscall_handler = handler;
-  }
-
-  inline void set_debug_hook(std::function<void(PPC32Emulator&)> hook) {
-    this->debug_hook = hook;
-  }
-
-  inline void set_interrupt_manager(std::shared_ptr<InterruptManager> im) {
-    this->interrupt_manager = im;
-  }
-
   virtual void execute_one();
-  virtual void execute();
 
   static std::string disassemble_one(uint32_t pc, uint32_t op);
 
@@ -189,10 +176,6 @@ public:
 private:
   Regs regs;
   std::deque<uint64_t> time_overrides;
-
-  std::function<void(PPC32Emulator&)> syscall_handler;
-  std::function<void(PPC32Emulator&)> debug_hook;
-  std::shared_ptr<InterruptManager> interrupt_manager;
 
   struct DisassemblyState {
     uint32_t pc;

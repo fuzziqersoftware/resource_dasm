@@ -401,7 +401,7 @@ std::shared_ptr<Resource> decompress_resource(
             if (regs.r[2].u != 0xFFFFFFFF) {
               throw std::runtime_error("unimplemented syscall");
             }
-            throw PPC32Emulator::terminate_emulation();
+            emu.exit_all();
           });
 
           // Run the decompressor

@@ -1193,8 +1193,4 @@ void MCS6502Emulator::execute_one() {
   throw std::logic_error("6502 execution is not implemented");
 }
 
-void MCS6502Emulator::execute() {
-  throw std::logic_error("6502 execution is not implemented");
-}
-
 } // namespace ResourceDASM

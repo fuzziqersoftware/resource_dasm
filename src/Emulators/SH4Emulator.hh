@@ -74,13 +74,8 @@ public:
   virtual void print_state_header(FILE* stream) const;
   virtual void print_state(FILE* stream) const;
 
-  inline void set_debug_hook(std::function<void(SH4Emulator&)> hook) {
-    this->debug_hook = hook;
-  }
-
   void execute_opcode(uint16_t op);
   virtual void execute_one();
-  virtual void execute();
 
   struct Regs {
     union {
@@ -221,7 +216,6 @@ public:
 
 private:
   Regs regs;
-  std::function<void(SH4Emulator&)> debug_hook;
 
   static inline void assert_aligned(uint32_t addr, uint32_t alignment) {
     if (addr & (alignment - 1)) {

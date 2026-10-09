@@ -36,7 +36,7 @@ public:
     AddrT addr;
 
     constexpr Ptr() : addr(0) {}
-    constexpr Ptr(nullptr_t) : addr(0) {}
+    constexpr Ptr(std::nullptr_t) : addr(0) {}
     constexpr explicit Ptr(uint32_t addr) : addr(addr) {}
     constexpr Ptr(const Ptr<T>&) = default;
     constexpr Ptr(Ptr<T>&&) = default;
@@ -76,8 +76,10 @@ public:
       return *this;
     }
 
-    constexpr operator bool() const {
-      return (this->addr != 0);
+    // We don't implement operator bool() in order to avoid incorrect implicit conversions to integer types othe than
+    // uint32_t
+    constexpr bool is_null() const {
+      return (this->addr == 0);
     }
   };
   static_assert(sizeof(Ptr<void>) == 4, "MemoryContext::Ptr<void> size is incorrect");
@@ -452,7 +454,7 @@ public:
   [[noreturn]] void verify_failed(const std::string& what) const;
 
 private:
-  static constexpr bool VERIFY_OPERATIONS = true; // NOCOMMIT: Set to false
+  static constexpr bool VERIFY_OPERATIONS = false; // Enable for debugging
   static constexpr size_t PAGE_BITS = 16; // 64KB pages, 65536 of them
   static constexpr size_t PAGE_SIZE = (1ULL << PAGE_BITS);
   static constexpr size_t PAGE_COUNT = (1ULL << (32 - PAGE_BITS));

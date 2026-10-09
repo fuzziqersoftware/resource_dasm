@@ -696,10 +696,7 @@ void X86Emulator::print_state(FILE* stream) const {
   } catch (const std::out_of_range&) {
   }
 
-  this->compute_execution_labels();
-
-  DisassemblyState s = {
-      phosg::StringReader(data), this->regs.eip, true, 0, {}, this->overrides, {}, &this->execution_labels, this};
+  DisassemblyState s = {phosg::StringReader(data), this->regs.eip, true, 0, {}, this->overrides, {}, nullptr, this};
   try {
     std::string disassembly = this->disassemble_one(s);
     phosg::fwrite_fmt(stream, "{}\n", disassembly);
@@ -3579,7 +3576,7 @@ std::string X86Emulator::dasm_0F_unimplemented(DisassemblyState& s) {
 }
 
 X86Emulator::X86Emulator(std::shared_ptr<MemoryContext> mem)
-    : EmulatorBase(mem), behavior(Behavior::SPECIFICATION), tsc_offset(0), execution_labels_computed(false) {}
+    : EmulatorBase(mem), behavior(Behavior::SPECIFICATION), tsc_offset(0) {}
 
 const X86Emulator::OpcodeImplementation X86Emulator::fns[0x100] = {
     /* 00 */ {&X86Emulator::exec_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math, &X86Emulator::dasm_0x_1x_2x_3x_x0_x1_x8_x9_mem_reg_math},
@@ -4159,14 +4156,9 @@ const char* X86Emulator::Overrides::overridden_segment_name() const {
 }
 
 void X86Emulator::execute_one() {
-  // Call debug hook if present
-  if (this->debug_hook) {
-    this->debug_hook(*this);
-  }
-
-  // Execute a cycle. This is a loop because prefix bytes are implemented as separate opcodes, so we want to call the
-  // prefix handler and the opcode handler as if they were a single opcode.
-  for (bool should_execute_again = true; should_execute_again;) {
+  // This is a loop because prefix bytes are implemented as separate opcodes, so we want to call the prefix handler and
+  // the opcode handler as if they were a single opcode.
+  for (bool should_execute_again = true; (this->exit_count == 0) && should_execute_again;) {
     uint8_t opcode = this->fetch_instruction_byte();
     auto fn = this->fns[opcode].exec;
     if (fn) {
@@ -4176,30 +4168,6 @@ void X86Emulator::execute_one() {
     }
     should_execute_again = !this->overrides.should_clear;
     this->overrides.on_opcode_complete();
-  }
-
-  this->instructions_executed++;
-}
-
-void X86Emulator::execute() {
-  this->execution_labels_computed = false;
-  for (;;) {
-    try {
-      this->execute_one();
-    } catch (const terminate_emulation&) {
-      break;
-    }
-  }
-  this->execution_labels.clear();
-}
-
-void X86Emulator::compute_execution_labels() const {
-  if (!this->execution_labels_computed) {
-    this->execution_labels.clear();
-    for (const auto& symbol_it : this->mem->all_symbols()) {
-      this->execution_labels.emplace(symbol_it.second, symbol_it.first);
-    }
-    this->execution_labels_computed = true;
   }
 }
 

@@ -164,7 +164,7 @@ std::string elf_for_classic_mac_os_application(ResourceFile& rf) {
         break;
 
       default:
-        throw M68KEmulator::terminate_emulation();
+        emu.exit_all();
     }
   });
 

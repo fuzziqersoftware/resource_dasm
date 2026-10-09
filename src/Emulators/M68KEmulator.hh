@@ -20,7 +20,7 @@ struct JumpTableEntry {
   uint16_t offset; // Offset from end of CODE resource header
 };
 
-class M68KEmulator : public EmulatorBase<M68KEmulator> {
+class M68KEmulator : public EmulatorBase<M68KEmulator, std::function<void(M68KEmulator&, uint16_t)>> {
 public:
   static constexpr bool is_little_endian = false;
 
@@ -422,35 +422,18 @@ public:
       bool is_mac_environment = true,
       const std::vector<JumpTableEntry>* jump_table = nullptr);
 
-  using EmulatorBase<M68KEmulator>::assemble;
+  using EmulatorBase<M68KEmulator, std::function<void(M68KEmulator&, uint16_t)>>::assemble;
   static AssembleResult assemble(
       const std::string& text,
       std::function<std::string(const std::string&)> get_include = nullptr,
       uint32_t start_address = 0);
 
-  inline void set_syscall_handler(std::function<void(M68KEmulator&, uint16_t)> handler) {
-    this->syscall_handler = handler;
-  }
-
-  inline void set_debug_hook(std::function<void(M68KEmulator&)> hook) {
-    this->debug_hook = hook;
-  }
-
-  inline void set_interrupt_manager(std::shared_ptr<InterruptManager> im) {
-    this->interrupt_manager = im;
-  }
-
   virtual void execute_one();
-  virtual void execute();
 
 private:
   using DecodeReturnT = void;
 
   Regs regs;
-
-  std::function<void(M68KEmulator&, uint16_t)> syscall_handler;
-  std::function<void(M68KEmulator&)> debug_hook;
-  std::shared_ptr<InterruptManager> interrupt_manager;
 
   template <typename VisitorT>
   static VisitorT::DecodeReturnT decode_instruction(VisitorT& visitor);

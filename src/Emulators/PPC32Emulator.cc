@@ -6554,35 +6554,12 @@ void PPC32Emulator::print_state(FILE* stream) const {
 }
 
 void PPC32Emulator::execute_one() {
-  if (this->debug_hook) {
-    this->debug_hook(*this);
-  }
-
-  if (this->interrupt_manager) {
-    this->interrupt_manager->on_cycle_start();
-  }
-
   uint32_t full_op = this->mem->read<phosg::be_uint32_t>(this->regs.pc);
   uint8_t op = op_get_op(full_op);
   auto fn = this->fns[op].exec;
   (this->*fn)(full_op);
   this->regs.pc += 4;
   this->regs.tbr += this->regs.tbr_ticks_per_cycle;
-  this->instructions_executed++;
-}
-
-void PPC32Emulator::execute() {
-  if (!this->interrupt_manager.get()) {
-    this->interrupt_manager = std::make_shared<InterruptManager>();
-  }
-
-  for (;;) {
-    try {
-      this->execute_one();
-    } catch (const terminate_emulation&) {
-      break;
-    }
-  }
 }
 
 std::string PPC32Emulator::disassemble_one(uint32_t pc, uint32_t op) {

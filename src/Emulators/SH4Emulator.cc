@@ -346,7 +346,8 @@ void SH4Emulator::execute_one_0(uint16_t op) {
           this->regs.enqueue_branch(Regs::PendingBranchType::RETURN, 0, 1);
           break;
         case 0x1: // 0000000000011011 sleep
-          throw terminate_emulation();
+          this->exit_all();
+          break;
         case 0x2: // 0000000000101011 rte
           // TODO
           throw std::runtime_error("exceptions are not supported");
@@ -1403,12 +1404,8 @@ void SH4Emulator::execute_opcode(uint16_t op) {
 }
 
 void SH4Emulator::execute_one() {
-  if (this->debug_hook) {
-    this->debug_hook(*this);
-  }
   this->assert_aligned(this->regs.pc, 2);
   this->execute_opcode(this->mem->read_u16l(this->regs.pc));
-  this->instructions_executed++;
 
   switch (this->regs.instructions_until_branch ? Regs::PendingBranchType::NONE : this->regs.pending_branch_type) {
     case Regs::PendingBranchType::NONE:
@@ -1430,16 +1427,6 @@ void SH4Emulator::execute_one() {
   }
   if (this->regs.instructions_until_branch) {
     this->regs.instructions_until_branch--;
-  }
-}
-
-void SH4Emulator::execute() {
-  for (;;) {
-    try {
-      this->execute_one();
-    } catch (const terminate_emulation&) {
-      break;
-    }
   }
 }
 

@@ -220,24 +220,12 @@ public:
       std::function<std::string(const std::string&)> get_include = nullptr,
       uint32_t start_address = 0);
 
-  inline void set_debug_hook(std::function<void(MCS6502Emulator&)> hook) {
-    this->debug_hook = hook;
-  }
-
-  inline void set_interrupt_manager(std::shared_ptr<InterruptManager> im) {
-    this->interrupt_manager = im;
-  }
-
   virtual void execute_one();
-  virtual void execute();
 
 private:
   using DecodeReturnT = void;
 
   Regs regs;
-
-  std::function<void(MCS6502Emulator&)> debug_hook;
-  std::shared_ptr<InterruptManager> interrupt_manager;
 
   template <typename VisitorT>
   static VisitorT::DecodeReturnT decode_instruction(VisitorT& visitor);

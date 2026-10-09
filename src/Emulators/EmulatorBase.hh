@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include <filesystem>
+#include <functional>
 #include <phosg/Filesystem.hh>
 #include <phosg/Strings.hh>
 #include <set>
@@ -13,6 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "InterruptManager.hh"
 #include "MemoryContext.hh"
 
 namespace ResourceDASM {
@@ -70,11 +72,10 @@ struct DisassembleResult {
   }
 };
 
-template <typename DerivedT>
+template <typename DerivedT, typename SyscallHandlerT = std::function<void(DerivedT&)>>
 class EmulatorBase {
 public:
-  explicit EmulatorBase(std::shared_ptr<MemoryContext> mem)
-      : mem(mem), instructions_executed(0), log_memory_access(false) {}
+  explicit EmulatorBase(std::shared_ptr<MemoryContext> mem) : mem(mem) {}
   virtual ~EmulatorBase() = default;
 
   virtual void import_state(FILE* stream) = 0;
@@ -90,15 +91,6 @@ public:
 
   virtual void print_state_header(FILE* stream) const = 0;
   virtual void print_state(FILE* stream) const = 0;
-
-  // The syscall handler or debug hook can throw this to terminate emulation cleanly (and cause .execute() to return).
-  // Throwing any other type of exception will cause emulation to terminate uncleanly and the exception will propagate
-  // out of .execute().
-  class terminate_emulation : public std::runtime_error {
-  public:
-    terminate_emulation() : runtime_error("terminate emulation") {}
-    ~terminate_emulation() = default;
-  };
 
   virtual void set_behavior_by_name(const std::string&) {
     throw std::logic_error("this CPU engine does not implement multiple behaviors");
@@ -121,6 +113,27 @@ public:
     return this->log_memory_access;
   }
 
+  inline void set_syscall_handler(SyscallHandlerT handler) {
+    this->syscall_handler = handler;
+  }
+
+  inline void set_debug_hook(std::function<void(DerivedT&)> hook) {
+    this->debug_hook = hook;
+  }
+
+  inline void set_interrupt_manager(std::shared_ptr<InterruptManager> im) {
+    this->interrupt_manager = im;
+  }
+
+  inline void exit_one() {
+    if (this->exit_count >= 0) {
+      this->exit_count++;
+    }
+  }
+  inline void exit_all() {
+    this->exit_count = -1;
+  }
+
   struct MemoryAccess {
     uint32_t addr;
     uint8_t size;
@@ -134,7 +147,26 @@ public:
   }
 
   virtual void execute_one() = 0;
-  virtual void execute() = 0;
+
+  void execute() {
+    if (!this->interrupt_manager.get()) {
+      this->interrupt_manager = std::make_shared<InterruptManager>();
+    }
+
+    while (this->exit_count == 0) {
+      if (this->debug_hook) {
+        this->debug_hook(*static_cast<DerivedT*>(this));
+      }
+      if (this->interrupt_manager) {
+        this->interrupt_manager->on_cycle_start();
+      }
+      this->execute_one();
+      this->instructions_executed++;
+    }
+    if (this->exit_count > 0) {
+      this->exit_count--;
+    }
+  }
 
   // Derived classes implement:
   // static AssembleResult assemble(
@@ -172,9 +204,14 @@ public:
 
 protected:
   std::shared_ptr<MemoryContext> mem;
-  uint64_t instructions_executed;
+  uint64_t instructions_executed = 0;
+  int64_t exit_count = 0; // Positive = number of reentrancy levels to exit; negative = exit all of them
 
-  bool log_memory_access;
+  SyscallHandlerT syscall_handler;
+  std::function<void(DerivedT&)> debug_hook;
+  std::shared_ptr<InterruptManager> interrupt_manager;
+
+  bool log_memory_access = false;
   std::vector<MemoryAccess> memory_access_log;
 
   static std::string format_label(uint32_t pc, uint32_t target_addr, const LabelRefs& refs) {
@@ -237,9 +274,7 @@ public:
   EmuT* bound_emu;
   EmulatorDebuggerState state;
 
-  EmulatorDebugger()
-      : bound_emu(nullptr),
-        should_print_state_header(true) {}
+  EmulatorDebugger() : bound_emu(nullptr), should_print_state_header(true) {}
 
   void bind(EmuT& emu) {
     this->bound_emu = &emu;
@@ -267,7 +302,8 @@ private:
 
     if (this->state.max_cycles && emu.cycles() >= this->state.max_cycles) {
       phosg::fwrite_fmt(stderr, "reached maximum cycle count\n");
-      throw typename EmuT::terminate_emulation();
+      emu.exit_all();
+      return;
     }
 
     if (this->state.cycle_breakpoints.erase(emu.cycles())) {
@@ -323,7 +359,8 @@ private:
       std::string input_line(0x400, '\0');
       if (!fgets(input_line.data(), input_line.size(), stdin)) {
         phosg::fwrite_fmt(stderr, "stdin was closed; stopping emulation\n");
-        throw typename EmuT::terminate_emulation();
+        emu.exit_all();
+        break;
       }
       phosg::strip_trailing_zeroes(input_line);
       phosg::strip_trailing_whitespace(input_line);
@@ -618,13 +655,12 @@ private:
           this->should_print_state_header = true;
 
         } else if ((cmd == "q") || (cmd == "quit")) {
-          throw typename EmuT::terminate_emulation();
+          emu.exit_all();
+          break;
 
         } else {
           phosg::fwrite_fmt(stderr, "invalid command\n");
         }
-      } catch (const typename EmuT::terminate_emulation&) {
-        throw;
       } catch (const std::exception& e) {
         phosg::fwrite_fmt(stderr, "FAILED: {}\n", e.what());
       }
