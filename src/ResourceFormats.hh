@@ -119,6 +119,46 @@ struct Polygon {
 } __attribute__((packed));
 
 ////////////////////////////////////////////////////////////////////////////////
+// Resource file format
+
+struct ResourceForkHeader {
+  // Base offset for all resource data. In reference list entries, the offset in attributes_and_offset (low 3 bytes) is
+  // relative to this offset.
+  phosg::be_uint32_t resource_data_offset;
+  // Offset to the ResourceMapHeader struct (from beginning of file)
+  phosg::be_uint32_t resource_map_offset;
+  // Size of all resource data
+  phosg::be_uint32_t resource_data_size;
+  // Size of resource map, including header and all entries
+  phosg::be_uint32_t resource_map_size;
+} __attribute__((packed));
+
+struct ResourceMapHeader {
+  // Reserved fields are all set to zero
+  uint8_t reserved[16];
+  phosg::be_uint32_t reserved_handle;
+  phosg::be_uint16_t reserved_file_ref_num;
+  // File attributes (unused??)
+  phosg::be_uint16_t attributes;
+  // Offsets to type list and name list, relative to start of this struct
+  phosg::be_uint16_t resource_type_list_offset;
+  phosg::be_uint16_t resource_name_list_offset;
+} __attribute__((packed));
+
+struct ResourceTypeListEntry {
+  phosg::be_uint32_t resource_type;
+  phosg::be_uint16_t num_items; // actually num_items - 1
+  phosg::be_uint16_t reference_list_offset; // relative to start of type list
+} __attribute__((packed));
+
+struct ResourceReferenceListEntry {
+  phosg::be_int16_t resource_id;
+  phosg::be_uint16_t name_offset;
+  phosg::be_uint32_t attributes_and_offset; // attrs = high 8 bits; offset relative to resource data segment start
+  phosg::be_uint32_t reserved;
+} __attribute__((packed));
+
+////////////////////////////////////////////////////////////////////////////////
 // Bitmaps and pixmaps (used in multiple QuickDraw resources)
 
 struct BitMap {
