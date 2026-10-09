@@ -812,7 +812,7 @@ static const std::vector<TrapInfo> trap_info{
     TI{0x0F9, {}, 0, "vSuperLoad"},
     TI{0x0FA, {}, 0, "vCmpFrm"},
     TI{0x0FB, {}, 0, "vNewMap"},
-    TI{0x0FC, {}, 0, "vCheckLoad"},
+    TI{0x0FC, {}, 0, "vCheckLoad", {P::a(2, "ResourceMapEntry*", "entry"), P::d(3, "OSType", "res_type")}, {P::a(0, "Handle")}},
     TI{0x0FD, {}, 0, "XTrimMeasure"},
     TI{0x0FE, {}, 0, "XFindWord/TEFindWord"},
     TI{0x0FF, {}, 0, "XFindLine/TEFindLine"},
@@ -5418,14 +5418,16 @@ const TrapInfo* info_for_68k_trap(
       flag_match = &*it;
     }
     bool matches_conditions = true;
-    for (const auto& c : it->conditions) {
-      if (check_condition && !check_condition(c)) {
-        matches_conditions = false;
-        break;
+    if (!it->conditions.empty()) {
+      for (const auto& c : it->conditions) {
+        if (check_condition && !check_condition(c)) {
+          matches_conditions = false;
+          break;
+        }
       }
-    }
-    if (matches_conditions) {
-      condition_match = &*it;
+      if (matches_conditions) {
+        condition_match = &*it;
+      }
     }
   }
 
