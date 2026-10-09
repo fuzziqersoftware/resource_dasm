@@ -476,13 +476,18 @@ std::unique_ptr<Node> Node::parse(std::string_view text) {
       {{std::make_pair("*", BinType::MULTIPLY)}, {std::make_pair("/", BinType::DIVIDE)}, {std::make_pair("%", BinType::MODULUS)}},
   };
   for (const auto& operators : binary_operator_levels) {
-    size_t paren_level = 0;
-    for (size_t z = 0; z < text.size() - 1; z++) {
-      if (text[z] == '(') {
+    ssize_t paren_level = 0;
+    // We scan in reverse so we'll preserve operator order in expressions like "A - B - C" - that should parse as
+    // (A - B) - C, not A - (B - C)
+    for (ssize_t z = text.size() - 1; z >= 0; z--) {
+      if (text[z] == ')') {
         paren_level++;
         continue;
-      } else if (text[z] == ')') {
+      } else if (text[z] == '(') {
         paren_level--;
+        if (paren_level < 0) {
+          throw std::invalid_argument("unbalanced parentheses in expression");
+        }
         continue;
       }
       if (!paren_level) {
@@ -490,7 +495,7 @@ std::unique_ptr<Node> Node::parse(std::string_view text) {
           // Awful hack (because I'm too lazy to add a tokenization step): if the operator is followed or preceded by
           // another copy of itself, don't match it (this prevents us from matching & when the token is actually &&)
           if ((text.size() > z + oper.first.size()) &&
-              ((z < oper.first.size()) || (text.compare(z - oper.first.size(), oper.first.size(), oper.first) != 0)) &&
+              ((static_cast<size_t>(z) < oper.first.size()) || (text.compare(z - oper.first.size(), oper.first.size(), oper.first) != 0)) &&
               (text.compare(z, oper.first.size(), oper.first) == 0) &&
               (text.compare(z + oper.first.size(), oper.first.size(), oper.first) != 0)) {
             auto left = Node::parse(text.substr(0, z));
@@ -499,6 +504,9 @@ std::unique_ptr<Node> Node::parse(std::string_view text) {
           }
         }
       }
+    }
+    if (paren_level != 0) {
+      throw std::invalid_argument("unbalanced parentheses in expression");
     }
   }
 
