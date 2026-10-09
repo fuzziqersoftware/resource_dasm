@@ -78,12 +78,14 @@ constexpr bool maybe_char(uint8_t ch) {
 
 static std::string format_immediate(int64_t value, bool include_comment_tokens = true) {
   std::string hex_repr;
-  if (value < -0xFFFF) {
-    hex_repr = std::format("-0x{:08X}", value);
+  if (value == -0x80000000) {
+    hex_repr = "-0x80000000";
+  } else if (value < -0xFFFF) {
+    hex_repr = std::format("-0x{:08X}", -value);
   } else if (value < -0xFF) {
-    hex_repr = std::format("-0x{:04X}", value);
+    hex_repr = std::format("-0x{:04X}", -value);
   } else if (value < 0) {
-    hex_repr = std::format("-0x{:02X}", value);
+    hex_repr = std::format("-0x{:02X}", -value);
   } else if (value > 0xFFFF) {
     hex_repr = std::format("0x{:08X}", value);
   } else if (value > 0xFF) {
@@ -2649,7 +2651,7 @@ void M68KEmulator::on_scc(uint8_t condition, const DecodedAddress& addr) {
 std::string M68KEmulator::DisassemblyState::on_bra_bsr_bcc(uint8_t condition, int32_t disp, uint8_t disp_size) {
   uint32_t target_address = this->start_address + this->r.where() + disp - disp_size;
   std::string disp_str = (disp < 0)
-      ? std::format("-0x{:X} /* {:08X} */", -disp - 2, target_address)
+      ? std::format("-0x{:X} /* {:08X} */", -(disp + 2), target_address)
       : std::format("+0x{:X} /* {:08X} */", disp + 2, target_address);
 
   if (!(target_address & 1)) {
@@ -3835,7 +3837,7 @@ std::string M68KEmulator::DisassemblyState::on_fdbcc(uint8_t condition, uint8_t 
     this->branch_target_addresses.emplace(target_address, false);
   }
   return (disp < 0)
-      ? std::format("fdb{:<7} D{}, -0x{:X} /* {:08X} */", cond, reg, -disp + 2, target_address)
+      ? std::format("fdb{:<7} D{}, -0x{:X} /* {:08X} */", cond, reg, -(disp + 2), target_address)
       : std::format("fdb{:<7} D{}, +0x{:X} /* {:08X} */", cond, reg, disp + 2, target_address);
 }
 void M68KEmulator::on_fdbcc(uint8_t, uint8_t, int16_t) {
@@ -3860,7 +3862,7 @@ void M68KEmulator::on_fscc(uint8_t, const DecodedAddress&) {
 std::string M68KEmulator::DisassemblyState::on_fbcc(uint8_t condition, int32_t disp, uint8_t disp_size) {
   uint32_t target_address = this->start_address + this->r.where() + disp - disp_size;
   std::string disp_str = (disp < 0)
-      ? std::format("-0x{:X} /* {:08X} */", -disp - 2, target_address)
+      ? std::format("-0x{:X} /* {:08X} */", -(disp + 2), target_address)
       : std::format("+0x{:X} /* {:08X} */", disp + 2, target_address);
 
   if (!(target_address & 1)) {
