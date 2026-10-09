@@ -38,12 +38,12 @@ public:
     constexpr Ptr() : addr(0) {}
     constexpr Ptr(std::nullptr_t) : addr(0) {}
     constexpr explicit Ptr(uint32_t addr) : addr(addr) {}
-    constexpr Ptr(const Ptr<T>&) = default;
-    constexpr Ptr(Ptr<T>&&) = default;
-    constexpr Ptr<T>& operator=(const Ptr<T>&) = default;
-    constexpr Ptr<T>& operator=(Ptr<T>&&) = default;
-    constexpr bool operator==(const Ptr<T>&) const = default;
-    constexpr bool operator!=(const Ptr<T>&) const = default;
+    constexpr Ptr(const Ptr<T, AddrT>&) = default;
+    constexpr Ptr(Ptr<T, AddrT>&&) = default;
+    constexpr Ptr<T, AddrT>& operator=(const Ptr<T, AddrT>&) = default;
+    constexpr Ptr<T, AddrT>& operator=(Ptr<T, AddrT>&&) = default;
+    constexpr bool operator==(const Ptr<T, AddrT>&) const = default;
+    constexpr bool operator!=(const Ptr<T, AddrT>&) const = default;
 
     template <typename U>
       requires(std::is_convertible_v<T, U>)
