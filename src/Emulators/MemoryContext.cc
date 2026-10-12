@@ -79,6 +79,12 @@ MemoryContext::MemoryContext(MemoryContext&& other)
   }
 }
 
+MemoryContext::~MemoryContext() {
+  if (this->base) {
+    unreserve_mem(this->base, this->TOTAL_SIZE);
+  }
+}
+
 MemoryContext& MemoryContext::operator=(MemoryContext&& other) {
   this->strict = other.strict;
   if (this->base) {
@@ -329,6 +335,7 @@ bool MemoryContext::Allocator::resize(uint32_t addr, size_t new_requested_size) 
       this->delete_free_block(after_it);
     }
   }
+  this->allocated_bytes += (new_actual_size - block.actual_size);
   block.requested_size = new_requested_size;
   block.actual_size = new_actual_size;
 
@@ -352,7 +359,7 @@ std::pair<bool, uint32_t> MemoryContext::Allocator::resize_reverse(uint32_t addr
   auto block = block_it->second;
 
   // The difference must be a multiple of 4, since the block's end alignment must not change
-  if ((new_requested_size % 3) != (block.requested_size % 3)) {
+  if ((new_requested_size & 3) != (block.requested_size & 3)) {
     return {false, addr}; // Block start would be misaligned
   }
   if (block.actual_size == new_actual_size) {
@@ -369,14 +376,13 @@ std::pair<bool, uint32_t> MemoryContext::Allocator::resize_reverse(uint32_t addr
   if (before_it->second.addr + before_it->second.actual_size != block.addr) {
     before_it = this->free_blocks_by_addr.end();
   }
-  auto free_block = before_it->second;
 
   if (new_actual_size < block.actual_size) {
     if (before_it == this->free_blocks_by_addr.end()) { // Create new free block
       this->add_free_block(block.addr, (block.actual_size - new_actual_size));
     } else { // Extend existing free block
       this->delete_free_block(before_it);
-      this->add_free_block(free_block.addr, free_block.actual_size + (block.actual_size - new_actual_size));
+      this->add_free_block(before_it->second.addr, before_it->second.actual_size + (block.actual_size - new_actual_size));
     }
   } else if (new_actual_size > block.actual_size) {
     if (before_it == this->free_blocks_by_addr.end()) {
@@ -385,7 +391,7 @@ std::pair<bool, uint32_t> MemoryContext::Allocator::resize_reverse(uint32_t addr
       return {false, addr}; // Free block before block is not large enough
     } else { // Shorten existing free block
       this->delete_free_block(before_it);
-      this->add_free_block(free_block.addr, free_block.actual_size - (new_actual_size - block.actual_size));
+      this->add_free_block(before_it->second.addr, before_it->second.actual_size - (new_actual_size - block.actual_size));
     }
   }
 
@@ -721,11 +727,12 @@ MemoryContext MemoryContext::import_state(FILE* stream) {
     if (pages_valid[z >> 3] & (0x80 >> (z & 7))) {
       uint32_t page_addr = z << MemoryContext::PAGE_BITS;
       ret.make_pages_valid(page_addr, MemoryContext::PAGE_SIZE);
-      phosg::freadx(stream, ret.at<void>(page_addr, MemoryContext::PAGE_SIZE), MemoryContext::PAGE_SIZE);
+      phosg::freadx(stream, ret.at<void>(page_addr, MemoryContext::PAGE_SIZE, true), MemoryContext::PAGE_SIZE);
     }
   }
 
   uint32_t num_allocators = phosg::freadx<phosg::le_uint32_t>(stream);
+  ret.allocators.clear();
   while (ret.allocators.size() < num_allocators) {
     auto allocator = Allocator::import_state(&ret, stream);
     uint32_t key = allocator.range().first;

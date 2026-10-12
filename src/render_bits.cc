@@ -301,47 +301,28 @@ int main(int argc, char** argv) {
   for (size_t z = 0; z < pixel_count; z++) {
     switch (color_format) {
       case ColorFormat::GRAY1:
-        // Note: This is the opposite of what you'd expect for other formats
-        // (1 is black, 0 is white). We do this because it seems to be the
-        // common behavior on old Mac OS.
+        // Note: This is the opposite of what you'd expect for other formats (1 is black, 0 is white). We do this
+        // because it seems to be the common behavior on old Mac OS.
         pixel_stream.emplace_back(br.read(1) ? 0x000000FF : 0xFFFFFFFF);
         break;
 
       case ColorFormat::GRAY2: {
-        static const uint32_t colors[4] = {
-            0x000000FF, 0x555555FF, 0xAAAAAAFF, 0xFFFFFFFF};
+        static const uint32_t colors[4] = {0x000000FF, 0x555555FF, 0xAAAAAAFF, 0xFFFFFFFF};
         pixel_stream.emplace_back(colors[br.read(2)]);
         break;
       }
 
       case ColorFormat::GRAY4: {
         static const uint32_t colors[16] = {
-            0x000000FF,
-            0x111111FF,
-            0x222222FF,
-            0x333333FF,
-            0x444444FF,
-            0x555555FF,
-            0x666666FF,
-            0x777777FF,
-            0x888888FF,
-            0x999999FF,
-            0xAAAAAAFF,
-            0xBBBBBBFF,
-            0xCCCCCCFF,
-            0xDDDDDDFF,
-            0xEEEEEEFF,
-            0xFFFFFFFF,
-        };
+            0x000000FF, 0x111111FF, 0x222222FF, 0x333333FF, 0x444444FF, 0x555555FF, 0x666666FF, 0x777777FF,
+            0x888888FF, 0x999999FF, 0xAAAAAAFF, 0xBBBBBBFF, 0xCCCCCCFF, 0xDDDDDDFF, 0xEEEEEEFF, 0xFFFFFFFF};
         pixel_stream.emplace_back(colors[br.read(4)]);
         break;
       }
 
-      case ColorFormat::GRAY8: {
-        uint8_t v = sr.get_u8();
-        pixel_stream.emplace_back((v << 24) | (v << 16) | (v << 8) | 0xFF);
+      case ColorFormat::GRAY8:
+        pixel_stream.emplace_back(phosg::rgba8888_gray(sr.get_u8()));
         break;
-      }
 
       case ColorFormat::INDEXED: {
         ResourceDASM::RGBColor8 c = clut.at(br.read(pixel_bits)).c.as8();
@@ -358,14 +339,9 @@ int main(int argc, char** argv) {
         break;
       }
 
-      case ColorFormat::XRGB1555: {
-        uint16_t pixel = little_endian ? sr.get_u16l() : sr.get_u16b();
-        uint8_t r = ((pixel >> 7) & 0xF8) | ((pixel >> 12) & 0x07);
-        uint8_t g = ((pixel >> 2) & 0xF8) | ((pixel >> 7) & 0x07);
-        uint8_t b = ((pixel << 3) & 0xF8) | ((pixel >> 2) & 0x07);
-        pixel_stream.emplace_back((r << 24) | (g << 16) | (b << 8) | 0xFF);
+      case ColorFormat::XRGB1555:
+        pixel_stream.emplace_back(phosg::rgba8888_for_xrgb1555(little_endian ? sr.get_u16l() : sr.get_u16b()));
         break;
-      }
 
       case ColorFormat::RGB5A3: {
         uint16_t pixel = little_endian ? sr.get_u16l() : sr.get_u16b();
@@ -384,14 +360,9 @@ int main(int argc, char** argv) {
         break;
       }
 
-      case ColorFormat::RGB565: {
-        uint16_t pixel = little_endian ? sr.get_u16l() : sr.get_u16b();
-        uint8_t r = ((pixel >> 8) & 0xF8) | ((pixel >> 13) & 0x07);
-        uint8_t g = ((pixel >> 3) & 0xFC) | ((pixel >> 9) & 0x03);
-        uint8_t b = ((pixel << 2) & 0xF8) | ((pixel >> 2) & 0x07);
-        pixel_stream.emplace_back((r << 24) | (g << 16) | (b << 8) | 0xFF);
+      case ColorFormat::RGB565:
+        pixel_stream.emplace_back(phosg::rgba8888_for_rgb565(little_endian ? sr.get_u16l() : sr.get_u16b()));
         break;
-      }
 
       case ColorFormat::XRGB14_666: {
         uint32_t pixel = little_endian ? sr.get_u32l() : sr.get_u32b();
@@ -439,7 +410,8 @@ int main(int argc, char** argv) {
   }
 
   if (pixel_stream.size() < w * h) {
-    phosg::fwrite_fmt(stderr, "warning: not enough pixels ({}) to fill {}x{} image ({} required)\n", pixel_stream.size(), w, h, w * h);
+    phosg::fwrite_fmt(stderr,
+        "warning: not enough pixels ({}) to fill {}x{} image ({} required)\n", pixel_stream.size(), w, h, w * h);
   }
 
   phosg::ImageRGBA8888N img;

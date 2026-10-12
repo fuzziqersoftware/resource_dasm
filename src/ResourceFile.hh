@@ -88,7 +88,7 @@ public:
   bool add(Resource&& res);
   bool add(std::shared_ptr<Resource> res);
   bool remove(uint32_t type, int16_t id);
-  bool change_id(uint32_t type, int16_t current_id, int16_t new_id);
+  bool change_id(uint32_t type, int16_t current_id, int16_t new_id, bool allow_overwrite);
   bool rename(uint32_t type, int16_t id, const std::string& new_name);
 
   IndexFormat index_format() const;

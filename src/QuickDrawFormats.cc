@@ -82,11 +82,8 @@ std::string Region::serialize() const {
 }
 
 bool Region::is_inversion_point(int16_t x, int16_t y) const {
-  try {
-    return this->inversions.at(y).count(x);
-  } catch (const std::out_of_range&) {
-    return false;
-  }
+  auto it = this->inversions.find(y);
+  return (it != this->inversions.end()) ? it->second.count(x) : false;
 }
 
 phosg::ImageG1 Region::render() const {

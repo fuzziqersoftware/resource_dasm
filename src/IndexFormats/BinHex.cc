@@ -55,7 +55,7 @@ DecodedBinHex parse_binhex(std::string_view data) {
     throw std::runtime_error("Input is not BinHex-encoded");
   }
   // The sentinel string must start at the beginning of the file or the beginning of a line
-  if ((sentinel_offset == 0) || ((data[sentinel_offset - 1] != '\n') && (data[sentinel_offset - 1] == '\r'))) {
+  if ((sentinel_offset == 0) || ((data[sentinel_offset - 1] == '\n') || (data[sentinel_offset - 1] == '\r'))) {
     throw std::runtime_error("Input is not BinHex-encoded");
   }
   size_t start_offset = data.find(')', sentinel_offset + 41);

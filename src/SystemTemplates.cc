@@ -1202,14 +1202,10 @@ static const std::unordered_map<uint32_t, ResourceFile::TemplateEntryList> syste
 });
 // clang-format on
 
-static const ResourceFile::TemplateEntryList empty_template;
-
 const ResourceFile::TemplateEntryList& get_system_template(uint32_t type) {
-  try {
-    return system_templates.at(type);
-  } catch (const std::out_of_range&) {
-    return empty_template;
-  }
+  static const ResourceFile::TemplateEntryList empty_template;
+  auto it = system_templates.find(type);
+  return (it != system_templates.end()) ? it->second : empty_template;
 }
 
 } // namespace ResourceDASM

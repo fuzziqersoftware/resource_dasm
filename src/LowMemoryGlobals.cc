@@ -5,7 +5,7 @@
 
 namespace ResourceDASM {
 
-static const std::map<uint32_t, const char*> addr_to_global_name({
+static const std::map<uint32_t, const char*> ADDR_TO_GLOBAL_NAME{
     {0x0000, "__m68k_reset_stack__"}, // stack ptr for reset vector
     {0x0004, "__m68k_vec_reset__"}, // reset vector
     {0x0008, "BusErrVct"}, // bus error vector
@@ -577,14 +577,11 @@ static const std::map<uint32_t, const char*> addr_to_global_name({
     {0x2404, "BasesValid2"},
     {0x2408, "ExtValid1"},
     {0x240C, "ExtValid2"},
-});
+};
 
 const char* name_for_lowmem_global(uint32_t addr) {
-  try {
-    return addr_to_global_name.at(addr);
-  } catch (const std::out_of_range&) {
-    return nullptr;
-  }
+  auto it = ADDR_TO_GLOBAL_NAME.find(addr);
+  return (it != ADDR_TO_GLOBAL_NAME.end()) ? it->second : nullptr;
 }
 
 } // namespace ResourceDASM

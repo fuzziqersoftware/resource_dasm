@@ -14,8 +14,8 @@
 namespace ResourceDASM {
 
 static bool ccw(const phosg::Vector2<double>& a, const phosg::Vector2<double>& b, const phosg::Vector2<double>& c) {
-  double i = ((c.y - a.y) * (b.x - a.x));
-  double j = ((b.y - a.y) * (c.x - a.x));
+  double i = ((c.y() - a.y()) * (b.x() - a.x()));
+  double j = ((b.y() - a.y()) * (c.x() - a.x()));
   return i <= j;
 }
 
@@ -224,7 +224,7 @@ std::vector<phosg::Vector3<size_t>> split_faces_fan(size_t num_pts) {
   }
   std::vector<phosg::Vector3<size_t>> ret;
   for (size_t z = 2; z < num_pts; z++) {
-    ret.emplace_back(0, z - 1, z);
+    ret.emplace_back(0ULL, z - 1, z);
   }
   return ret;
 }
@@ -260,13 +260,13 @@ std::string DecodedShap3D::model_as_stl() const {
     }
 
     for (const auto& tri : tri_indexes) {
-      phosg::Vector3<double> tri_pts[3] = {plane_vertices.at(tri.x), plane_vertices.at(tri.y), plane_vertices.at(tri.z)};
+      phosg::Vector3<double> tri_pts[3] = {plane_vertices.at(tri.x()), plane_vertices.at(tri.y()), plane_vertices.at(tri.z())};
       auto n = normal_for_point(tri_pts, 3, 0);
-      lines.emplace_back(std::format("facet normal {:g} {:g} {:g}", n.x, n.y, n.z));
+      lines.emplace_back(std::format("facet normal {:g} {:g} {:g}", n.x(), n.y(), n.z()));
       lines.emplace_back("  outer loop");
-      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[0].x, tri_pts[0].y, tri_pts[0].z));
-      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[1].x, tri_pts[1].y, tri_pts[1].z));
-      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[2].x, tri_pts[2].y, tri_pts[2].z));
+      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[0].x(), tri_pts[0].y(), tri_pts[0].z()));
+      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[1].x(), tri_pts[1].y(), tri_pts[1].z()));
+      lines.emplace_back(std::format("    vertex {:g} {:g} {:g}", tri_pts[2].x(), tri_pts[2].y(), tri_pts[2].z()));
       lines.emplace_back("  endloop");
       lines.emplace_back("endfacet");
     }
@@ -281,7 +281,7 @@ std::string DecodedShap3D::model_as_obj() const {
   size_t normal_index = 1;
   for (const auto& plane : this->planes) {
     for (const auto& v : this->vertices) {
-      lines.emplace_back(std::format("v {:g} {:g} {:g}", v.x, v.y, v.z));
+      lines.emplace_back(std::format("v {:g} {:g} {:g}", v.x(), v.y(), v.z()));
     }
 
     std::string face_line = "f";
@@ -299,7 +299,7 @@ std::string DecodedShap3D::model_as_obj() const {
       if (orientation_for_point(projected, z) != initial_orientation) {
         n *= -1;
       }
-      lines.emplace_back(std::format("vn {:g} {:g} {:g}", n.x, n.y, n.z));
+      lines.emplace_back(std::format("vn {:g} {:g} {:g}", n.x(), n.y(), n.z()));
       face_line += std::format(" {}//{}", plane.vertex_nums[z] + 1, normal_index);
       normal_index++;
     }
@@ -321,20 +321,20 @@ std::string DecodedShap3D::top_view_as_svg() const {
   double zmax = 0.0;
   if (!this->top_view_lines.empty()) {
     const auto& first_pt = this->top_view_vertices.at(this->top_view_lines[0].start);
-    xmin = xmax = first_pt.x;
-    zmin = zmax = first_pt.z;
+    xmin = xmax = first_pt.x();
+    zmin = zmax = first_pt.z();
     auto visit_pt = [&](const phosg::Vector3<double>& pt) {
-      if (xmin < pt.x) {
-        xmin = pt.x;
+      if (xmin < pt.x()) {
+        xmin = pt.x();
       }
-      if (xmax > pt.x) {
-        xmax = pt.x;
+      if (xmax > pt.x()) {
+        xmax = pt.x();
       }
-      if (zmin < pt.z) {
-        zmin = pt.z;
+      if (zmin < pt.z()) {
+        zmin = pt.z();
       }
-      if (zmax > pt.z) {
-        zmax = pt.z;
+      if (zmax > pt.z()) {
+        zmax = pt.z();
       }
     };
     for (const auto& line : this->top_view_lines) {
@@ -357,7 +357,7 @@ std::string DecodedShap3D::top_view_as_svg() const {
     const auto& end = this->top_view_vertices.at(line.end);
     lines.emplace_back(std::format(
         "<line x1=\"{:g}\" y1=\"{:g}\" x2=\"{:g}\" y2=\"{:g}\" stroke=\"black\" stroke-width=\"1\" />",
-        start.x, start.z, end.x, end.z));
+        start.x(), start.z(), end.x(), end.z()));
   }
   lines.emplace_back("</svg>");
 
@@ -373,9 +373,9 @@ DecodedShap3D decode_shap(std::string_view data) {
     uint16_t num_vertices = r.get_u16b() + 1;
     while (ret.vertices.size() < num_vertices) {
       auto& v = ret.vertices.emplace_back();
-      v.x = r.get<Fixed>().as_double();
-      v.y = r.get<Fixed>().as_double();
-      v.z = r.get<Fixed>().as_double();
+      v.x() = r.get<Fixed>().as_double();
+      v.y() = r.get<Fixed>().as_double();
+      v.z() = r.get<Fixed>().as_double();
     }
   }
 
@@ -396,9 +396,9 @@ DecodedShap3D decode_shap(std::string_view data) {
     uint16_t num_vertices = r.get_u16b() + 1;
     while (ret.top_view_vertices.size() < num_vertices) {
       auto& v = ret.top_view_vertices.emplace_back();
-      v.x = r.get<Fixed>().as_double();
-      v.y = r.get<Fixed>().as_double();
-      v.z = r.get<Fixed>().as_double();
+      v.x() = r.get<Fixed>().as_double();
+      v.y() = r.get<Fixed>().as_double();
+      v.z() = r.get<Fixed>().as_double();
     }
   }
 

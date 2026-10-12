@@ -168,7 +168,7 @@ std::string serialize_wav(
   phosg::StringWriter w;
   {
     HeaderBase header;
-    header.file_size = ((samples.size() * num_channels * bits_per_sample) / 8) +
+    header.file_size = ((samples.size() * bits_per_sample) / 8) +
         (sizeof(HeaderBase) - 8) +
         sizeof(DataHeader) +
         (has_sample_metadata ? sizeof(SampleMetadataBlock) : 0);
@@ -194,7 +194,7 @@ std::string serialize_wav(
 
   {
     DataHeader data;
-    data.data_size = samples.size() * num_channels * bits_per_sample / 8;
+    data.data_size = samples.size() * bits_per_sample / 8;
     w.put(data);
   }
 

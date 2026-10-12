@@ -10,7 +10,7 @@ bool ImageSaver::process_cli_arg(const char* arg) {
     return true;
 
   } else if (!strcmp(arg, IMAGE_SAVER_OPTION "=ppm")) {
-    this->image_format = phosg::ImageFormat::COLOR_PPM;
+    this->image_format = phosg::ImageFormat::PPM;
     return true;
 
   } else if (!strcmp(arg, IMAGE_SAVER_OPTION "=png")) {

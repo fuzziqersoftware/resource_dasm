@@ -43,12 +43,11 @@ void ResourceFile::add_name_index_entry(std::shared_ptr<Resource> res) {
 
 void ResourceFile::delete_name_index_entry(std::shared_ptr<Resource> res) {
   if (!res->name.empty()) {
-    for (auto its = this->name_to_resource.equal_range(res->name);
-        its.first != its.second;) {
-      if (its.first->second == res) {
-        its.first = this->name_to_resource.erase(its.first);
+    for (auto [it, end_it] = this->name_to_resource.equal_range(res->name); it != end_it;) {
+      if (it->second == res) {
+        it = this->name_to_resource.erase(it);
       } else {
-        its.first++;
+        it++;
       }
     }
   }
@@ -107,14 +106,21 @@ bool ResourceFile::add(std::shared_ptr<Resource> res) {
   return emplace_ret.second;
 }
 
-bool ResourceFile::change_id(uint32_t type, int16_t current_id, int16_t new_id) {
+bool ResourceFile::change_id(uint32_t type, int16_t current_id, int16_t new_id, bool allow_overwrite) {
   uint64_t current_key = this->make_resource_key(type, current_id);
   uint64_t new_key = this->make_resource_key(type, new_id);
-  auto it = this->key_to_resource.find(current_key);
-  if (it != this->key_to_resource.end()) {
+  auto res_it = this->key_to_resource.find(current_key);
+  if (res_it != this->key_to_resource.end()) {
     if (current_id != new_id) {
-      auto res = it->second;
-      this->key_to_resource.erase(it);
+      if (auto it = this->key_to_resource.find(new_key); it != this->key_to_resource.end()) {
+        if (!allow_overwrite) {
+          throw std::runtime_error("Cannot overwrite existing resource");
+        }
+        this->delete_name_index_entry(it->second);
+        this->key_to_resource.erase(it);
+      }
+      auto res = std::move(res_it->second);
+      this->key_to_resource.erase(res_it);
       res->id = new_id;
       this->key_to_resource.emplace(new_key, res);
     }
@@ -2782,7 +2788,7 @@ ResourceFile::DecodedPICTResource ResourceFile::decode_PICT_data(
 
 #ifndef PHOSG_WINDOWS
     phosg::Subprocess proc({"picttoppm", "-noheader"}, -1, -1, fileno(stderr));
-    std::string ppm_data = proc.communicate(data, size, 10000000);
+    auto [ppm_data, _] = proc.communicate(data, size, 10000000);
     int proc_ret = proc.wait(true);
     if (proc_ret != 0) {
       throw std::runtime_error(std::format("picttoppm failed ({})", proc_ret));

@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
     phosg::fwrite_fmt(stderr, "Warning: output clut is larger than input clut; some colors will be unused\n");
   }
 
-  auto img = phosg::ImageRGBA8888N::from_file_data(phosg::load_file(input_filename));
+  auto img = phosg::ImageRGBA8888N::from_file_data(data);
   for (size_t y = 0; y < img.get_height(); y++) {
     for (size_t x = 0; x < img.get_width(); x++) {
       uint32_t c = img.read(x, y);

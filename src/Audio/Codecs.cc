@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+#include <phosg/Strings.hh>
 #include <stdexcept>
 #include <vector>
 
@@ -259,21 +260,22 @@ struct IMA4Packet {
   phosg::be_uint16_t header;
   uint8_t data[32];
 
-  uint16_t predictor() const {
+  constexpr uint16_t predictor() const {
     // Note: the lack of a shift here is not a bug - these 9 bits actually do store the high bits of the predictor
     return this->header & 0xFF80;
   }
 
-  uint8_t step_index() const {
+  constexpr uint8_t step_index() const {
     return this->header & 0x007F;
   }
-};
+} __attribute__((packed));
+static_assert(sizeof(IMA4Packet) == 34, "IMA4Packet size is incorrect");
 
 std::vector<float> decode_ima4(const void* vdata, size_t size, bool stereo) {
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(vdata);
+  phosg::StringReader r(vdata, size);
 
-  static const int16_t index_table[16] = {-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8};
-  static const int16_t step_table[89] = {
+  static const std::array<int16_t, 16> index_table{-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8};
+  static const std::array<int16_t, 89> step_table{
       7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107,
       118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796, 876,
       963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
@@ -292,21 +294,22 @@ std::vector<float> decode_ima4(const void* vdata, size_t size, bool stereo) {
   } channel_state[2];
 
   {
-    const IMA4Packet* base_packet = reinterpret_cast<const IMA4Packet*>(data);
-    channel_state[0].predictor = base_packet->predictor();
-    channel_state[0].step_index = base_packet->step_index();
-    channel_state[0].step = step_table[channel_state[0].step_index];
+    const auto& base_packet = r.get<IMA4Packet>();
+    channel_state[0].predictor = base_packet.predictor();
+    channel_state[0].step_index = base_packet.step_index();
+    channel_state[0].step = step_table.at(channel_state[0].step_index);
   }
   if (stereo) {
-    const IMA4Packet* base_packet = reinterpret_cast<const IMA4Packet*>(data + 34);
-    channel_state[1].predictor = base_packet->predictor();
-    channel_state[1].step_index = base_packet->step_index();
-    channel_state[1].step = step_table[channel_state[1].step_index];
+    const auto& base_packet = r.get<IMA4Packet>();
+    channel_state[1].predictor = base_packet.predictor();
+    channel_state[1].step_index = base_packet.step_index();
+    channel_state[1].step = step_table.at(channel_state[1].step_index);
   }
 
-  for (size_t packet_offset = 0; packet_offset < size; packet_offset += 34) {
-    const IMA4Packet* packet = reinterpret_cast<const IMA4Packet*>(data + packet_offset);
-    size_t packet_index = packet_offset / 34;
+  r.go(0);
+  while (!r.eof()) {
+    size_t packet_index = r.where() / sizeof(IMA4Packet);
+    const auto& packet = r.get<IMA4Packet>();
     auto& channel = channel_state[stereo ? (packet_index & 1) : 0];
 
     // Interleave stereo samples appropriately
@@ -319,7 +322,7 @@ std::vector<float> decode_ima4(const void* vdata, size_t size, bool stereo) {
     }
 
     for (size_t x = 0; x < 32; x++) {
-      uint8_t value = packet->data[x];
+      uint8_t value = packet.data[x];
       for (size_t y = 0; y < 2; y++) {
         uint8_t nybble = value & 0x0F;
         value >>= 4;
@@ -350,13 +353,13 @@ std::vector<float> decode_ima4(const void* vdata, size_t size, bool stereo) {
         result_data[output_offset] = sample_to_float<int16_t>(channel.predictor);
         output_offset += output_step;
 
-        channel.step_index += index_table[nybble];
+        channel.step_index += index_table.at(nybble);
         if (channel.step_index < 0) {
           channel.step_index = 0;
         } else if (channel.step_index > 88) {
           channel.step_index = 88;
         }
-        channel.step = step_table[channel.step_index];
+        channel.step = step_table.at(channel.step_index);
       }
     }
   }

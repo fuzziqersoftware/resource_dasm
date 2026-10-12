@@ -175,19 +175,13 @@ const std::map<int64_t, std::string> STANDARD_FONT_NAMES = {
 };
 
 const char* name_for_region_code(uint16_t region_code) {
-  try {
-    return REGION_NAMES.at(region_code).c_str();
-  } catch (const std::out_of_range&) {
-    return nullptr;
-  }
+  auto it = REGION_NAMES.find(region_code);
+  return (it != REGION_NAMES.end()) ? it->second.c_str() : nullptr;
 }
 
 const char* name_for_font_id(uint16_t font_id) {
-  try {
-    return STANDARD_FONT_NAMES.at(font_id).c_str();
-  } catch (const std::out_of_range&) {
-    return nullptr;
-  }
+  auto it = STANDARD_FONT_NAMES.find(font_id);
+  return (it != STANDARD_FONT_NAMES.end()) ? it->second.c_str() : nullptr;
 }
 
 } // namespace ResourceDASM

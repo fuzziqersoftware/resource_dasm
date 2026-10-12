@@ -3230,7 +3230,7 @@ int main(int argc, char** argv) {
           phosg::fwrite_fmt(stderr, "... (delete) {}:{} OK\n", type_str, op.res_id);
           break;
         case ModificationOperation::Type::CHANGE_ID:
-          if (!rf.change_id(op.res_type, op.res_id, op.new_res_id)) {
+          if (!rf.change_id(op.res_type, op.res_id, op.new_res_id, true)) {
             throw std::runtime_error("cannot change resource id");
           }
           phosg::fwrite_fmt(stderr, "... (change id) {}:{}=>{} OK\n", type_str, op.res_id, op.new_res_id);

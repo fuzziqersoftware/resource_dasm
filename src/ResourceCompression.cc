@@ -54,7 +54,7 @@ static std::vector<DecompressorImplementation> get_candidate_decompressors(
       try {
         uint32_t dcmp_type = is_ppc ? RESOURCE_TYPE_ncmp : RESOURCE_TYPE_dcmp;
         auto res = context_rf->get_resource(dcmp_type, dcmp_id);
-        ret.emplace_back(res->data.data(), res->data.size(), false);
+        ret.emplace_back(res->data.data(), res->data.size(), is_ppc);
       } catch (const std::out_of_range& e) {
       }
     }

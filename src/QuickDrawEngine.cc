@@ -728,24 +728,28 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(phosg::StringReader& r,
   // TODO: The mask region is in dest-space, right?
   auto mask_region_it = mask_region.iterate(args.dest_rect);
 
+  size_t source_x = args.source_rect.x1 - args.header.bounds.x1;
+  size_t source_y = args.source_rect.y1 - args.header.bounds.y1;
   for (ssize_t y = 0; y < args.source_rect.height(); y++) {
-    size_t row_offset = row_bytes * y;
+    size_t row_offset = row_bytes * (source_y + y);
 
     for (ssize_t x = 0; x < args.source_rect.width(); x++) {
+      size_t sx = source_x + x;
+
       if (this->port->get_bounds().contains(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1) && clip_region_it.check() && mask_region_it.check()) {
         uint32_t color;
         if ((args.header.component_size == 8) && (args.header.component_count == 3)) {
           color = phosg::rgba8888(
-              data[row_offset + x],
-              data[row_offset + (row_bytes / 3) + x],
-              data[row_offset + (2 * row_bytes / 3) + x]);
+              data.at(row_offset + sx),
+              data.at(row_offset + (row_bytes / 3) + sx),
+              data.at(row_offset + (2 * row_bytes / 3) + sx));
 
         } else if ((args.header.component_size == 8) && (args.header.component_count == 4)) {
           // The first component is ignored
           color = phosg::rgba8888(
-              data[row_offset + (row_bytes / 4) + x],
-              data[row_offset + (2 * row_bytes / 4) + x],
-              data[row_offset + (3 * row_bytes / 4) + x]);
+              data.at(row_offset + (row_bytes / 4) + sx),
+              data.at(row_offset + (2 * row_bytes / 4) + sx),
+              data.at(row_offset + (3 * row_bytes / 4) + sx));
 
         } else if (args.header.component_size == 5) { // xrgb1555
           color = phosg::rgba8888_for_xrgb1555(*reinterpret_cast<const phosg::be_uint16_t*>(&data[row_offset + 2 * x]));
@@ -807,9 +811,8 @@ phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
 
   auto write_color = [&](size_t x, size_t y, uint8_t color_index) {
     const auto& color_entry = clut.at(color_index);
-    try {
+    if (ret.check(x, y)) {
       ret.write(x, y, phosg::rgba8888(color_entry.c.r / 0x101, color_entry.c.g / 0x101, color_entry.c.b / 0x101));
-    } catch (const std::out_of_range&) {
     }
   };
 
@@ -1005,9 +1008,8 @@ phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_rpza(
         uint8_t row_indexes = r.get_u8();
         for (size_t xx = 0; xx < 4; xx++) {
           const RGBColor8& color = c[(row_indexes >> (6 - (2 * xx))) & 3];
-          try {
+          if (ret.check(x + xx, y + yy)) {
             ret.write(x + xx, y + yy, color.rgba8888());
-          } catch (const std::out_of_range&) {
           }
         }
       }

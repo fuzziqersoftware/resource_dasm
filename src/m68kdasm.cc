@@ -111,8 +111,8 @@ Disassembly options:\n\
       machine code. This is enabled by default if stdin is a terminal, unless\n\
       one of the --assemble-X options is used.\n\
   --raw-data\n\
-      Treat the input data as a hexadecimal string instead of raw (binary)\n\
-      machine code. This is the opposite of --parse-data.\n\
+      Treat the input data as raw (binary) machine code instead of a\n\
+      hexadecimal string. This is the opposite of --parse-data.\n\
   --data=HEX\n\
       Disassemble the given data instead of reading from stdin or a file.\n\
 \n\

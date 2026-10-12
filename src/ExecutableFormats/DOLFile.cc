@@ -56,7 +56,11 @@ void DOLFile::load_into(std::shared_ptr<MemoryContext> mem) const {
     for (size_t z = 0; z < bss_sections.size(); z++) {
       uint32_t bss_start = bss_sections[z].first;
       uint32_t bss_end = bss_sections[z].second;
-      if (bss_start < sec.address && bss_end > sec_end) {
+      if (bss_start >= sec.address && bss_end <= sec_end) {
+        // This BSS section is entirely contained within a program section; just delete it
+        bss_sections.erase(bss_sections.begin() + z);
+        z--;
+      } else if (bss_start < sec.address && bss_end > sec_end) {
         bss_sections[z].second = sec.address;
         bss_sections.emplace_back(sec_end, bss_end);
       } else if (bss_start < sec.address && bss_end > sec.address) {

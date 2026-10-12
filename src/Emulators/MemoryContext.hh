@@ -24,7 +24,7 @@ public:
   MemoryContext(MemoryContext&&);
   MemoryContext& operator=(const MemoryContext&) = delete;
   MemoryContext& operator=(MemoryContext&&);
-  ~MemoryContext() = default;
+  ~MemoryContext();
 
   // This isn't a copy constructor because copying a MemoryContext is very expensive, so we don't want to allow the
   // caller to do it accidentally.
@@ -65,7 +65,7 @@ public:
       return Ptr<T>{this->addr + (count * sizeof(T))};
     }
     constexpr Ptr<T> operator-(ssize_t count) const {
-      return Ptr<T>{this->addr + (count * sizeof(T))};
+      return Ptr<T>{this->addr - (count * sizeof(T))};
     }
     constexpr Ptr<T>& operator+=(ssize_t count) const {
       this->addr += (count * sizeof(T));
@@ -462,8 +462,8 @@ private:
 
   bool strict = false;
 
-  void* base;
-  std::array<uint8_t, (PAGE_COUNT >> 3)> pages_valid;
+  void* base = nullptr;
+  std::array<uint8_t, (PAGE_COUNT >> 3)> pages_valid = {};
 
   std::map<uint32_t, Allocator> allocators;
 

@@ -193,13 +193,15 @@ phosg::ImageRGBA8888N decode_SHAP(std::string_view data_with_header, const std::
       for (size_t x = 0; x < static_cast<size_t>(header.width); x++) {
         uint8_t v = data.at(y * header.row_bytes + (x >> 1));
         v = ((x & 1) ? v : (v >> 4)) & 0x0F;
-        if (v == 0) {
-          result.write(x, y, 0x00000000);
-        } else {
-          try {
-            result.write(x, y, ctbl_map.at(v).rgba8888());
-          } catch (const std::out_of_range&) {
-            result.write(x, y, 0xFFFFFFFF);
+        if (result.check(x, y)) {
+          if (v == 0) {
+            result.write(x, y, 0x00000000);
+          } else {
+            try {
+              result.write(x, y, ctbl_map.at(v).rgba8888());
+            } catch (const std::out_of_range&) {
+              result.write(x, y, 0xFFFFFFFF);
+            }
           }
         }
       }
@@ -216,13 +218,15 @@ phosg::ImageRGBA8888N decode_SHAP(std::string_view data_with_header, const std::
     for (size_t y = 0; y < static_cast<size_t>(header.height); y++) {
       for (size_t x = 0; x < static_cast<size_t>(header.width); x++) {
         uint8_t v = data.at(y * effective_row_bytes + x);
-        if (v == 0) {
-          result.write(x, y, 0x00000000);
-        } else {
-          try {
-            result.write(x, y, ctbl_map.at(v).rgba8888());
-          } catch (const std::out_of_range&) {
-            result.write(x, y, 0xFFFFFFFF);
+        if (result.check(x, y)) {
+          if (v == 0) {
+            result.write(x, y, 0x00000000);
+          } else {
+            try {
+              result.write(x, y, ctbl_map.at(v).rgba8888());
+            } catch (const std::out_of_range&) {
+              result.write(x, y, 0xFFFFFFFF);
+            }
           }
         }
       }

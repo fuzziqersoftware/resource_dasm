@@ -192,9 +192,10 @@ void Module::disassemble_pattern_cell(
     if (period == 0) {
       fputs(" ---", stream);
     } else {
-      try {
+      auto it = note_name_for_period.find(period);
+      if (it != note_name_for_period.end()) {
         phosg::fwrite_fmt(stream, " {}", note_name_for_period.at(period));
-      } catch (const std::out_of_range&) {
+      } else {
         phosg::fwrite_fmt(stream, " {:03X}", period);
       }
     }

@@ -215,7 +215,7 @@ Value Expression::BinaryOperatorNode::evaluate(const EnvLookup& env, const Funct
     } else if (left_val.is_float()) {
       return combine(left_val.as_float(), this->right->evaluate(env, fc).as_float());
     } else if (left_val.is_string()) {
-      return combine(left_val.as_float(), this->right->evaluate(env, fc).as_float());
+      return combine(left_val.as_string(), this->right->evaluate(env, fc).as_string());
     } else {
       throw std::logic_error("Unknown value type");
     }
@@ -227,7 +227,7 @@ Value Expression::BinaryOperatorNode::evaluate(const EnvLookup& env, const Funct
     } else if (left_val.is_float()) {
       return static_cast<int64_t>(combine(left_val.as_float(), this->right->evaluate(env, fc).as_float()));
     } else if (left_val.is_string()) {
-      return static_cast<int64_t>(combine(left_val.as_float(), this->right->evaluate(env, fc).as_float()));
+      return static_cast<int64_t>(combine(left_val.as_string(), this->right->evaluate(env, fc).as_string()));
     } else {
       throw std::logic_error("Unknown value type");
     }
@@ -268,7 +268,7 @@ Value Expression::BinaryOperatorNode::evaluate(const EnvLookup& env, const Funct
     case Type::DIVIDE:
       return for_numeric_types([](auto a, auto b) { return a / b; });
     case Type::MODULUS:
-      return static_cast<int64_t>(this->left->evaluate(env, fc).as_int() && this->right->evaluate(env, fc).as_int());
+      return static_cast<int64_t>(this->left->evaluate(env, fc).as_int() % this->right->evaluate(env, fc).as_int());
     default:
       throw std::logic_error("invalid binary operator type");
   }
@@ -450,66 +450,6 @@ std::unique_ptr<Node> Node::parse(std::string_view text) {
     throw std::invalid_argument("invalid expression");
   }
 
-  // Check for unary operators
-  if (text[0] == '!') {
-    return std::make_unique<UnaryOperatorNode>(UnaryOperatorNode::Type::LOGICAL_NOT, Node::parse(text.substr(1)));
-  } else if (text[0] == '~') {
-    return std::make_unique<UnaryOperatorNode>(UnaryOperatorNode::Type::BITWISE_NOT, Node::parse(text.substr(1)));
-  } else if (text[0] == '+') {
-    return std::make_unique<UnaryOperatorNode>(UnaryOperatorNode::Type::POSITIVE, Node::parse(text.substr(1)));
-  } else if (text[0] == '-') {
-    return std::make_unique<UnaryOperatorNode>(UnaryOperatorNode::Type::NEGATIVE, Node::parse(text.substr(1)));
-  }
-
-  // Check for binary operators at the root level
-  using BinType = BinaryOperatorNode::Type;
-  static const std::vector<std::vector<std::pair<std::string, BinaryOperatorNode::Type>>> binary_operator_levels = {
-      {{std::make_pair("||", BinType::LOGICAL_OR)}},
-      {{std::make_pair("&&", BinType::LOGICAL_AND)}},
-      {{std::make_pair("|", BinType::BITWISE_OR)}},
-      {{std::make_pair("^", BinType::BITWISE_XOR)}},
-      {{std::make_pair("&", BinType::BITWISE_AND)}},
-      {{std::make_pair("==", BinType::EQUAL)}, {std::make_pair("!=", BinType::NOT_EQUAL)}},
-      {{std::make_pair("<=", BinType::LESS_OR_EQUAL)}, {std::make_pair(">=", BinType::GREATER_OR_EQUAL)}, {std::make_pair("<", BinType::LESS_THAN)}, {std::make_pair(">", BinType::GREATER_THAN)}},
-      {{std::make_pair("<<", BinType::LEFT_SHIFT)}, {std::make_pair(">>", BinType::RIGHT_SHIFT)}},
-      {{std::make_pair("+", BinType::ADD)}, {std::make_pair("-", BinType::SUBTRACT)}},
-      {{std::make_pair("*", BinType::MULTIPLY)}, {std::make_pair("/", BinType::DIVIDE)}, {std::make_pair("%", BinType::MODULUS)}},
-  };
-  for (const auto& operators : binary_operator_levels) {
-    ssize_t paren_level = 0;
-    // We scan in reverse so we'll preserve operator order in expressions like "A - B - C" - that should parse as
-    // (A - B) - C, not A - (B - C)
-    for (ssize_t z = text.size() - 1; z >= 0; z--) {
-      if (text[z] == ')') {
-        paren_level++;
-        continue;
-      } else if (text[z] == '(') {
-        paren_level--;
-        if (paren_level < 0) {
-          throw std::invalid_argument("unbalanced parentheses in expression");
-        }
-        continue;
-      }
-      if (!paren_level) {
-        for (const auto& oper : operators) {
-          // Awful hack (because I'm too lazy to add a tokenization step): if the operator is followed or preceded by
-          // another copy of itself, don't match it (this prevents us from matching & when the token is actually &&)
-          if ((text.size() > z + oper.first.size()) &&
-              ((static_cast<size_t>(z) < oper.first.size()) || (text.compare(z - oper.first.size(), oper.first.size(), oper.first) != 0)) &&
-              (text.compare(z, oper.first.size(), oper.first) == 0) &&
-              (text.compare(z + oper.first.size(), oper.first.size(), oper.first) != 0)) {
-            auto left = Node::parse(text.substr(0, z));
-            auto right = Node::parse(text.substr(z + oper.first.size()));
-            return std::make_unique<BinaryOperatorNode>(oper.second, std::move(left), std::move(right));
-          }
-        }
-      }
-    }
-    if (paren_level != 0) {
-      throw std::invalid_argument("unbalanced parentheses in expression");
-    }
-  }
-
   // Check for ternary operator at the root level
   {
     size_t qmark_offset = 0;
@@ -536,6 +476,68 @@ std::unique_ptr<Node> Node::parse(std::string_view text) {
             TernaryOperatorNode::Type::CONDITION_SELECTOR, std::move(left), std::move(center), std::move(right));
       }
     }
+  }
+
+  // Check for binary operators at the root level
+  using BinType = BinaryOperatorNode::Type;
+  static const std::vector<std::vector<std::pair<std::string, BinaryOperatorNode::Type>>> binary_operator_levels = {
+      {{std::make_pair("||", BinType::LOGICAL_OR)}},
+      {{std::make_pair("&&", BinType::LOGICAL_AND)}},
+      {{std::make_pair("|", BinType::BITWISE_OR)}},
+      {{std::make_pair("^", BinType::BITWISE_XOR)}},
+      {{std::make_pair("&", BinType::BITWISE_AND)}},
+      {{std::make_pair("==", BinType::EQUAL)}, {std::make_pair("!=", BinType::NOT_EQUAL)}},
+      {{std::make_pair("<=", BinType::LESS_OR_EQUAL)}, {std::make_pair(">=", BinType::GREATER_OR_EQUAL)}, {std::make_pair("<", BinType::LESS_THAN)}, {std::make_pair(">", BinType::GREATER_THAN)}},
+      {{std::make_pair("<<", BinType::LEFT_SHIFT)}, {std::make_pair(">>", BinType::RIGHT_SHIFT)}},
+      {{std::make_pair("+", BinType::ADD)}, {std::make_pair("-", BinType::SUBTRACT)}},
+      {{std::make_pair("*", BinType::MULTIPLY)}, {std::make_pair("/", BinType::DIVIDE)}, {std::make_pair("%", BinType::MODULUS)}},
+  };
+  for (const auto& operators : binary_operator_levels) {
+    ssize_t paren_level = 0;
+    // We scan in reverse so we'll preserve operator order in expressions like "A - B - C" - that should parse as
+    // (A - B) - C, not A - (B - C).
+    for (ssize_t z = text.size() - 1; z >= 0; z--) {
+      if (text[z] == ')') {
+        paren_level++;
+        continue;
+      } else if (text[z] == '(') {
+        paren_level--;
+        if (paren_level < 0) {
+          throw std::invalid_argument("unbalanced parentheses in expression");
+        }
+        continue;
+      }
+      // Only match an operator if it's outside of any parentheses and is not at the very beginning (if it is, then
+      // it's a unary operator, which we will parse later)
+      if (!paren_level && (z > 0)) {
+        for (const auto& oper : operators) {
+          // Awful hack (because I'm too lazy to add a tokenization step): if the operator is followed or preceded by
+          // another copy of itself, don't match it (this prevents us from matching & when the token is actually &&)
+          if ((text.size() > z + oper.first.size()) &&
+              ((static_cast<size_t>(z) < oper.first.size()) || (text.compare(z - oper.first.size(), oper.first.size(), oper.first) != 0)) &&
+              (text.compare(z, oper.first.size(), oper.first) == 0) &&
+              (text.compare(z + oper.first.size(), oper.first.size(), oper.first) != 0)) {
+            auto left = Node::parse(text.substr(0, z));
+            auto right = Node::parse(text.substr(z + oper.first.size()));
+            return std::make_unique<BinaryOperatorNode>(oper.second, std::move(left), std::move(right));
+          }
+        }
+      }
+    }
+    if (paren_level != 0) {
+      throw std::invalid_argument("unbalanced parentheses in expression");
+    }
+  }
+
+  // Check for unary operators
+  if (text[0] == '!') {
+    return std::make_unique<UnaryOperatorNode>(UnaryOperatorNode::Type::LOGICAL_NOT, Node::parse(text.substr(1)));
+  } else if (text[0] == '~') {
+    return std::make_unique<UnaryOperatorNode>(UnaryOperatorNode::Type::BITWISE_NOT, Node::parse(text.substr(1)));
+  } else if (text[0] == '+') {
+    return std::make_unique<UnaryOperatorNode>(UnaryOperatorNode::Type::POSITIVE, Node::parse(text.substr(1)));
+  } else if (text[0] == '-') {
+    return std::make_unique<UnaryOperatorNode>(UnaryOperatorNode::Type::NEGATIVE, Node::parse(text.substr(1)));
   }
 
   // Check for constants

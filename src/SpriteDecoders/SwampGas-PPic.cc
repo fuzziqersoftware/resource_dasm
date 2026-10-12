@@ -239,6 +239,7 @@ std::vector<phosg::ImageRGB888> decode_PPic(std::string_view data, const std::ve
           throw std::runtime_error("PPic does not have embedded color table, and no clut was provided");
         }
         external_clut = ColorTable::from_entries(clut);
+        external_clut->flags = 0x8000;
         effective_clut = external_clut.get();
 
       } else {
