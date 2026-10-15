@@ -76,9 +76,8 @@ std::vector<phosg::Vector2<double>> project_points(
   for (const auto& pt : pts) {
     // TODO: Do we even need to project here, or can we just dot with the basis vectors and call it done? It's 1AM and
     // I don't want to figure this out for realz right now.
-    phosg::Vector3 v = pt - pts[0];
-    double dist = v.dot(plane_normal);
-    phosg::Vector3 projected = pt - (plane_normal * dist);
+    double dist = (pt - pts[0]).dot(plane_normal);
+    phosg::Vector3<double> projected{pt - (plane_normal * dist)};
     ret.emplace_back(b1.dot(projected), b2.dot(projected));
   }
   return ret;
