@@ -104,8 +104,7 @@ void QuickDrawEngine::pict_skip_long_comment(phosg::StringReader& r, uint16_t) {
 }
 
 void QuickDrawEngine::pict_unimplemented_opcode(phosg::StringReader& r, uint16_t opcode) {
-  throw std::runtime_error(std::format("unimplemented opcode {:04X} before offset {:X}",
-      opcode, r.where()));
+  throw std::runtime_error(std::format("unimplemented opcode {:04X} before offset {:X}", opcode, r.where()));
 }
 
 // State modification opcodes
@@ -352,21 +351,21 @@ void QuickDrawEngine::pict_draw_line(Point start, Point end) {
   Point pen_size = this->port->get_pen_size();
   const Rect& clip_rect = this->port->get_clip_region().rect;
 
-  int16_t x0 = start.x;
-  int16_t y0 = start.y;
-  int16_t x1 = end.x;
-  int16_t y1 = end.y;
+  ssize_t x0 = start.x;
+  ssize_t y0 = start.y;
+  ssize_t x1 = end.x;
+  ssize_t y1 = end.y;
 
-  int16_t dx = abs(x1 - x0);
-  int16_t dy = -abs(y1 - y0);
-  int16_t sx = x0 < x1 ? 1 : -1;
-  int16_t sy = y0 < y1 ? 1 : -1;
-  int16_t err = dx + dy;
+  ssize_t dx = abs(x1 - x0);
+  ssize_t dy = -abs(y1 - y0);
+  ssize_t sx = x0 < x1 ? 1 : -1;
+  ssize_t sy = y0 < y1 ? 1 : -1;
+  ssize_t err = dx + dy;
 
   while (true) {
     // Draw pen rectangle at current position
-    for (int16_t py = 0; py < pen_size.y; py++) {
-      for (int16_t px = 0; px < pen_size.x; px++) {
+    for (ssize_t py = 0; py < pen_size.y; py++) {
+      for (ssize_t px = 0; px < pen_size.x; px++) {
         ssize_t draw_x = x0 + px - this->pict_bounds.x1;
         ssize_t draw_y = y0 + py - this->pict_bounds.y1;
         if (this->port->get_bounds().contains(draw_x, draw_y) && clip_rect.contains(x0 + px, y0 + py)) {
@@ -386,7 +385,7 @@ void QuickDrawEngine::pict_draw_line(Point start, Point end) {
     if (x0 == x1 && y0 == y1) {
       break;
     }
-    int16_t e2 = 2 * err;
+    ssize_t e2 = 2 * err;
     if (e2 >= dy) {
       err += dy;
       x0 += sx;
@@ -415,21 +414,17 @@ void QuickDrawEngine::pict_line_from(phosg::StringReader& r, uint16_t) {
 
 void QuickDrawEngine::pict_short_line(phosg::StringReader& r, uint16_t) {
   Point start = r.get<Point>();
-  int8_t dh = r.get_s8();
-  int8_t dv = r.get_s8();
   Point end;
-  end.x = start.x + dh;
-  end.y = start.y + dv;
+  end.x = start.x + r.get_s8();
+  end.y = start.y + r.get_s8();
   this->pict_draw_line(start, end);
 }
 
 void QuickDrawEngine::pict_short_line_from(phosg::StringReader& r, uint16_t) {
   Point start = this->port->get_pen_loc();
-  int8_t dh = r.get_s8();
-  int8_t dv = r.get_s8();
   Point end;
-  end.x = start.x + dh;
-  end.y = start.y + dv;
+  end.x = start.x + r.get_s8();
+  end.y = start.y + r.get_s8();
   this->pict_draw_line(start, end);
 }
 
@@ -448,10 +443,12 @@ void QuickDrawEngine::pict_frame_last_rect(phosg::StringReader&, uint16_t) {
   bottom_right.x = this->pict_last_rect.x2;
   bottom_right.y = this->pict_last_rect.y2;
 
+  Point pen_loc = this->port->get_pen_loc();
   this->pict_draw_line(top_left, top_right);
   this->pict_draw_line(top_right, bottom_right);
   this->pict_draw_line(bottom_right, bottom_left);
   this->pict_draw_line(bottom_left, top_left);
+  this->port->set_pen_loc(pen_loc);
 }
 
 void QuickDrawEngine::pict_frame_rect(phosg::StringReader& r, uint16_t opcode) {
@@ -586,14 +583,13 @@ std::string QuickDrawEngine::unpack_bits(phosg::StringReader& r, size_t row_coun
   return ret;
 }
 
-std::string QuickDrawEngine::unpack_bits(phosg::StringReader& r, size_t row_count,
-    uint16_t row_bytes, bool chunks_are_words) {
+std::string QuickDrawEngine::unpack_bits(
+    phosg::StringReader& r, size_t row_count, uint16_t row_bytes, bool chunks_are_words) {
   size_t start_offset = r.where();
   std::string failure_strs[2];
   for (size_t x = 0; x < 2; x++) {
     try {
-      // If row_bytes > 250, word sizes are most likely to be correct, so try
-      // that first
+      // If row_bytes > 250, word sizes are most likely to be correct, so try that first
       return unpack_bits(r, row_count, row_bytes, x ^ (row_bytes > 250), chunks_are_words);
     } catch (const std::exception& e) {
       failure_strs[x ^ (row_bytes > 250)] = e.what();
@@ -656,8 +652,7 @@ void QuickDrawEngine::pict_copy_bits_indexed_color(phosg::StringReader& r, uint1
       throw std::runtime_error(std::format("source {} is not within bounds {}",
           source_rect.str(), header.bounds.str()));
     }
-    if ((source_rect.width() != dest_rect.width()) ||
-        (source_rect.height() != dest_rect.height())) {
+    if ((source_rect.width() != dest_rect.width()) || (source_rect.height() != dest_rect.height())) {
       throw std::runtime_error("source and destination rect dimensions do not match");
     }
 
@@ -752,11 +747,13 @@ void QuickDrawEngine::pict_packed_copy_bits_direct_color(phosg::StringReader& r,
               data.at(row_offset + (3 * row_bytes / 4) + sx));
 
         } else if (args.header.component_size == 5) { // xrgb1555
-          color = phosg::rgba8888_for_xrgb1555(*reinterpret_cast<const phosg::be_uint16_t*>(&data[row_offset + 2 * x]));
+          color = phosg::rgba8888_for_xrgb1555(
+              *reinterpret_cast<const phosg::be_uint16_t*>(&data[row_offset + 2 * x]));
         } else {
           throw std::logic_error("unimplemented channel width");
         }
-        this->port->write(x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1, color);
+        this->port->write(
+            x + args.dest_rect.x1 - this->pict_bounds.x1, y + args.dest_rect.y1 - this->pict_bounds.y1, color);
       }
 
       clip_region_it.right();
@@ -930,7 +927,6 @@ phosg::ImageRGBA8888N QuickDrawEngine::pict_decode_smc(
           // For some reason we have to shuffle the bits around like so:
           // Read: 0000 1111 2222 3333 4444 5555 6666 7777 8888 9999 AAAA BBBB
           // Used: 0000 1111 2222 4444 5555 6666 8888 9999 AAAA 3333 7777 BBBB
-          // What were you thinking, Sean Callahan?
           block_colors =
               (block_colors & 0xFFF00000000F) |
               ((block_colors << 4) & 0x000FFF000000) |
@@ -1138,11 +1134,9 @@ void QuickDrawEngine::pict_write_quicktime_data(phosg::StringReader& r, uint16_t
     }
 
     if (decoded.get_width() > this->port->width() || decoded.get_height() > this->port->height()) {
-      phosg::fwrite_fmt(stderr, "warning: decoded QuickTime image dimensions ({}x{}) exceed port dimensions ({}x{}); resizing port\n",
-          decoded.get_width(),
-          decoded.get_height(),
-          this->port->width(),
-          this->port->height());
+      phosg::fwrite_fmt(stderr,
+          "warning: decoded QuickTime image dimensions ({}x{}) exceed port dimensions ({}x{}); resizing port\n",
+          decoded.get_width(), decoded.get_height(), this->port->width(), this->port->height());
       Rect new_bounds = this->port->get_bounds();
       new_bounds.x2 = std::max<size_t>(new_bounds.x1 + decoded.get_width(), new_bounds.x2);
       new_bounds.y2 = std::max<size_t>(new_bounds.y1 + decoded.get_height(), new_bounds.y2);
@@ -1345,8 +1339,7 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
   phosg::StringReader r(vdata, size);
   auto header = r.get<PictHeader>();
 
-  // If the pict header is all zeroes, assume this is a pict file with a
-  // 512-byte header that needs to be skipped
+  // If the pict header is all zeroes, assume this is a pict file with a 512-byte header that needs to be skipped
   if (header.size == 0 && header.bounds.x1 == 0 && header.bounds.y1 == 0 &&
       header.bounds.x2 == 0 && header.bounds.y2 == 0 && size > 0x200) {
     r.go(0x200);
@@ -1401,8 +1394,8 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
     } else if (opcode == 0x0C00) { // args: header
       PictSubheader h = r.get<PictSubheader>();
       if (h.v2.version == -1) {
-        // Nothing to do - it seems using the bounds in this header version is
-        // incorrect (but it's correct to use the bounds in the V2E header)
+        // Nothing to do - it seems using the bounds in this header version is incorrect (but it's correct to use the
+        // bounds in the V2E header)
       } else if (h.v2e.version == -2) {
         this->pict_bounds = h.v2e.source_rect;
         Rect port_bounds = this->pict_bounds.anchor();
@@ -1418,13 +1411,13 @@ void QuickDrawEngine::render_pict(const void* vdata, size_t size) {
     } else if (opcode <= 0x7FFF) { // args: 254
       r.go(r.where() + 254);
 
-    } else if (opcode <= 0x80FF) { // args: 0
+    } else if (opcode <= 0x80FF) { // args: (nothing)
       // nop
 
     } else if (opcode <= 0x81FF) { // args: u32 len, u8[] data
       this->pict_skip_var32(r, opcode);
 
-    } else if ((opcode & 0xFFFE) == 0x8200) { // args: pict_compressed_quicktime_args or pict_uncompressed_quicktime_args
+    } else if ((opcode & 0xFFFE) == 0x8200) { // args: pict_compressed_quicktime_args/pict_uncompressed_quicktime_args
       this->pict_write_quicktime_data(r, opcode);
       // TODO: It appears that these opcodes always just end rendering, since some PICTs that include them have
       // rendering opcodes afterward that appear to do backup things, like render text saying "You need QuickTime to

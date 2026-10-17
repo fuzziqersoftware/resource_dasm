@@ -2402,7 +2402,7 @@ ResourceFile::DecodedIconImagesResource ResourceFile::decode_icns(const void* da
 
 class QuickDrawResourceDasmPort : public QuickDrawPortInterface {
 public:
-  QuickDrawResourceDasmPort(const ResourceFile* rf, size_t x, size_t y)
+  QuickDrawResourceDasmPort(const ResourceFile* rf, ssize_t x, ssize_t y)
       : bounds(0, 0, y, x),
         clip_region(this->bounds),
         foreground_color(0x0000, 0x0000, 0x0000),
@@ -2428,6 +2428,9 @@ public:
         rf(rf) {
     if (x >= 0x10000 || y >= 0x10000) {
       throw std::runtime_error("PICT resources cannot specify images larger than 65535x65535");
+    }
+    if (x <= 0 || y <= 0) {
+      throw std::runtime_error("One or both PICT dimensions is zero or negative");
     }
   }
   virtual ~QuickDrawResourceDasmPort() = default;
