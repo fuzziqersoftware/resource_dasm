@@ -4164,12 +4164,9 @@ ResourceFile::DecodedFontResource ResourceFile::decode_FONT_data(
       throw std::runtime_error("glyphs with negative offsets are not implemented");
     }
 
-    if (glyph.width > 0) {
-      glyph.img = phosg::ImageGA11(glyph.width + glyph.offset, header.rect_height);
-      glyph.img.clear(0x00000000);
-    }
     if (glyph.bitmap_width > 0) {
-      glyph.img.copy_from(glyphs_image, glyph.offset, 0, glyph.bitmap_width, header.rect_height, glyph.bitmap_offset, 0);
+      glyph.img = phosg::ImageGA11(glyph.bitmap_width, header.rect_height);
+      glyph.img.copy_from(glyphs_image, 0, 0, glyph.bitmap_width, header.rect_height, glyph.bitmap_offset, 0);
     }
   }
 
