@@ -23,9 +23,9 @@ namespace ResourceDASM {
 // TODO: Some opcodes do not use resolve_mem_ea to compute memory addresses. Those that don't need to handle the case
 // where the override segment is set to FS, since (on Windows at least) that segment is not the same as the others.
 
-static bool can_encode_as_int8(uint64_t value) {
-  uint64_t masked = (value & 0xFFFFFFFFFFFFFF80);
-  return (masked == 0xFFFFFFFFFFFFFF80) || (masked == 0);
+static bool can_encode_as_int8(int64_t value) {
+  uint32_t masked = (value & 0xFFFFFF80);
+  return (masked == 0xFFFFFF80) || (masked == 0);
 }
 
 const char* X86Emulator::name_for_segment(Segment segment) {
@@ -5277,7 +5277,7 @@ void X86Emulator::Assembler::encode_rm(phosg::StringWriter& w, const Argument& a
     w.put_u8(0xC0 | param | (arg.reg_num & 0x07)); // rm
 
   } else if (arg.type == T::MEMORY_REFERENCE) {
-    uint64_t disp32 = this->resolve_immediate(arg);
+    int64_t disp32 = this->resolve_immediate(arg);
     uint8_t disp_type;
     if (disp32 == 0) {
       disp_type = 0x00;
@@ -5438,7 +5438,11 @@ void X86Emulator::Assembler::asm_add_or_adc_sbb_and_sub_xor_cmp(phosg::StringWri
 
   if (si.args[1].type == T::IMMEDIATE) {
     int64_t value = this->resolve_immediate(si.args[1]);
-    if (si.args[0].type == T::INT_REGISTER && si.args[0].reg_num == 0) {
+    // Use the al/ax/eax encoding if the destination is al/ax/eax, except if it's a 32-bit and and the mask fits in a
+    // sign-extended imm8 (since the r/m, imm form is shorter in that case)
+    if ((si.args[0].type == T::INT_REGISTER) &&
+        (si.args[0].reg_num == 0) &&
+        ((operand_size != 4) || (phosg::sign_extend<uint32_t, uint8_t>(value) != static_cast<uint32_t>(value)))) {
       // <op> al/ax/eax, imm
       w.put_u8((subopcode << 3) | ((operand_size > 1) ? 0x05 : 0x04));
       switch (operand_size) {
