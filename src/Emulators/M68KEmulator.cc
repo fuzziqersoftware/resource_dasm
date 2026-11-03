@@ -3376,7 +3376,6 @@ void M68KEmulator::on_bit_shift_reg(uint8_t which, Size size, uint8_t reg_num, b
 
 std::string M68KEmulator::DisassemblyState::on_fmovecr(uint8_t f_reg, uint8_t offset) {
   static constexpr std::array<const char*, 0x40> names = {
-      // clang-format off
       /* 00 */ "pi", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
       /* 08 */ nullptr, nullptr, nullptr, "log10(2)", "e", "log2(e)", "log10(e)", "0",
       /* 10 */ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
@@ -3384,9 +3383,7 @@ std::string M68KEmulator::DisassemblyState::on_fmovecr(uint8_t f_reg, uint8_t of
       /* 20 */ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
       /* 28 */ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
       /* 30 */ "ln(2)", "ln(10)", "10^0", "10^1", "10^2", "10^4", "10^8", "10^16",
-      /* 38 */ "10^32", "10^64", "10^128", "10^256", "10^512", "10^1024", "10^2048", "10^4096",
-      // clang-format on
-  };
+      /* 38 */ "10^32", "10^64", "10^128", "10^256", "10^512", "10^1024", "10^2048", "10^4096"};
   const char* name = names.at(offset);
   return name
       ? std::format("fmovecr    FP{}, 0x{:02X} /* {} */", f_reg, offset, name)

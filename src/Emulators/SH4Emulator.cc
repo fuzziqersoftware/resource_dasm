@@ -2604,24 +2604,26 @@ std::string SH4Emulator::disassemble_one(DisassemblyState& s, uint16_t op) {
   return ".invalid";
 }
 
-int64_t SH4Emulator::Assembler::resolve_immediate(const Argument& arg) const {
-  return arg.value_expr ? this->resolve_immediate(*arg.value_expr) : 0;
+Expression::Value SH4Emulator::Assembler::expr_env_lookup(const std::string& name) const {
+  if (auto it = this->static_label_addresses.find(name); it != this->static_label_addresses.end()) {
+    return static_cast<int64_t>(it->second);
+  }
+  if (auto it = this->label_offsets.find(name); it != this->label_offsets.end()) {
+    return static_cast<int64_t>(it->second);
+  }
+  throw std::runtime_error("Unknown label: " + name);
 }
 
-int64_t SH4Emulator::Assembler::resolve_immediate(const Expression::Node& expr) const {
-  auto ret = expr.evaluate([this](const std::string& name) -> int64_t {
-    if (auto it = this->static_label_addresses.find(name); it != this->static_label_addresses.end()) {
-      return it->second;
-    }
-    if (auto it = this->label_offsets.find(name); it != this->label_offsets.end()) {
-      return it->second;
-    }
-    throw std::runtime_error("Unknown label: " + name);
-  });
+Expression::Value SH4Emulator::Assembler::evaluate_expr(const Expression::Node& expr) const {
+  auto ret = expr.evaluate(std::bind(&SH4Emulator::Assembler::expr_env_lookup, this, std::placeholders::_1));
   if (!ret.is_int()) {
     throw std::runtime_error(std::format("Expression value ({}) is not an integer", ret.str()));
   }
   return ret.as_int();
+}
+
+int64_t SH4Emulator::Assembler::resolve_immediate(const Argument& arg) const {
+  return arg.value_expr ? this->evaluate_expr(*arg.value_expr).as_int() : 0;
 }
 
 int32_t SH4Emulator::Assembler::compute_branch_delta(
@@ -3885,12 +3887,15 @@ void SH4Emulator::Assembler::assemble(
             }
             const auto& name_arg = arg_tokens[0];
             auto expr = Expression::Node::parse(arg_tokens[1]);
-            this->static_label_addresses.emplace(name_arg, this->resolve_immediate(*expr));
+            this->static_label_addresses.emplace(name_arg, this->evaluate_expr(*expr).as_int());
+            continue;
+          } else if (op_name == ".assert") {
+            this->assertions.emplace_back(Assertion{.line_num = line_num, .expr = Expression::Node::parse(tokens[1])});
             continue;
           } else if ((op_name == ".binary") || (op_name == ".include")) {
             args.emplace_back(args_str, true);
           } else {
-            auto arg_strs = phosg::split(args_str, ',');
+            auto arg_strs = phosg::split_context(args_str, ',');
             for (auto& arg_str : arg_strs) {
               phosg::strip_leading_whitespace(arg_str);
               phosg::strip_trailing_whitespace(arg_str);
@@ -3906,11 +3911,11 @@ void SH4Emulator::Assembler::assemble(
           if (!get_include) {
             throw std::runtime_error("includes are not available");
           }
-          std::string contents;
           try {
             const std::string& contents = this->includes_cache.at(inc_name);
             stream_offset += (contents.size() + 1) & (~1);
           } catch (const std::out_of_range&) {
+            std::string contents;
             try {
               contents = get_include(inc_name);
             } catch (const std::exception& e) {
@@ -3947,6 +3952,29 @@ void SH4Emulator::Assembler::assemble(
     } catch (const std::exception& e) {
       throw std::runtime_error(std::format("(line {}) {}", line_num, e.what()));
     }
+  }
+
+  // Evaluate assertions
+  std::vector<std::string> assert_failure_messages;
+  auto env_lookup = std::bind(&SH4Emulator::Assembler::expr_env_lookup, this, std::placeholders::_1);
+  for (const auto& assertion : this->assertions) {
+    try {
+      auto ret = this->evaluate_expr(*assertion.expr);
+      if (!ret.is_int()) {
+        assert_failure_messages.emplace_back(std::format(
+            "(line {}) assertion expression {} evaluates to non-integer value {}",
+            assertion.line_num, assertion.expr->str(env_lookup), ret.str()));
+      }
+      if (!ret.as_int()) {
+        assert_failure_messages.emplace_back(std::format("(line {}) assertion expression {} evaluates to zero", assertion.line_num, assertion.expr->str(env_lookup)));
+      }
+    } catch (const std::exception& e) {
+      assert_failure_messages.emplace_back(std::format(
+          "(line {}) failed to evaluate assertion expression: {}", assertion.line_num, e.what()));
+    }
+  }
+  if (!assert_failure_messages.empty()) {
+    throw std::runtime_error("one or more assertions failed:\n" + phosg::join(assert_failure_messages, "\n"));
   }
 
   // Second pass: generate opcodes

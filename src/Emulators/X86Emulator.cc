@@ -4573,13 +4573,17 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
     this->operand_size = 2;
     text = text.substr(4);
     phosg::strip_leading_whitespace(text);
-  } else if ((text.starts_with("dword") || text.starts_with("DWORD")) && (text[5] == ' ' || text[5] == '[')) {
+  } else if ((text.starts_with("dword") || text.starts_with("DWORD") || text.starts_with("float") || text.starts_with("FLOAT")) && (text[5] == ' ' || text[5] == '[')) {
     this->operand_size = 4;
     text = text.substr(5);
     phosg::strip_leading_whitespace(text);
   } else if ((text.starts_with("qword") || text.starts_with("QWORD")) && (text[5] == ' ' || text[5] == '[')) {
     this->operand_size = 8;
     text = text.substr(5);
+    phosg::strip_leading_whitespace(text);
+  } else if ((text.starts_with("double") || text.starts_with("DOUBLE")) && (text[6] == ' ' || text[6] == '[')) {
+    this->operand_size = 8;
+    text = text.substr(6);
     phosg::strip_leading_whitespace(text);
   } else if ((text.starts_with("long double") || text.starts_with("LONG DOUBLE")) && (text[11] == ' ' || text[11] == '[')) {
     this->operand_size = 10;
@@ -4690,7 +4694,7 @@ X86Emulator::Assembler::Argument::Argument(const std::string& input_text, bool r
     this->type = Type::IMMEDIATE;
     return;
   } catch (const std::invalid_argument&) {
-    throw std::runtime_error("Unparseable argument");
+    throw std::runtime_error(std::format("Unparseable argument (text: {})", text));
   }
 }
 
@@ -4805,7 +4809,7 @@ AssembleResult X86Emulator::Assembler::assemble(
         } else if ((si.op_name == ".include") || (si.op_name == ".binary")) {
           si.args.emplace_back(line, true);
         } else {
-          for (const auto& arg : phosg::split(line, ',')) {
+          for (const auto& arg : phosg::split_context(line, ',')) {
             si.args.emplace_back(arg);
           }
         }
@@ -4847,6 +4851,17 @@ AssembleResult X86Emulator::Assembler::assemble(
           throw std::runtime_error("missing or invalid address in .label directive");
         }
         this->fixed_labels.emplace(lookup_node->name, this->resolve_immediate(value_arg, true));
+        si.op_name.clear();
+
+      } else if (si.op_name == ".assert") {
+        if (si.args.size() != 1) {
+          throw std::runtime_error("incorrect argument count in .assert directive");
+        }
+        auto& arg = si.args[0];
+        if ((arg.type != Argument::Type::IMMEDIATE) || !arg.int_value_expr) {
+          throw std::runtime_error("invalid name in .assert directive");
+        }
+        this->assertions.emplace_back(Assertion{.line_num = si.line_num, .expr = std::move(arg.int_value_expr)});
         si.op_name.clear();
       }
 
@@ -4953,6 +4968,29 @@ AssembleResult X86Emulator::Assembler::assemble(
       offset += si.assembled_data.size();
       offset_since_fixed_address += si.assembled_data.size();
     }
+  }
+
+  // Evaluate assertions
+  std::vector<std::string> assert_failure_messages;
+  auto env_lookup = std::bind(&X86Emulator::Assembler::expr_env_lookup, this, std::placeholders::_1, false);
+  for (const auto& assertion : this->assertions) {
+    try {
+      auto ret = assertion.expr->evaluate(env_lookup);
+      if (!ret.is_int()) {
+        assert_failure_messages.emplace_back(std::format(
+            "(line {}) assertion expression {} evaluates to non-integer value {}",
+            assertion.line_num, assertion.expr->str(env_lookup), ret.str()));
+      }
+      if (!ret.as_int()) {
+        assert_failure_messages.emplace_back(std::format("(line {}) assertion expression {} evaluates to zero", assertion.line_num, assertion.expr->str(env_lookup)));
+      }
+    } catch (const std::exception& e) {
+      assert_failure_messages.emplace_back(std::format(
+          "(line {}) failed to evaluate assertion expression: {}", assertion.line_num, e.what()));
+    }
+  }
+  if (!assert_failure_messages.empty()) {
+    throw std::runtime_error("one or more assertions failed:\n" + phosg::join(assert_failure_messages, "\n"));
   }
 
   // Generate the assembled code
@@ -5509,6 +5547,29 @@ uint32_t X86Emulator::Assembler::compute_branch_target_from_arg0(const StreamIte
   }
 }
 
+int64_t X86Emulator::Assembler::expr_env_lookup(const std::string& name, bool is_label_def) const {
+  auto fixed_label_it = this->fixed_labels.find(name);
+  auto inline_label_it = this->label_si_indexes.find(name);
+  if ((fixed_label_it != this->fixed_labels.end()) && (inline_label_it != this->label_si_indexes.end())) {
+    throw std::runtime_error("Label is both global and inline: " + name);
+  } else if (fixed_label_it != this->fixed_labels.end()) {
+    return fixed_label_it->second;
+  } else if (inline_label_it != this->label_si_indexes.end()) {
+    if (is_label_def) {
+      // TODO: We probably can support this if we do some kind of fancy dependency graph across labels. Building that
+      // would probably not be worth the effort and complexity.
+      throw std::runtime_error(".label directive can only refer to fixed labels");
+    }
+    size_t to_index = inline_label_it->second;
+    if (to_index >= this->stream.size()) {
+      throw std::runtime_error("Branch beyond end of stream");
+    }
+    return this->stream[to_index].address;
+  } else {
+    throw std::runtime_error("Label not defined: " + name);
+  }
+}
+
 int64_t X86Emulator::Assembler::resolve_immediate(const Argument& arg, bool is_label_def) const {
   if (!arg.int_value_expr) {
     if (arg.type & Argument::Type::MEMORY_REFERENCE) {
@@ -5522,27 +5583,7 @@ int64_t X86Emulator::Assembler::resolve_immediate(const Argument& arg, bool is_l
     if (!is_label_def) {
       arg.has_code_delta = true;
     }
-
-    auto fixed_label_it = this->fixed_labels.find(name);
-    auto inline_label_it = this->label_si_indexes.find(name);
-    if ((fixed_label_it != this->fixed_labels.end()) && (inline_label_it != this->label_si_indexes.end())) {
-      throw std::runtime_error("Label is both global and inline: " + name);
-    } else if (fixed_label_it != this->fixed_labels.end()) {
-      return fixed_label_it->second;
-    } else if (inline_label_it != this->label_si_indexes.end()) {
-      if (is_label_def) {
-        // TODO: We probably can support this if we do some kind of fancy dependency graph across labels. Building that
-        // would probably not be worth the effort and complexity.
-        throw std::runtime_error(".label directive can only refer to fixed labels");
-      }
-      size_t to_index = inline_label_it->second;
-      if (to_index >= this->stream.size()) {
-        throw std::runtime_error("Branch beyond end of stream");
-      }
-      return this->stream[to_index].address;
-    } else {
-      throw std::runtime_error("Label not defined: " + name);
-    }
+    return this->expr_env_lookup(name, is_label_def);
   };
 
   auto ret = arg.int_value_expr->evaluate(env_lookup);

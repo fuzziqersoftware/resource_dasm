@@ -10,6 +10,22 @@
 namespace ResourceDASM {
 namespace Expression {
 
+std::partial_ordering Value::operator<=>(const Value& other) const {
+  if (other.is_int() && this->is_int()) {
+    return this->as_int() <=> other.as_int();
+  } else if (other.is_float() && this->is_int()) {
+    return this->as_float() <=> other.as_int();
+  } else if (other.is_int() && this->is_float()) {
+    return this->as_int() <=> other.as_float();
+  } else if (other.is_float() && this->is_float()) {
+    return this->as_float() <=> other.as_float();
+  } else if (other.is_string() && this->is_string()) {
+    return this->as_string() <=> other.as_string();
+  } else {
+    return std::partial_ordering::unordered;
+  }
+}
+
 bool Value::is_int() const {
   return std::holds_alternative<int64_t>(this->v);
 }
@@ -106,13 +122,13 @@ Value FunctionCallNode::evaluate(const EnvLookup& env, const FunctionCall& funct
   }
 }
 
-std::string FunctionCallNode::str() const {
+std::string FunctionCallNode::str(const EnvLookup& env) const {
   std::string ret = std::format("{}(", this->function_name);
   for (size_t z = 0; z < this->args.size(); z++) {
     if (z) {
       ret += ", ";
     }
-    ret += this->args[z]->str();
+    ret += this->args[z]->str(env);
   }
   ret += ")";
   return ret;
@@ -170,10 +186,10 @@ Value Expression::TernaryOperatorNode::evaluate(const EnvLookup& lookup, const F
   }
 }
 
-std::string Expression::TernaryOperatorNode::str() const {
+std::string Expression::TernaryOperatorNode::str(const EnvLookup& env) const {
   switch (this->type) {
     case Type::CONDITION_SELECTOR:
-      return std::format("({}) ? ({}) : ({})", this->left->str(), this->center->str(), this->right->str());
+      return std::format("({}) ? ({}) : ({})", this->left->str(env), this->center->str(env), this->right->str(env));
     default:
       throw std::logic_error("invalid binary operator type");
   }
@@ -274,44 +290,44 @@ Value Expression::BinaryOperatorNode::evaluate(const EnvLookup& env, const Funct
   }
 }
 
-std::string Expression::BinaryOperatorNode::str() const {
+std::string Expression::BinaryOperatorNode::str(const EnvLookup& env) const {
   switch (this->type) {
     case Type::LOGICAL_OR:
-      return std::format("({}) || ({})", this->left->str(), this->right->str());
+      return std::format("({}) || ({})", this->left->str(env), this->right->str(env));
     case Type::LOGICAL_AND:
-      return std::format("({}) && ({})", this->left->str(), this->right->str());
+      return std::format("({}) && ({})", this->left->str(env), this->right->str(env));
     case Type::BITWISE_OR:
-      return std::format("({}) | ({})", this->left->str(), this->right->str());
+      return std::format("({}) | ({})", this->left->str(env), this->right->str(env));
     case Type::BITWISE_AND:
-      return std::format("({}) & ({})", this->left->str(), this->right->str());
+      return std::format("({}) & ({})", this->left->str(env), this->right->str(env));
     case Type::BITWISE_XOR:
-      return std::format("({}) ^ ({})", this->left->str(), this->right->str());
+      return std::format("({}) ^ ({})", this->left->str(env), this->right->str(env));
     case Type::LEFT_SHIFT:
-      return std::format("({}) << ({})", this->left->str(), this->right->str());
+      return std::format("({}) << ({})", this->left->str(env), this->right->str(env));
     case Type::RIGHT_SHIFT:
-      return std::format("({}) >> ({})", this->left->str(), this->right->str());
+      return std::format("({}) >> ({})", this->left->str(env), this->right->str(env));
     case Type::LESS_THAN:
-      return std::format("({}) < ({})", this->left->str(), this->right->str());
+      return std::format("({}) < ({})", this->left->str(env), this->right->str(env));
     case Type::GREATER_THAN:
-      return std::format("({}) > ({})", this->left->str(), this->right->str());
+      return std::format("({}) > ({})", this->left->str(env), this->right->str(env));
     case Type::LESS_OR_EQUAL:
-      return std::format("({}) <= ({})", this->left->str(), this->right->str());
+      return std::format("({}) <= ({})", this->left->str(env), this->right->str(env));
     case Type::GREATER_OR_EQUAL:
-      return std::format("({}) >= ({})", this->left->str(), this->right->str());
+      return std::format("({}) >= ({})", this->left->str(env), this->right->str(env));
     case Type::EQUAL:
-      return std::format("({}) == ({})", this->left->str(), this->right->str());
+      return std::format("({}) == ({})", this->left->str(env), this->right->str(env));
     case Type::NOT_EQUAL:
-      return std::format("({}) != ({})", this->left->str(), this->right->str());
+      return std::format("({}) != ({})", this->left->str(env), this->right->str(env));
     case Type::ADD:
-      return std::format("({}) + ({})", this->left->str(), this->right->str());
+      return std::format("({}) + ({})", this->left->str(env), this->right->str(env));
     case Type::SUBTRACT:
-      return std::format("({}) - ({})", this->left->str(), this->right->str());
+      return std::format("({}) - ({})", this->left->str(env), this->right->str(env));
     case Type::MULTIPLY:
-      return std::format("({}) * ({})", this->left->str(), this->right->str());
+      return std::format("({}) * ({})", this->left->str(env), this->right->str(env));
     case Type::DIVIDE:
-      return std::format("({}) / ({})", this->left->str(), this->right->str());
+      return std::format("({}) / ({})", this->left->str(env), this->right->str(env));
     case Type::MODULUS:
-      return std::format("({}) % ({})", this->left->str(), this->right->str());
+      return std::format("({}) % ({})", this->left->str(env), this->right->str(env));
     default:
       throw std::logic_error("invalid binary operator type");
   }
@@ -356,16 +372,16 @@ Value Expression::UnaryOperatorNode::evaluate(const EnvLookup& env, const Functi
   }
 }
 
-std::string Expression::UnaryOperatorNode::str() const {
+std::string Expression::UnaryOperatorNode::str(const EnvLookup& env) const {
   switch (this->type) {
     case Type::LOGICAL_NOT:
-      return std::format("!({})", this->sub->str());
+      return std::format("!({})", this->sub->str(env));
     case Type::BITWISE_NOT:
-      return std::format("~({})", this->sub->str());
+      return std::format("~({})", this->sub->str(env));
     case Type::POSITIVE:
-      return std::format("+({})", this->sub->str());
+      return std::format("+({})", this->sub->str(env));
     case Type::NEGATIVE:
-      return std::format("-({})", this->sub->str());
+      return std::format("-({})", this->sub->str(env));
     default:
       throw std::logic_error("invalid unary operator type");
   }
@@ -386,7 +402,7 @@ Value Expression::ConstantNode::evaluate(const EnvLookup&, const FunctionCall&) 
   return this->value;
 }
 
-std::string Expression::ConstantNode::str() const {
+std::string Expression::ConstantNode::str(const EnvLookup&) const {
   return this->value.str();
 }
 
@@ -409,8 +425,8 @@ Value Expression::EnvLookupNode::evaluate(const EnvLookup& lookup, const Functio
   return lookup(this->name);
 }
 
-std::string Expression::EnvLookupNode::str() const {
-  return std::format("{}", this->name);
+std::string Expression::EnvLookupNode::str(const EnvLookup& env) const {
+  return env ? env(this->name).str() : std::format("{}", this->name);
 }
 
 std::unique_ptr<Node> Node::parse(std::string_view text) {

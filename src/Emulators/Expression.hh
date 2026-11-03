@@ -24,8 +24,10 @@ struct Value {
   inline Value(const std::string& v) : v(std::in_place_type<std::string>, v) {}
   inline Value(std::string_view v) : v(std::in_place_type<std::string>, v) {}
 
-  bool operator==(const Value& other) const = default;
-  bool operator!=(const Value& other) const = default;
+  inline bool operator==(const Value& other) const {
+    return (this->operator<=>(other) == std::partial_ordering::equivalent);
+  }
+  std::partial_ordering operator<=>(const Value& other) const;
 
   bool is_int() const;
   bool is_float() const;
@@ -55,7 +57,7 @@ public:
   }
   virtual bool is_const(const EnvIsConst& env_is_const) const = 0;
   virtual Value evaluate(const EnvLookup& env = nullptr, const FunctionCall& function_call = nullptr) const = 0;
-  virtual std::string str() const = 0;
+  virtual std::string str(const EnvLookup& env = nullptr) const = 0;
 
 protected:
   Node() = default;
@@ -68,7 +70,7 @@ public:
   virtual bool operator==(const Node& other) const;
   virtual bool is_const(const EnvIsConst& env_is_const) const;
   virtual Value evaluate(const EnvLookup& env = nullptr, const FunctionCall& function_call = nullptr) const;
-  virtual std::string str() const;
+  virtual std::string str(const EnvLookup& env = nullptr) const;
 
   static Value default_handler(const std::string& name, const std::vector<Value>& args);
 
@@ -87,7 +89,7 @@ public:
   virtual bool operator==(const Node& other) const;
   virtual bool is_const(const EnvIsConst& env_is_const) const;
   virtual Value evaluate(const EnvLookup& env = nullptr, const FunctionCall& function_call = nullptr) const;
-  virtual std::string str() const;
+  virtual std::string str(const EnvLookup& env = nullptr) const;
 
   Type type;
   std::unique_ptr<Node> left;
@@ -122,7 +124,7 @@ public:
   virtual bool operator==(const Node& other) const;
   virtual bool is_const(const EnvIsConst& env_is_const) const;
   virtual Value evaluate(const EnvLookup& env = nullptr, const FunctionCall& function_call = nullptr) const;
-  virtual std::string str() const;
+  virtual std::string str(const EnvLookup& env = nullptr) const;
 
   Type type;
   std::unique_ptr<Node> left;
@@ -142,7 +144,7 @@ public:
   virtual bool operator==(const Node& other) const;
   virtual bool is_const(const EnvIsConst& env_is_const) const;
   virtual Value evaluate(const EnvLookup& env = nullptr, const FunctionCall& function_call = nullptr) const;
-  virtual std::string str() const;
+  virtual std::string str(const EnvLookup& env = nullptr) const;
 
   Type type;
   std::unique_ptr<Node> sub;
@@ -155,7 +157,7 @@ public:
   virtual bool operator==(const Node& other) const;
   virtual bool is_const(const EnvIsConst& env_is_const) const;
   virtual Value evaluate(const EnvLookup& env = nullptr, const FunctionCall& function_call = nullptr) const;
-  virtual std::string str() const;
+  virtual std::string str(const EnvLookup& env = nullptr) const;
 
   Value value;
 };
@@ -168,7 +170,7 @@ public:
   virtual bool operator==(const Node& other) const;
   virtual bool is_const(const EnvIsConst& env_is_const) const;
   virtual Value evaluate(const EnvLookup& env = nullptr, const FunctionCall& function_call = nullptr) const;
-  virtual std::string str() const;
+  virtual std::string str(const EnvLookup& env = nullptr) const;
 
   std::string name;
 };

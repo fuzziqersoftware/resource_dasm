@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "EmulatorBase.hh"
+#include "Expression.hh"
 #include "InterruptManager.hh"
 #include "MemoryContext.hh"
 
@@ -321,20 +322,28 @@ private:
       [[nodiscard]] bool arg_types_match(std::initializer_list<ArgType> types) const;
       [[noreturn]] void throw_invalid_arguments() const;
     };
+
+    struct Assertion {
+      size_t line_num;
+      std::unique_ptr<const Expression::Node> expr;
+    };
+
     uint32_t start_address;
     std::deque<StreamItem> stream;
     std::unordered_map<std::string, uint32_t> label_offsets;
     std::unordered_map<std::string, uint32_t> static_label_addresses;
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
+    std::vector<Assertion> assertions;
 
     phosg::StringWriter code;
 
     typedef uint16_t (Assembler::*AssembleFunction)(const StreamItem& si) const;
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
 
+    Expression::Value expr_env_lookup(const std::string& name) const;
+    Expression::Value evaluate_expr(const Expression::Node& expr) const;
     int64_t resolve_immediate(const Argument& arg) const;
-    int64_t resolve_immediate(const Expression::Node& expr) const;
     int32_t compute_branch_delta(const Argument& target_arg, uint32_t opcode_base, uint32_t opcode_size) const;
 
     uint16_t asm_add_addc_addv_sub_subc_subv(const StreamItem& si) const;

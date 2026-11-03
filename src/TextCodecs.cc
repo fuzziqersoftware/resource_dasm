@@ -6,12 +6,11 @@ namespace ResourceDASM {
 
 // MacRoman to UTF-8
 static constexpr const char mac_roman_table[0x100][4] = {
-    // clang-format off
     // 00
     // Note: we intentionally incorrectly decode \r as \n here to convert CR line breaks to LF line breaks which modern
     // systems use
     "\x00", "\x01", "\x02", "\x03", "\x04", "\x05", "\x06", "\x07",
-    "\x08", "\t", "\n", "\x0B", "\x0C", "\n", "\x0E",  "\x0F",
+    "\x08", "\t", "\n", "\x0B", "\x0C", "\n", "\x0E", "\x0F",
     // 10
     "\x10", "\xE2\x8C\x98", "\xE2\x87\xA7", "\xE2\x8C\xA5", "\xE2\x8C\x83", "\x15", "\x16", "\x17",
     "\x18", "\x19", "\x1A", "\x1B", "\x1C", "\x1D", "\x1E", "\x1F",
@@ -52,9 +51,7 @@ static constexpr const char mac_roman_table[0x100][4] = {
     "\xC3\x8B", "\xC3\x88", "\xC3\x8D", "\xC3\x8E", "\xC3\x8F", "\xC3\x8C", "\xC3\x93", "\xC3\x94",
     // F0
     "\xEF\xA3\xBF", "\xC3\x92", "\xC3\x9A", "\xC3\x9B", "\xC3\x99", "\xC4\xB1", "\xCB\x86", "\xCB\x9C",
-    "\xC2\xAF", "\xCB\x98", "\xCB\x99", "\xCB\x9A", "\xC2\xB8", "\xCB\x9D", "\xCB\x9B", "\xCB\x87",
-    // clang-format on
-};
+    "\xC2\xAF", "\xCB\x98", "\xCB\x99", "\xCB\x9A", "\xC2\xB8", "\xCB\x9D", "\xCB\x9B", "\xCB\x87"};
 
 std::string decode_mac_roman(const char* data, size_t size, bool for_filename) {
   std::string ret;

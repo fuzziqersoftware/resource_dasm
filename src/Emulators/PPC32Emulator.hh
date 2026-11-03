@@ -629,12 +629,19 @@ private:
         return this->op_name.ends_with(".");
       }
     };
+
+    struct Assertion {
+      size_t line_num;
+      std::unique_ptr<const Expression::Node> expr;
+    };
+
     uint32_t start_address;
     std::deque<StreamItem> stream;
     std::unordered_map<std::string, uint32_t> label_offsets;
     std::unordered_map<std::string, uint32_t> label_addresses;
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
+    std::vector<Assertion> assertions;
     mutable Expression::EnvLookup expr_env_lookup_fn; // Lazily populated
     mutable Expression::FunctionCall expr_function_call_fn; // Lazily populated
 
@@ -645,6 +652,7 @@ private:
     void assemble(const std::string& text, std::function<std::string(const std::string&)> get_include);
 
     uint32_t compute_branch_target(const Argument& target_arg, uint32_t si_address) const;
+    Expression::Value evaluate_expr(const Expression::Node& expr) const;
     int64_t resolve_immediate(const Argument& arg) const;
 
     uint32_t asm_5reg(uint32_t base_opcode, uint8_t r1, uint8_t r2, uint8_t r3, uint8_t r4, uint8_t r5, bool rec);

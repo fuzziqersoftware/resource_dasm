@@ -747,7 +747,7 @@ PPC32Emulator::Assembler::Argument::Argument(const std::string& text, bool raw)
     this->type = Type::IMMEDIATE;
     return;
   } catch (const std::invalid_argument&) {
-    throw std::runtime_error("Unparseable argument");
+    throw std::runtime_error(std::format("Unparseable argument (text: {})", text));
   }
 }
 
@@ -1144,15 +1144,7 @@ uint32_t PPC32Emulator::Assembler::compute_branch_target(const Argument& target_
   }
 }
 
-int64_t PPC32Emulator::Assembler::resolve_immediate(const Argument& arg) const {
-  if (!arg.value_expr) {
-    if ((arg.type == Argument::Type::IMM_MEMORY_REFERENCE) || (arg.type == Argument::Type::REG_MEMORY_REFERENCE)) {
-      return 0;
-    } else {
-      throw std::logic_error("Cannot resolve missing immediate value");
-    }
-  }
-
+Expression::Value PPC32Emulator::Assembler::evaluate_expr(const Expression::Node& expr) const {
   if (!this->expr_env_lookup_fn) {
     this->expr_env_lookup_fn = [this](const std::string& name) -> int64_t {
       try {
@@ -1180,7 +1172,19 @@ int64_t PPC32Emulator::Assembler::resolve_immediate(const Argument& arg) const {
     };
   }
 
-  auto ret = arg.value_expr->evaluate(this->expr_env_lookup_fn, this->expr_function_call_fn);
+  return expr.evaluate(this->expr_env_lookup_fn, this->expr_function_call_fn);
+}
+
+int64_t PPC32Emulator::Assembler::resolve_immediate(const Argument& arg) const {
+  if (!arg.value_expr) {
+    if ((arg.type == Argument::Type::IMM_MEMORY_REFERENCE) || (arg.type == Argument::Type::REG_MEMORY_REFERENCE)) {
+      return 0;
+    } else {
+      throw std::logic_error("Cannot resolve missing immediate value");
+    }
+  }
+
+  auto ret = this->evaluate_expr(*arg.value_expr);
   if (!ret.is_int()) {
     throw std::runtime_error(std::format("Expression value ({}) is not an integer", ret.str()));
   }
@@ -6745,7 +6749,7 @@ void PPC32Emulator::Assembler::assemble(
         } else if (op_name == ".address") {
           args.emplace_back(args_str);
         } else {
-          std::vector<std::string> arg_strs = phosg::split(args_str, ',');
+          std::vector<std::string> arg_strs = phosg::split_context(args_str, ',');
           for (auto& arg_str : arg_strs) {
             phosg::strip_leading_whitespace(arg_str);
             phosg::strip_trailing_whitespace(arg_str);
@@ -6782,6 +6786,17 @@ void PPC32Emulator::Assembler::assemble(
         this->label_addresses.emplace(lookup_node->name, this->resolve_immediate(value_arg));
         continue;
       }
+      if (op_name == ".assert") {
+        if (args.size() != 1) {
+          throw std::runtime_error("incorrect argument count in .assert directive");
+        }
+        auto& arg = args[0];
+        if ((arg.type != Argument::Type::IMMEDIATE) || !arg.value_expr) {
+          throw std::runtime_error("invalid name in .assert directive");
+        }
+        this->assertions.emplace_back(Assertion{.line_num = line_num, .expr = std::move(arg.value_expr)});
+        continue;
+      }
 
       const StreamItem& si = this->stream.emplace_back(
           StreamItem{stream_offset, si_address, line_num, op_name, std::move(args)});
@@ -6791,12 +6806,12 @@ void PPC32Emulator::Assembler::assemble(
         if (!get_include) {
           throw std::runtime_error("includes are not available");
         }
-        std::string contents;
         try {
           const std::string& contents = this->includes_cache.at(inc_name);
           stream_offset += (contents.size() + 3) & (~3);
           si_address += (contents.size() + 3) & (~3);
         } catch (const std::out_of_range&) {
+          std::string contents;
           try {
             contents = get_include(inc_name);
           } catch (const std::exception& e) {
@@ -6831,6 +6846,28 @@ void PPC32Emulator::Assembler::assemble(
     } catch (const std::exception& e) {
       throw std::runtime_error(std::format("(line {}) {}", line_num, e.what()));
     }
+  }
+
+  // Evaluate assertions
+  std::vector<std::string> assert_failure_messages;
+  for (const auto& assertion : this->assertions) {
+    try {
+      auto ret = this->evaluate_expr(*assertion.expr);
+      if (!ret.is_int()) {
+        assert_failure_messages.emplace_back(std::format(
+            "(line {}) assertion expression {} evaluates to non-integer value {}",
+            assertion.line_num, assertion.expr->str(this->expr_env_lookup_fn), ret.str()));
+      }
+      if (!ret.as_int()) {
+        assert_failure_messages.emplace_back(std::format("(line {}) assertion expression {} evaluates to zero", assertion.line_num, assertion.expr->str(this->expr_env_lookup_fn)));
+      }
+    } catch (const std::exception& e) {
+      assert_failure_messages.emplace_back(std::format(
+          "(line {}) failed to evaluate assertion expression: {}", assertion.line_num, e.what()));
+    }
+  }
+  if (!assert_failure_messages.empty()) {
+    throw std::runtime_error("one or more assertions failed:\n" + phosg::join(assert_failure_messages, "\n"));
   }
 
   // Second pass: generate opcodes

@@ -864,12 +864,19 @@ protected:
       uint8_t require_size_mnemonic_suffix(phosg::StringWriter& w, const std::string& base_name) const;
       bool any_arg_has_code_delta() const;
     };
+
+    struct Assertion {
+      size_t line_num;
+      std::unique_ptr<const Expression::Node> expr;
+    };
+
     uint32_t start_address = 0;
     std::vector<StreamItem> stream;
     std::unordered_map<std::string, size_t> label_si_indexes;
     std::unordered_map<std::string, size_t> fixed_labels;
     std::unordered_map<std::string, std::string> includes_cache;
     std::unordered_map<std::string, std::string> metadata_keys;
+    std::vector<Assertion> assertions;
 
     typedef void (Assembler::*AssembleFunction)(phosg::StringWriter& w, StreamItem& si) const;
     static const std::unordered_map<std::string, AssembleFunction> assemble_functions;
@@ -881,6 +888,7 @@ protected:
     void encode_rm(phosg::StringWriter& w, const Argument& mem_ref, const Argument& reg_ref) const;
     void encode_rm(phosg::StringWriter& w, const Argument& mem_ref, uint8_t op_type) const;
     uint32_t compute_branch_target_from_arg0(const StreamItem& si) const;
+    int64_t expr_env_lookup(const std::string& name, bool is_label_def = false) const;
     int64_t resolve_immediate(const Argument& arg, bool is_label_def = false) const;
 
     void asm_aaa_aas_aad_aam(phosg::StringWriter& w, StreamItem& si) const;
