@@ -105,7 +105,7 @@ add_library(resource_file
 target_include_directories(resource_file PUBLIC ${CMAKE_INSTALL_FULL_INCLUDEDIR})
 target_link_libraries(resource_file phosg::phosg z)
 
-foreach(ExecutableName IN ITEMS gcmasm gcmdump gvmdump rcfdump vrfsdump)
+foreach(ExecutableName IN ITEMS gcmasm gcmdump gvmdump rcfdump vrfsdump rbproject_dasm rbproject_build)
   add_executable(${ExecutableName} src/${ExecutableName}.cc)
   target_link_libraries(${ExecutableName} phosg::phosg)
 endforeach()
