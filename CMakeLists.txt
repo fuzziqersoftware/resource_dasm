@@ -42,6 +42,7 @@ add_library(resource_file
   src/DataCodecs/Presage-LZSS.cc
   src/DataCodecs/SoundMusicSys-LZSS.cc
   src/Emulators/Expression.cc
+  src/Emulators/ExpressionFunctions.cc
   src/Emulators/InterruptManager.cc
   src/Emulators/M68KEmulator.cc
   src/Emulators/MCS6502Emulator.cc

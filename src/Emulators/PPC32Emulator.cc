@@ -13,6 +13,7 @@
 #include <set>
 #include <string>
 
+#include "ExpressionFunctions.hh"
 #include "PPC32Emulator.hh"
 
 namespace ResourceDASM {
@@ -1167,7 +1168,7 @@ Expression::Value PPC32Emulator::Assembler::evaluate_expr(const Expression::Node
         int64_t addr = args[0].as_int();
         return (addr & 0xFFFF) - ((addr & 0x8000) ? 0x10000 : 0);
       } else {
-        return Expression::FunctionCallNode::default_handler(name, args);
+        return Expression::FunctionDefinition::dispatch_call(name, args);
       }
     };
   }

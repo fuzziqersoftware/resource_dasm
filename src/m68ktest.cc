@@ -191,6 +191,23 @@ int main(int argc, char** argv) {
     phosg::fwrite_fmt(stderr, "Result: {} ({})\n", expr->evaluate().str(), expr->evaluate().str(true));
     return 0;
 
+  } else if (args.get<bool>("test-solve")) {
+    auto expr = ResourceDASM::Expression::Node::parse(args.get<std::string>(0));
+    std::string target = args.get<std::string>(1);
+    phosg::fwrite_fmt(stderr, "Expression: {} = __result__\n", expr->str());
+    auto solution_expr = expr->solve(target, "__result__");
+    phosg::fwrite_fmt(stderr, "Solution:   {} = {}\n", target, solution_expr->str());
+    auto simplified_solution_expr = solution_expr->simplify();
+    phosg::fwrite_fmt(stderr, "Simplified: {} = {}\n", target, simplified_solution_expr->str());
+    return 0;
+
+  } else if (args.get<bool>("test-simplify")) {
+    auto expr = ResourceDASM::Expression::Node::parse(args.get<std::string>(0));
+    phosg::fwrite_fmt(stderr, "Expression: {}\n", expr->str());
+    auto simplified_expr = expr->simplify();
+    phosg::fwrite_fmt(stderr, "Simplified: {}\n", simplified_expr->str());
+    return 0;
+
   } else if (args.get<bool>("test-assemble-ppc32")) {
     return !ResourceDASM::PPC32Emulator::test_assembler(
         args.get<size_t>("threads", 0),
