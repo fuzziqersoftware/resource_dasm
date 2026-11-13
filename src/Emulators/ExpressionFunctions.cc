@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -92,7 +93,7 @@ FunctionDefinition f_floor("floor", 1, 1, [](const std::vector<Value>& args) -> 
   if (args[0].is_float()) {
     constexpr double int_min = static_cast<double>(std::numeric_limits<int64_t>::min());
     constexpr double int_max = static_cast<double>(std::numeric_limits<int64_t>::max());
-    if (!std::isfinite(args[0].as_float()) || (args[0].as_float() < int_min) || (args[0].as_float() >= int_max)) {
+    if (!isfinite(args[0].as_float()) || (args[0].as_float() < int_min) || (args[0].as_float() >= int_max)) {
       throw std::runtime_error("Floating-point value out of range for 64-bit integer");
     }
     return static_cast<int64_t>(floor(args[0].as_float()));
@@ -107,7 +108,7 @@ FunctionDefinition f_ceil("ceil", 1, 1, [](const std::vector<Value>& args) -> Va
   if (args[0].is_float()) {
     constexpr double int_min = static_cast<double>(std::numeric_limits<int64_t>::min());
     constexpr double int_max = static_cast<double>(std::numeric_limits<int64_t>::max());
-    if (!std::isfinite(args[0].as_float()) || (args[0].as_float() < int_min) || (args[0].as_float() >= int_max)) {
+    if (!isfinite(args[0].as_float()) || (args[0].as_float() < int_min) || (args[0].as_float() >= int_max)) {
       throw std::runtime_error("Floating-point value out of range for 64-bit integer");
     }
     return static_cast<int64_t>(ceil(args[0].as_float()));
@@ -122,7 +123,7 @@ FunctionDefinition f_int("int", 1, 1, [](const std::vector<Value>& args) -> Valu
   if (args[0].is_float()) {
     constexpr double int_min = static_cast<double>(std::numeric_limits<int64_t>::min());
     constexpr double int_max = static_cast<double>(std::numeric_limits<int64_t>::max());
-    if (!std::isfinite(args[0].as_float()) || (args[0].as_float() < int_min) || (args[0].as_float() >= int_max)) {
+    if (!isfinite(args[0].as_float()) || (args[0].as_float() < int_min) || (args[0].as_float() >= int_max)) {
       throw std::runtime_error("Floating-point value out of range for 64-bit integer");
     }
     return static_cast<int64_t>(args[0].as_float());
