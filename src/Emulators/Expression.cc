@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -73,7 +74,7 @@ std::string Value::str(bool hex) const {
     return hex ? phosg::hex(this->as_int()) : std::format("{}", this->as_int());
   } else if (this->is_float()) {
     std::string ret = std::format("{}", this->as_float());
-    if (std::isfinite(this->as_float()) && !ret.contains('.') && !ret.contains('e')) {
+    if (isfinite(this->as_float()) && !ret.contains('.') && !ret.contains('e')) {
       ret += ".0";
     }
     return ret;
