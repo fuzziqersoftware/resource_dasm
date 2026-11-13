@@ -130,7 +130,7 @@ FunctionDefinition f_int("int", 1, 1, [](const std::vector<Value>& args) -> Valu
   } else if (args[0].is_int()) {
     return args[0];
   } else if (args[0].is_string()) {
-    return std::stoll(args[0].as_string());
+    return static_cast<int64_t>(std::stoll(args[0].as_string()));
   } else {
     throw std::logic_error("Unknown value type");
   }
