@@ -1063,7 +1063,7 @@ void SH4Emulator::execute_one_C(uint16_t op) {
       this->regs.r[0].u = (this->regs.pc & (~3)) + 4 + 4 * op_get_uimm8(op);
       break;
     case 0x8: // 11001000iiiiiiii test   r0, imm
-      this->regs.replace_t(this->regs.r[0].u == op_get_uimm8(op));
+      this->regs.replace_t((this->regs.r[0].u & op_get_uimm8(op)) == 0);
       break;
     case 0x9: // 11001001iiiiiiii and    r0, imm
       this->regs.r[0].u &= op_get_uimm8(op);
@@ -1075,7 +1075,7 @@ void SH4Emulator::execute_one_C(uint16_t op) {
       this->regs.r[0].u |= op_get_uimm8(op);
       break;
     case 0xC: // 11001100iiiiiiii test.b [r0 + gbr], imm
-      this->regs.replace_t(this->mem->read_u8(this->regs.gbr + this->regs.r[0].u) == op_get_uimm8(op));
+      this->regs.replace_t((this->mem->read_u8(this->regs.gbr + this->regs.r[0].u) & op_get_uimm8(op)) == 0);
       break;
     case 0xD: { // 11001101iiiiiiii and.b  [r0 + gbr], imm
       uint32_t addr = this->regs.gbr + this->regs.r[0].u;
