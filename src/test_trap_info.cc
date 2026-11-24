@@ -28,7 +28,8 @@ int main(int argc, char** argv) {
     }
   } else {
     ResourceDASM::assert_trap_infos_ordered();
-    fprintf(stderr, "-- trap info ok\n");
+    phosg::fwrite_fmt(stderr, "-- trap info ok\n");
+    phosg::fwrite_fmt(stderr, "-- {} traps in info list\n", ResourceDASM::all_68k_traps().size());
   }
 
   return 0;

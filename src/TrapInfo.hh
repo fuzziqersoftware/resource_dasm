@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace ResourceDASM {
@@ -17,19 +18,19 @@ struct TrapInfo {
     const char* type_name = nullptr;
     const char* name = nullptr;
 
-    static inline Argument a(uint8_t which, const char* type_name, const char* name = nullptr) {
+    static constexpr Argument a(uint8_t which, const char* type_name, const char* name = nullptr) {
       return Argument{which, 0xFF, 0xFF, 4, type_name, name};
     }
-    static inline Argument d(uint8_t which, const char* type_name, const char* name = nullptr) {
+    static constexpr Argument d(uint8_t which, const char* type_name, const char* name = nullptr) {
       return Argument{0xFF, which, 0xFF, 4, type_name, name};
     }
-    static inline Argument stack16(uint8_t offset, const char* type_name, const char* name = nullptr) {
+    static constexpr Argument stack16(uint8_t offset, const char* type_name, const char* name = nullptr) {
       return Argument{0xFF, 0xFF, offset, 2, type_name, name};
     }
-    static inline Argument stack32(uint8_t offset, const char* type_name, const char* name = nullptr) {
+    static constexpr Argument stack32(uint8_t offset, const char* type_name, const char* name = nullptr) {
       return Argument{0xFF, 0xFF, offset, 4, type_name, name};
     }
-    static inline Argument stack64(uint8_t offset, const char* type_name, const char* name = nullptr) {
+    static constexpr Argument stack64(uint8_t offset, const char* type_name, const char* name = nullptr) {
       return Argument{0xFF, 0xFF, offset, 8, type_name, name};
     }
 
@@ -43,19 +44,19 @@ struct TrapInfo {
     uint16_t stack_offset = 0; // Only used if d_reg and a_reg are 0xFF
     uint32_t value = 0;
 
-    static inline Condition d16(uint8_t which, uint32_t value) {
+    static constexpr Condition d16(uint8_t which, uint32_t value) {
       return Condition{16, which, 0xFF, 0xFFFF, value};
     }
-    static inline Condition d32(uint8_t which, uint32_t value) {
+    static constexpr Condition d32(uint8_t which, uint32_t value) {
       return Condition{32, which, 0xFF, 0xFFFF, value};
     }
-    static inline Condition a32(uint8_t which, uint32_t value) {
+    static constexpr Condition a32(uint8_t which, uint32_t value) {
       return Condition{32, 0xFF, which, 0xFFFF, value};
     }
-    static inline Condition stack16(uint8_t offset, uint32_t value) {
+    static constexpr Condition stack16(uint8_t offset, uint32_t value) {
       return Condition{16, 0xFF, 0xFF, offset, value};
     }
-    static inline Condition stack32(uint8_t offset, uint32_t value) {
+    static constexpr Condition stack32(uint8_t offset, uint32_t value) {
       return Condition{32, 0xFF, 0xFF, offset, value};
     }
 
@@ -67,30 +68,13 @@ struct TrapInfo {
   };
 
   uint16_t trap_num;
-  std::vector<Condition> conditions;
+  std::initializer_list<Condition> conditions;
   uint8_t flags;
 
   const char* name;
-  std::vector<Argument> args;
-  std::vector<Argument> return_values;
-  bool signature_known;
-
-  inline TrapInfo(
-      uint16_t trap_num,
-      std::initializer_list<Condition> conditions,
-      uint8_t flags,
-      const char* name,
-      std::initializer_list<Argument> args,
-      std::initializer_list<Argument> return_values)
-      : trap_num(trap_num),
-        conditions(conditions),
-        flags(flags),
-        name(name),
-        args(args),
-        return_values(return_values),
-        signature_known(true) {}
-  inline TrapInfo(uint16_t trap_num, std::initializer_list<Condition> conditions, uint8_t flags, const char* name)
-      : trap_num(trap_num), conditions(conditions), flags(flags), name(name), signature_known(false) {}
+  std::initializer_list<Argument> args;
+  std::initializer_list<Argument> return_values;
+  bool signature_known = true;
 
   bool operator<(const TrapInfo& other) const;
 
@@ -100,6 +84,6 @@ struct TrapInfo {
 void assert_trap_infos_ordered();
 const TrapInfo* info_for_68k_trap(
     uint16_t trap_num, uint8_t flags = 0, std::function<bool(const TrapInfo::Condition&)> check_condition = nullptr);
-const std::vector<TrapInfo>& all_68k_traps();
+std::span<const TrapInfo> all_68k_traps();
 
 } // namespace ResourceDASM
