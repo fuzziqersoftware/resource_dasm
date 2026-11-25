@@ -16,6 +16,8 @@ The tools in this project are:
 * Tools for specific formats
   * **render_text**: Renders text using bitmap fonts from FONT or NFNT resources.
   * **hypercard_dasm**: Disassembles HyperCard stacks and draws card images.
+  * **rbproject_dasm**: Splits a REALbasic 3.5.2 project into a folder tree of .rb text files, one per class/module/window, folders kept.
+  * **rbproject_build**: Rebuilds a REALbasic 3.5.2 project from a folder tree produced by rbproject_dasm.
   * **decode_data**: Decodes some custom compression formats (see below).
   * **binhex_decode**: Decodes BinHex (.hqx) files.
   * **macbinary_decode**: Decodes MacBinary files.
@@ -627,6 +629,16 @@ dupe_finder finds duplicate resources of the same type in one or several resourc
 
 Run dupe_finder without any options for usage information.
 
+### REALbasic projects
+
+rbproject_dasm splits a REALbasic 3.5.2 (RBBF v1) `.rbp`/`.rbo` into a folder tree of Mac Roman `.rb` text files; rbproject_build rebuilds the binary. Layout:
+
+* `project.rbmanifest` — version/fields, header pairs, optional trailer, and `#order` lines listing every block path in file order
+* `_project.rb` — the Proj block; `_folder.rb` files for pFol folders (dirs nest like the project)
+* `<Name>.rb` — other blocks (class/module/window/etc.), named by their first Name (`/` and `:` → `_`; clashes get `.2`, `.3`, …)
+
+Each `.rb` starts with a `#block` header (`Blok`/`Dead`, tag, id, flags, stamps; optional `strpad=` / `size=`). Records are one per line with 2-space indent per Grup level (`KEY Int`, `KEY Strn "…"`, `KEY Rect`, `KEY Grup GID { … }`). Runs of `srcl` lines become `#source` … `#endsource` so method bodies are editable as plain text. Non-normal blocks use `#raw HEX`. Build recomputes group/block sizes and Padn, so edited source round-trips.
+
 ### Decompressors/dearchivers for specific formats
 
 * For Alessandro Levi Montalcini's Icon Archiver: `icon_dearchiver archive_file [output_dir]` unpacks the icons to .icns files.
@@ -635,6 +647,7 @@ Run dupe_finder without any options for usage information.
 * For GameCube images (GCM/TGC): `gcmdump [--gcm|--tgc] filename` (saves output files to the current directory)
 * For GVM or GVR textures: `gvmdump filename [color_table.gvp]`
 * For HyperCard stacks: `hypercard_dasm stack_file [output_dir]`, or just `hypercard_dasm` to see all options
+* For REALbasic projects: `rbproject_dasm project.rbp out_dir` and `rbproject_build in_dir out.rbp`
 * For Nintendo RARC or SZS archives: `rarcdump [--szs] filename [output_dir]`
 * For Radcore Cement (RCF) archives: `rcfdump filename`
 * For VRFS archives: `vrfsdump filename [output_dir]`
